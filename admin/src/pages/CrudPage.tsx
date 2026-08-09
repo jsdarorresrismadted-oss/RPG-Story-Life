@@ -238,14 +238,13 @@ export default function CrudPage({ config }: CrudPageProps) {
     if (deleteTargets.length === 0) return;
     setBusy(true);
     try {
-      await Promise.all(
-        deleteTargets.map((id) =>
-          (adminApi as any)[config.key].delete(id, { params: { tipo: deleteTipo } })
-        )
-      );
-      toast.success(
-        deleteTargets.length > 1 ? `${deleteTargets.length} deletado(s)` : `${config.title}: deleted`
-      );
+      if (deleteTargets.length > 1) {
+        const { data } = await adminApi.bulkDelete(config.key, deleteTargets, deleteTipo);
+        toast.success(`${data.deleted} deletado(s), ${data.disabled} desativado(s)`);
+      } else {
+        await (adminApi as any)[config.key].delete(deleteTargets[0], { params: { tipo: deleteTipo } });
+        toast.success(`${config.title}: deleted`);
+      }
       setDeleteOpen(false);
       clearSelection();
       load();
@@ -481,6 +480,19 @@ export default function CrudPage({ config }: CrudPageProps) {
         <h1 className="text-2xl font-bold">{config.title}</h1>
         <div className="flex items-center gap-2">
           {config.headerActions && config.headerActions(load)}
+          {filtered.length > 0 && (
+            <button
+              onClick={() => {
+                setSelected(new Set(filtered.map((it) => it.id)));
+                openDeleteModal(filtered.map((it) => it.id));
+              }}
+              disabled={busy}
+              title="Seleciona todos e abre o tipo de exclusão"
+              className="px-3 py-2 text-xs font-medium rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/30 transition-colors disabled:opacity-50"
+            >
+              Deletar todos ({filtered.length})
+            </button>
+          )}
           <button
             onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors"

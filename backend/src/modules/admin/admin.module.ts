@@ -71,6 +71,21 @@ function logDelete(req: Request, entity: string, targetId: string, action = "del
     .catch(() => {});
 }
 
+// Modelos suportados pelo delete em massa do CrudPage (key da config → prisma + entity)
+const BULK_MODELS: Record<string, { model: any; entity: string }> = {
+  classes: { model: prisma.gameClass, entity: "class" },
+  items: { model: prisma.item, entity: "item" },
+  monsters: { model: prisma.monster, entity: "monster" },
+  maps: { model: prisma.map, entity: "map" },
+  quests: { model: prisma.quest, entity: "quest" },
+  statModels: { model: prisma.statModel, entity: "statmodel" },
+  npcs: { model: prisma.npc, entity: "npc" },
+  shopProducts: { model: prisma.shopProduct, entity: "shop-product" },
+  patchNotes: { model: prisma.patchNote, entity: "patch-note" },
+  craftRecipes: { model: prisma.craftRecipe, entity: "craft-recipe" },
+  boosters: { model: prisma.booster, entity: "booster" },
+};
+
 const DEFAULT_GUILD_SETTINGS = {
   requiredLevel: 2,
   requiredGold: 200,
@@ -99,6 +114,49 @@ function sanitizeEnchantment(body: any): any {
 }
 
 export function createAdminModule(app: Express): void {
+  // Delete em massa (uma requisição só, evita rate-limit com centenas de requests)
+  app.post("/api/admin/bulk-delete", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { key, ids, tipo } = req.body;
+      const entry = BULK_MODELS[key];
+      if (!entry) throw new AppError(400, "Entidade inválida para delete em massa");
+      if (!Array.isArray(ids) || ids.length === 0) throw new AppError(400, "Nenhum registro selecionado");
+      const model = entry.model;
+      const adminId = (req as any).user?.userId ?? "system";
+      const t = Number(tipo) || 0;
+      let deleted = 0;
+      let disabled = 0;
+      let failed = 0;
+      const CHUNK = 50;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        await Promise.all(
+          chunk.map(async (id: string) => {
+            let action: string;
+            try {
+              await model.delete({ where: { id } });
+              action = "delete";
+              deleted++;
+            } catch {
+              try {
+                await model.update({ where: { id }, data: { isActive: false } });
+                action = "soft_delete";
+                disabled++;
+              } catch {
+                failed++;
+                return;
+              }
+            }
+            await prisma.adminLog
+              .create({ data: { adminId, action, entity: entry.entity, targetId: id, tipo: t } })
+              .catch(() => {});
+          })
+        );
+      }
+      res.json({ deleted, disabled, failed, total: ids.length });
+    } catch (err) { next(err); }
+  });
+
   // Admin auth
   app.post("/api/admin/auth/login", async (req: Request, res: Response, next: NextFunction) => {
     try {

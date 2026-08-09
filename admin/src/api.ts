@@ -184,4 +184,6 @@ export const adminApi = {
     get: () => api.get("/admin/gacha-config"),
     update: (data: any) => api.put("/admin/gacha-config", data),
   },
+  bulkDelete: (key: string, ids: string[], tipo: number) =>
+    api.post("/admin/bulk-delete", { key, ids, tipo }),
 };
