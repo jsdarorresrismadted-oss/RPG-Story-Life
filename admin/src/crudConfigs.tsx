@@ -273,6 +273,26 @@ export const crudConfigs: CrudConfig[] = [
       { name: "isSellable", label: "Vendável", type: "boolean", defaultValue: true },
       { name: "isActive", label: "Active", type: "boolean", defaultValue: true },
     ],
+    bulkMoveFields: [
+      {
+        name: "type",
+        label: "Tipo (categoria)",
+        type: "select",
+        options: ["weapon", "helm", "armor", "cape", "ring", "necklace", "consumable", "material"],
+      },
+      {
+        name: "subtype",
+        label: "Sub-tipo",
+        type: "select",
+        options: ["sword", "dagger", "staff", "axe", "tome", "bow", "cap", "helmet", "crown", "hood", "light", "heavy", "robe", "potion", "scroll", "food", "material", "ore", "dust", "bone", "essence"],
+      },
+      {
+        name: "rarity",
+        label: "Raridade",
+        type: "select",
+        options: ["common", "uncommon", "rare", "epic", "legendary", "mythic"],
+      },
+    ],
   },
   {
     key: "monsters",
