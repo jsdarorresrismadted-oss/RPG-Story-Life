@@ -21,6 +21,23 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   });
 }
 
+// Tenta apagar de verdade; se o registro estiver referenciado por outros dados
+// (inventário, lojas, drops, craft, etc.), aplica soft-delete (isActive=false)
+// para não quebrar o banco nem destruir dados de jogadores.
+async function deleteWithSoftFallback(model: any, id: string): Promise<string> {
+  try {
+    await model.delete({ where: { id } });
+    return "deleted";
+  } catch {
+    try {
+      await model.update({ where: { id }, data: { isActive: false } });
+      return "disabled";
+    } catch {
+      throw new AppError(400, "Registro referenciado por outros dados e não pôde ser excluído");
+    }
+  }
+}
+
 const DEFAULT_GUILD_SETTINGS = {
   requiredLevel: 2,
   requiredGold: 200,
@@ -516,7 +533,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/classes/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.gameClass.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.gameClass, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // IA: gerar classe automaticamente (rascunho) — Gemini com fallback Groq
@@ -584,7 +601,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/statmodels/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.statModel.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.statModel, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // IA: gerar item (ícone pixel art + dados) — Groq planeja, Pollinations renderiza
@@ -627,7 +644,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/items/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.item.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.item, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Enchantments CRUD
@@ -656,7 +673,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/enchantments/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.enchantment.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.enchantment, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Monsters CRUD
@@ -673,7 +690,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/monsters/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.monster.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.monster, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Maps CRUD
@@ -695,7 +712,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/maps/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.map.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.map, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Quests CRUD
@@ -712,7 +729,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/quests/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.quest.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.quest, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Skills CRUD
@@ -738,7 +755,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/skills/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.skill.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.skill, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Class passives CRUD
@@ -755,7 +772,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/passives/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.passive.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.passive, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Effects CRUD (buffs/debuffs/hots/dots independentes)
@@ -783,7 +800,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/effects/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.effect.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.effect, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // NPCs CRUD
@@ -805,7 +822,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/npcs/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.npc.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.npc, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // ShopItems CRUD (itens que um NPC vende)
@@ -826,7 +843,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/shopitems/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.shopItem.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.shopItem, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // MapNpcs CRUD (NPC posicionado em um mapa)
@@ -848,7 +865,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/mapnpcs/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.mapNpc.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.mapNpc, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // MapMonsters CRUD (monstro com spawn em um mapa)
@@ -870,7 +887,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/mapmonsters/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.mapMonster.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.mapMonster, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // PatchNotes CRUD (avisos de atualização exibidos no Dashboard)
@@ -893,7 +910,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/craft-recipes/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.craftRecipe.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.craftRecipe, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Boosters CRUD (catálogo do Gacha)
@@ -912,7 +929,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/boosters/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.booster.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.booster, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Config do Gacha (uma linha): tickets grátis, custo do ticket extra e chances por raridade
@@ -976,7 +993,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/patch-notes/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.patchNote.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.patchNote, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // ShopProducts CRUD (loja do game: diamond packs, VIP, pass, encantamentos, itens de moeda real)
@@ -1022,7 +1039,7 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/shop-products/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { await prisma.shopProduct.delete({ where: { id: req.params.id } }); res.json({ message: "Deleted" }); } catch (err) { next(err); }
+    try { const r = await deleteWithSoftFallback(prisma.shopProduct, req.params.id); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
   // Backup de conteúdo: exporta todas as tabelas de conteúdo em JSON (BigInt vira string)

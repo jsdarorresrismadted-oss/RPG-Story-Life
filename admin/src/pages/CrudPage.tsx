@@ -56,6 +56,7 @@ export default function CrudPage({ config }: CrudPageProps) {
   const [remoteOptions, setRemoteOptions] = useState<Record<string, any[]>>({});
 
   const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveField, setMoveField] = useState("");
@@ -91,10 +92,16 @@ export default function CrudPage({ config }: CrudPageProps) {
     load();
   }, [config.key]);
 
+  const hasActiveField = config.fields.some((f) => f.name === "isActive");
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return items;
+    let base = items;
+    if (hasActiveField && !showInactive) {
+      base = items.filter((it) => it.isActive !== false);
+    }
+    if (!search.trim()) return base;
     const q = search.toLowerCase();
-    return items.filter((it) => {
+    return base.filter((it) => {
       if (it.id?.toLowerCase().includes(q)) return true;
       for (const col of config.columns) {
         const v = it[col.key];
@@ -102,7 +109,7 @@ export default function CrudPage({ config }: CrudPageProps) {
       }
       return false;
     });
-  }, [items, search, config.columns]);
+  }, [items, search, config.columns, hasActiveField, showInactive]);
 
   const selectedItems = useMemo(
     () => items.filter((it) => selected.has(it.id)),
@@ -487,6 +494,17 @@ export default function CrudPage({ config }: CrudPageProps) {
           />
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400">
+          {hasActiveField && (
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                className="w-4 h-4 accent-accent-500"
+              />
+              Ver inativos
+            </label>
+          )}
           <span>{items.length} registro(s)</span>
           {search.trim() && <span>• {filtered.length} resultado(s)</span>}
         </div>
