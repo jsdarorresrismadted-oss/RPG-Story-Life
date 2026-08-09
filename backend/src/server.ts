@@ -17,6 +17,7 @@ import { createAuthModule } from "./modules/auth/auth.module";
 import { createGateway } from "./gateway/gateway";
 import { CombatService } from "./modules/combat/combat.service";
 import { CooldownManager } from "./modules/combat/cooldown.manager";
+import { PvpService } from "./modules/pvp/pvp.service";
 
 process.on("uncaughtException", (err) => {
   console.error("[FATAL] uncaughtException:", err);
@@ -74,16 +75,18 @@ app.get("/api/health", (_req, res) => {
 
 const combatService = new CombatService(prisma, redis);
 const cooldownManager = new CooldownManager(redis);
+const pvpService = new PvpService(prisma, combatService);
 
 app.set("combatService", combatService);
 app.set("cooldownManager", cooldownManager);
+app.set("pvpService", pvpService);
 app.set("io", io);
 app.set("prisma", prisma);
 app.set("redis", redis);
 
 import { registerModules } from "./app";
 registerModules(app);
-createGateway(io, combatService, cooldownManager);
+createGateway(io, combatService, cooldownManager, pvpService);
 
 // Ícones gerados por IA ficam na pasta Icons do repositório — servida antes do
 // bundle estático para que itens criados em runtime apareçam sem rebuild.

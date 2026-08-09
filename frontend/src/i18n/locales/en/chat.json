@@ -1,0 +1,8 @@
+{
+  "placeholder": "Type a message...",
+  "global": "Global",
+  "local": "Local",
+  "guild": "Guild",
+  "party": "Party",
+  "trade": "Trade"
+}

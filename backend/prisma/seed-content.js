@@ -2,8 +2,25 @@
 // Usage (with SSH tunnel on 54321):
 //   $env:DATABASE_URL = "postgresql://postgres:CpyIKdUgBfuzBkFXkdxTOxnjwwPGORle@127.0.0.1:54321/railway"
 //   node prisma/seed-content.js
+const fs = require("fs");
+const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+
+// Map de overrides de ícone (item NAME -> caminho), gerado pelo script
+// scripts/regenerate-item-icons.ts. Mantém os ícones regenerados por IA mesmo
+// quando o seed roda de novo no deploy (senão o seed reverteria para os antigos).
+let generatedIcons = {};
+try {
+  const raw = fs.readFileSync(path.join(__dirname, "generated-icons.json"), "utf8");
+  generatedIcons = JSON.parse(raw);
+} catch {
+  generatedIcons = {};
+}
+
+function iconForItem(item) {
+  return generatedIcons[item.name] || item.icon || null;
+}
 
 const starterClasses = [
   {
@@ -164,21 +181,82 @@ const items = [
   // ===== Consumables =====
   { name: "Poção de Vida", description: "Restaura 50 de vida.", type: "consumable", subtype: "potion", rarity: "common", level: 1, isStackable: true, maxStack: 99, buyPrice: 20, sellPrice: 4, effects: '{"heal": 50}', icon: "/icons/64x64/Potion/Vida.png" },
   { name: "Poção de Mana", description: "Restaura 40 de mana.", type: "consumable", subtype: "potion", rarity: "common", level: 1, isStackable: true, maxStack: 99, buyPrice: 25, sellPrice: 5, effects: '{"manaRestore": 40}', icon: "/icons/64x64/Potion/Mana.png" },
+  // ===== Materiais de craft (consumíveis) =====
+  { name: "Fragmento do Abismo", description: "Um pedaço de pedra sombria que pulsa com energia do submundo. Usado em receitas de craft.", type: "consumable", subtype: "material", rarity: "epic", level: 5, isStackable: true, maxStack: 99, buyPrice: 100, sellPrice: 25, icon: null },
+  { name: "Cristal Sombrio", description: "Cristal negro que absorve luz. Matéria-prima rara de forja abissal.", type: "consumable", subtype: "material", rarity: "rare", level: 5, isStackable: true, maxStack: 99, buyPrice: 80, sellPrice: 20, icon: null },
+  { name: "Núcleo Demoníaco", description: "O coração pulsante de um demônio derrotado. Muito valioso.", type: "consumable", subtype: "material", rarity: "legendary", level: 5, isStackable: true, maxStack: 99, buyPrice: 200, sellPrice: 50, icon: null },
+  // ===== Itens craftáveis =====
+  { name: "Espada do Abismo", description: "Forjada no submundo, essa espada drena a vitalidade dos inimigos. Só pode ser criada pelos mais fortes.", type: "weapon", subtype: "sword", rarity: "epic", level: 10, rank: 4, buyPrice: 0, sellPrice: 1000, strength: 35, dexterity: 15, attackSpeedMs: 2000, dps: 120, icon: null },
+  { name: "Manto do Abismo", description: "Um manto costurado com tecido sombrio. Protege quem atravessou a escuridão.", type: "armor", rarity: "epic", level: 10, rank: 4, buyPrice: 0, sellPrice: 800, endurance: 30, wisdom: 12, icon: null },
 ];
 
 // ===== Encantamentos (independentes dos itens, comprados na loja) =====
 // Só equipamentos de combate aceitam enchant: Arma, Armadura, Elmo e Capa.
-// Raridades: comum, raro, épico, lendário, mítico.
-const enchantments = [
-  { name: "Titã", slug: "titan", description: "Fortalece o corpo do portador, aumentando a força.", category: "strength", rarity: "common", minRank: 1, price: 5000, level: 1, compatibleSlots: '["weapon","armor"]', strength: 15, intellect: 6, endurance: 9, dexterity: 8, wisdom: 5, luck: 4 },
-  { name: "Mago", slug: "mage", description: "Amplifica o poder arcano do portador.", category: "intellect", rarity: "common", minRank: 1, price: 5000, level: 1, compatibleSlots: '["weapon","cape"]', strength: 5, intellect: 15, endurance: 6, dexterity: 7, wisdom: 9, luck: 4 },
-  { name: "Guardião", slug: "guardian", description: "Fortalece o corpo para resistir a golpes.", category: "endurance", rarity: "common", minRank: 1, price: 4500, level: 1, compatibleSlots: '["helm","armor"]', strength: 7, intellect: 4, endurance: 15, dexterity: 6, wisdom: 5, luck: 3 },
-  { name: "Caçador", slug: "hunter", description: "Aguça os reflexos do portador.", category: "dexterity", rarity: "common", minRank: 1, price: 4000, level: 1, compatibleSlots: '["weapon","helm"]', strength: 8, intellect: 4, endurance: 6, dexterity: 15, wisdom: 5, luck: 5 },
-  { name: "Sábio", slug: "sage", description: "Expande a sabedoria e o equilíbrio do portador.", category: "wisdom", rarity: "common", minRank: 1, price: 4500, level: 1, compatibleSlots: '["helm","cape"]', strength: 4, intellect: 8, endurance: 5, dexterity: 6, wisdom: 15, luck: 5 },
-  { name: "Fortuna", slug: "fortune", description: "Atrai a sorte para o portador.", category: "luck", rarity: "common", minRank: 1, price: 3500, level: 1, compatibleSlots: '["cape","armor"]', strength: 4, intellect: 5, endurance: 5, dexterity: 6, wisdom: 7, luck: 15 },
-  { name: "Ventania", slug: "swift", description: "Movimento mais ágil e golpes mais precisos.", category: "dexterity", rarity: "rare", minRank: 2, price: 6000, level: 5, compatibleSlots: '["weapon","cape"]', strength: 8, intellect: 4, endurance: 6, dexterity: 20, wisdom: 5, luck: 4 },
-  { name: "Colosso", slug: "colossus", description: "Uma força descomunal para os mais fortes.", category: "strength", rarity: "legendary", minRank: 3, price: 12000, level: 10, compatibleSlots: '["weapon","armor"]', strength: 30, intellect: 8, endurance: 18, dexterity: 12, wisdom: 8, luck: 6 },
+// O MESMO encantamento pode ser aplicado em arma/armadura/elmo/capa (full build).
+// Anéis e Colares NUNCA recebem encantamento.
+// Progressão LINEAR por nível: no Nv.1 o principal vale +4 e os demais +2;
+// a partir daí cada atributo cresce +2 por nível (Nv.2 = +4/+6, Nv.3 = +6/+8...).
+// Matriz completa: 6 categorias x 100 níveis = 600 encantamentos.
+const ENCHANT_CATEGORIES = [
+  { category: "strength", label: "Força", icon: "Swords" },
+  { category: "intellect", label: "Intelecto", icon: "Brain" },
+  { category: "endurance", label: "Vigor", icon: "HeartPulse" },
+  { category: "dexterity", label: "Destreza", icon: "Wind" },
+  { category: "wisdom", label: "Sabedoria", icon: "BookOpen" },
+  { category: "luck", label: "Sorte", icon: "Clover" },
 ];
+const ENCHANT_MAX_LEVEL = 100;
+const ENCHANT_BASE_SECONDARY = 2;
+const ENCHANT_BASE_MAIN = 4;
+const ENCHANT_COMPATIBLE_SLOTS = '["weapon","armor","cape","helm"]';
+
+function enchantRarityForLevel(level) {
+  if (level <= 20) return "common";
+  if (level <= 40) return "uncommon";
+  if (level <= 60) return "rare";
+  if (level <= 80) return "epic";
+  if (level <= 95) return "legendary";
+  return "mythic";
+}
+
+function enchantValuesForLevel(category, level) {
+  const main = ENCHANT_BASE_MAIN + 2 * (level - 1);
+  const secondary = ENCHANT_BASE_SECONDARY + 2 * (level - 1);
+  return {
+    strength: secondary,
+    intellect: secondary,
+    endurance: secondary,
+    dexterity: secondary,
+    wisdom: secondary,
+    luck: secondary,
+    [category]: main,
+  };
+}
+
+const enchantments = [];
+for (const { category, label, icon } of ENCHANT_CATEGORIES) {
+  for (let level = 1; level <= ENCHANT_MAX_LEVEL; level++) {
+    const values = enchantValuesForLevel(category, level);
+    enchantments.push({
+      name: label,
+      slug: `${category}-${level}`,
+      description: `Encantamento de ${label} — dá +${values[category]} em ${label} e +${values.strength} em quase todos os outros atributos.`,
+      category,
+      rarity: enchantRarityForLevel(level),
+      level,
+      minRank: 1,
+      price: 500 * level,
+      compatibleSlots: ENCHANT_COMPATIBLE_SLOTS,
+      icon,
+      strength: values.strength,
+      intellect: values.intellect,
+      endurance: values.endurance,
+      dexterity: values.dexterity,
+      wisdom: values.wisdom,
+      luck: values.luck,
+    });
+  }
+}
 
 // ===== Boosters (Anel/Colar de Gacha) — só boosts %, sem core stats =====
 const BOOSTER_INFO = [
@@ -276,14 +354,8 @@ const shopOffers = [
   { npc: "Aurelia", item: "Adaga Serrilhada", price: 140, class: "assassino" },
   { npc: "Aurelia", item: "Cajado Arcano", price: 160, class: "mago" },
   { npc: "Aurelia", item: "Armadura de Couro", price: 120, requiredLevel: 3 },
-  { npc: "Eldrin", enchantment: "titan", price: 5000 },
-  { npc: "Eldrin", enchantment: "mage", price: 5000 },
-  { npc: "Eldrin", enchantment: "guardian", price: 4500 },
-  { npc: "Eldrin", enchantment: "hunter", price: 4000 },
-  { npc: "Eldrin", enchantment: "sage", price: 4500 },
-  { npc: "Eldrin", enchantment: "fortune", price: 3500 },
-  { npc: "Eldrin", enchantment: "swift", price: 6000 },
-  { npc: "Eldrin", enchantment: "colossus", price: 12000 },
+  ...enchantments.map((e) => ({ npc: "Aurelia", enchantment: e.slug, price: e.price })),
+  ...enchantments.map((e) => ({ npc: "Eldrin", enchantment: e.slug, price: e.price })),
   { npc: "Capitão Valdir", class: "cavaleiro", price: 1500 },
   { npc: "Capitão Valdir", class: "mago", price: 1500 },
   { npc: "Capitão Valdir", class: "assassino", price: 1500 },
@@ -336,6 +408,36 @@ const craftRecipes = [
     resultQuantity: 1,
     requiredLevel: 3,
     ingredients: [{ itemName: "Manto de Veludo", quantity: 2 }],
+  },
+  {
+    name: "Espada do Abismo",
+    description: "Reúna os materiais abissais e pague o ferreiro para forjar a lâmina lendária.",
+    resultItem: "Espada do Abismo",
+    resultQuantity: 1,
+    requiredLevel: 10,
+    requiredVip: false,
+    requiredQuests: ["O Chefe dos Goblins"],
+    goldCost: 50000,
+    ingredients: [
+      { itemName: "Fragmento do Abismo", quantity: 25 },
+      { itemName: "Cristal Sombrio", quantity: 10 },
+      { itemName: "Núcleo Demoníaco", quantity: 2 },
+    ],
+  },
+  {
+    name: "Manto do Abismo",
+    description: "Um manto forjado com a essência dos demônios. Exige patrocínio VIP.",
+    resultItem: "Manto do Abismo",
+    resultQuantity: 1,
+    requiredLevel: 10,
+    requiredVip: true,
+    requiredQuests: ["O Chefe dos Goblins"],
+    goldCost: 40000,
+    ingredients: [
+      { itemName: "Fragmento do Abismo", quantity: 20 },
+      { itemName: "Cristal Sombrio", quantity: 8 },
+      { itemName: "Núcleo Demoníaco", quantity: 3 },
+    ],
   },
 ];
 
@@ -635,8 +737,9 @@ const shopProducts = [
 
 async function upsertItem(item) {
   const existing = await prisma.item.findFirst({ where: { name: item.name } });
-  if (existing) return prisma.item.update({ where: { id: existing.id }, data: { ...item } });
-  return prisma.item.create({ data: { ...item } });
+  const data = { ...item, icon: iconForItem(item) };
+  if (existing) return prisma.item.update({ where: { id: existing.id }, data });
+  return prisma.item.create({ data });
 }
 
 async function upsertEnchantment(enchantment) {
@@ -793,6 +896,127 @@ async function upsertPassive(classId, passive) {
   return prisma.passive.create({ data: { ...data, classId } });
 }
 
+// ===== Matérias-primas de craft a partir de ícones órfãos =====
+// Ícones que não são usados por nenhum item do jogo viram itens de drop de
+// monstro (type consumable / subtype material), servindo de matéria-prima
+// para as receitas de craft (o craft casa ingredientes por NOME do item).
+const MATERIAL_CAT_LABELS = {
+  Aneis: "Anéis",
+  Armaduras: "Armaduras",
+  Armas: "Armas",
+  Capas: "Capas",
+  Classes: "Classes",
+  Colares: "Colares",
+  "Drop Boss": "Chefe",
+  Elmo: "Elmos",
+  "Elmos Magicos": "Elmos Mágicos",
+  Encantamento: "Encantamentos",
+  Potion: "Poções",
+  Raridade: "Raridade",
+  Robes: "Robes",
+  Skills: "Habilidades",
+};
+
+function scanIconFiles() {
+  const root = path.resolve(__dirname, "../../Icons/64x64");
+  const out = [];
+  if (!fs.existsSync(root)) return out;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dir = path.join(root, entry.name);
+    for (const f of fs.readdirSync(dir)) {
+      if (f.toLowerCase().endsWith(".png")) {
+        out.push({ cat: entry.name, basename: f, url: "/icons/64x64/" + entry.name + "/" + f });
+      }
+    }
+  }
+  return out;
+}
+
+function materialNameFromIcon(cat, basename) {
+  const label = MATERIAL_CAT_LABELS[cat] || cat;
+  const base = basename.replace(/\.png$/i, "");
+  return "Matéria-Prima de " + label + " (" + base + ")";
+}
+
+async function seedMaterialItems(monsterMap) {
+  console.log("Seeding material items (ícones órfãos -> drops de monstro)...");
+  const files = scanIconFiles();
+
+  const referenced = new Set(items.map((i) => iconForItem(i)).filter(Boolean));
+  const dbItems = await prisma.item.findMany({
+    where: { icon: { not: null } },
+    select: { icon: true },
+  });
+  for (const it of dbItems) if (it.icon) referenced.add(it.icon);
+
+  let createdCount = 0;
+  const materialList = [];
+  for (const file of files) {
+    if (referenced.has(file.url)) continue;
+    const name = materialNameFromIcon(file.cat, file.basename);
+    const existing = await prisma.item.findFirst({ where: { name } });
+    if (existing) {
+      materialList.push(existing);
+      continue;
+    }
+    const item = await prisma.item.create({
+      data: {
+        name,
+        description: "Matéria-prima coletada de monstros. Pode ser usada em receitas de craft.",
+        icon: file.url,
+        type: "consumable",
+        subtype: "material",
+        rarity: "common",
+        level: 1,
+        isStackable: true,
+        maxStack: 99,
+        buyPrice: 0,
+        sellPrice: 5,
+        isTradable: true,
+        isSellable: true,
+        isActive: true,
+      },
+    });
+    materialList.push(item);
+    createdCount++;
+    if (createdCount % 100 === 0) console.log("  materials criados:", createdCount);
+  }
+  console.log("  materiais totais:", materialList.length, "(novos:", createdCount + ")");
+
+  const monstersArr = Object.values(monsterMap);
+  if (materialList.length === 0 || monstersArr.length === 0) return;
+
+  const hashStr = (s) => {
+    let h = 0;
+    for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return h;
+  };
+  const perMonster = Math.min(12, Math.max(1, Math.floor(materialList.length / monstersArr.length)));
+  for (const monster of monstersArr) {
+    const start = hashStr(monster.name) % materialList.length;
+    let added = 0;
+    for (let k = 0; k < perMonster && added < 12; k++) {
+      const mat = materialList[(start + k) % materialList.length];
+      const exists = await prisma.dropItem.findFirst({
+        where: { monsterId: monster.id, itemId: mat.id },
+      });
+      if (exists) continue;
+      await prisma.dropItem.create({
+        data: {
+          monsterId: monster.id,
+          itemId: mat.id,
+          dropChance: 25 + (hashStr(monster.name + "-" + k) % 30),
+          minQuantity: 1,
+          maxQuantity: 3,
+        },
+      });
+      added++;
+    }
+    if (added > 0) console.log("  drops adicionados:", monster.name, "+" + added);
+  }
+}
+
 async function seedWorld() {
   console.log("Seeding items...");
   const itemMap = {};
@@ -809,6 +1033,8 @@ async function seedWorld() {
     monsterMap[monster.name] = created;
     console.log("  monster:", monster.name);
   }
+
+  await seedMaterialItems(monsterMap);
 
   console.log("Seeding maps...");
   const mapMap = {};
@@ -881,6 +1107,28 @@ async function seedWorld() {
     }
   }
 
+  console.log("Seeding enchantments...");
+  for (const enchantment of enchantments) {
+    const created = await upsertEnchantment(enchantment);
+    console.log("  enchantment:", created.slug);
+  }
+
+  // Limpeza: remove encantamentos obsoletos (que não existem mais no seed)
+  // e ofertas de loja órfãs apontando para eles.
+  const seedEnchantmentSlugs = new Set(enchantments.map((e) => e.slug));
+  const allEnchantments = await prisma.enchantment.findMany({ select: { id: true, slug: true } });
+  const staleEnchantmentIds = allEnchantments
+    .filter((e) => !seedEnchantmentSlugs.has(e.slug))
+    .map((e) => e.id);
+  if (staleEnchantmentIds.length > 0) {
+    await prisma.shopItem.deleteMany({ where: { enchantmentId: { in: staleEnchantmentIds } } });
+    await prisma.shopProduct.deleteMany({ where: { enchantmentId: { in: staleEnchantmentIds } } });
+    await prisma.item.updateMany({ where: { enchantmentId: { in: staleEnchantmentIds } }, data: { enchantmentId: null } });
+    await prisma.userEnchantment.deleteMany({ where: { enchantmentId: { in: staleEnchantmentIds } } });
+    await prisma.enchantment.deleteMany({ where: { id: { in: staleEnchantmentIds } } });
+    console.log("  removed stale enchantments:", staleEnchantmentIds.length);
+  }
+
   console.log("Seeding shop...");
   for (const offer of shopOffers) {
     const npc = npcMap[offer.npc];
@@ -929,32 +1177,22 @@ async function seedWorld() {
     const resultItem = itemMap[recipe.resultItem];
     if (!resultItem) continue;
     const ingredients = JSON.stringify(recipe.ingredients || []);
+    const data = {
+      description: recipe.description,
+      resultItemId: resultItem.id,
+      resultQuantity: recipe.resultQuantity,
+      requiredLevel: recipe.requiredLevel,
+      requiredVip: !!recipe.requiredVip,
+      goldCost: BigInt(recipe.goldCost || 0),
+      ingredients,
+      isActive: true,
+    };
     const existing = await prisma.craftRecipe.findFirst({ where: { name: recipe.name } });
     if (existing) {
-      await prisma.craftRecipe.update({
-        where: { id: existing.id },
-        data: {
-          description: recipe.description,
-          resultItemId: resultItem.id,
-          resultQuantity: recipe.resultQuantity,
-          requiredLevel: recipe.requiredLevel,
-          ingredients,
-          isActive: true,
-        },
-      });
+      await prisma.craftRecipe.update({ where: { id: existing.id }, data });
       console.log("  craft (updated):", recipe.name);
     } else {
-      await prisma.craftRecipe.create({
-        data: {
-          name: recipe.name,
-          description: recipe.description,
-          resultItemId: resultItem.id,
-          resultQuantity: recipe.resultQuantity,
-          requiredLevel: recipe.requiredLevel,
-          ingredients,
-          isActive: true,
-        },
-      });
+      await prisma.craftRecipe.create({ data: { name: recipe.name, ...data } });
       console.log("  craft:", recipe.name);
     }
   }
@@ -977,11 +1215,16 @@ async function seedWorld() {
       console.log("  chain:", quest.title, "<-", quest.requires.join(", "));
     }
   }
-
-  console.log("Seeding enchantments...");
-  for (const enchantment of enchantments) {
-    const created = await upsertEnchantment(enchantment);
-    console.log("  enchantment:", created.slug);
+  // Receitas que exigem quests: resolve IDs pelo título da quest (seed de quests já rodou)
+  for (const recipe of craftRecipes) {
+    if (!Array.isArray(recipe.requiredQuests) || recipe.requiredQuests.length === 0) continue;
+    const r = await prisma.craftRecipe.findFirst({ where: { name: recipe.name } });
+    if (!r) continue;
+    const ids = recipe.requiredQuests.map((t) => questMap[t]?.id).filter(Boolean);
+    if (ids.length > 0) {
+      await prisma.craftRecipe.update({ where: { id: r.id }, data: { requiredQuestIds: JSON.stringify(ids) } });
+      console.log("  craft quests:", recipe.name, "<-", recipe.requiredQuests.join(", "));
+    }
   }
 
   console.log("Seeding boosters (gacha)...");
@@ -997,10 +1240,11 @@ async function seedWorld() {
 
   console.log("Seeding gacha config...");
   const gachaChances = { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3 };
+  const gachaSlotChances = { ring: 50, necklace: 50 };
   await prisma.gachaConfig.upsert({
     where: { id: "gacha" },
-    update: { freeTickets: 3, ticketCost: BigInt(5000), chances: gachaChances, active: true },
-    create: { id: "gacha", freeTickets: 3, ticketCost: BigInt(5000), chances: gachaChances, active: true },
+    update: { freeTickets: 3, ticketCost: BigInt(5000), chances: gachaChances, slotChances: gachaSlotChances, active: true },
+    create: { id: "gacha", freeTickets: 3, ticketCost: BigInt(5000), chances: gachaChances, slotChances: gachaSlotChances, active: true },
   });
   console.log("  gachaConfig: ok");
 
@@ -1162,10 +1406,26 @@ async function seedWorld() {
   console.log("users:", JSON.stringify(users));
 }
 
-main()
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
-
+if (require.main === module) {
+  main()
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());
+} else {
+  // Permite importar os dados (ex.: script de regeneração de ícones)
+  // sem disparar o seeding.
+  module.exports = {
+    items,
+    monsters,
+    maps,
+    npcs,
+    enchantments,
+    shopOffers,
+    shopProducts,
+    craftRecipes,
+    generatedIcons,
+    iconForItem,
+  };
+}

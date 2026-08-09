@@ -93,9 +93,45 @@ export function rollRarity(chances: unknown): string {
   return BOOSTER_RARITIES[0];
 }
 
-// Sorteia um booster ativo de determinada raridade (null se não houver catálogo)
-export async function rollBooster(rarity: string) {
-  const pool = await prisma.booster.findMany({ where: { rarity, isActive: true } });
+export const SLOT_TYPES = ["ring", "necklace"] as const;
+export type SlotType = (typeof SLOT_TYPES)[number];
+
+export const SLOT_LABELS: Record<SlotType, string> = {
+  ring: "Anel",
+  necklace: "Colar",
+};
+
+// Normaliza o peso Anel vs Colar garantindo valores positivos
+export function normalizeSlotChances(chances: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (chances && typeof chances === "object") {
+    for (const [slot, value] of Object.entries(chances as Record<string, unknown>)) {
+      const n = Number(value);
+      if (Number.isFinite(n) && n > 0) out[slot] = n;
+    }
+  }
+  return out;
+}
+
+// Sorteia o tipo do booster (Anel ou Colar) ponderado pela config
+export function rollSlot(chances: unknown): SlotType {
+  const normalized = normalizeSlotChances(chances);
+  const total = Object.values(normalized).reduce((a, b) => a + b, 0);
+  if (total <= 0) return SLOT_TYPES[0];
+  let roll = Math.random() * total;
+  for (const slot of SLOT_TYPES) {
+    const weight = normalized[slot] ?? 0;
+    roll -= weight;
+    if (roll < 0) return slot;
+  }
+  return SLOT_TYPES[0];
+}
+
+// Sorteia um booster ativo de determinada raridade e tipo (Anel/Colar), null se não houver catálogo
+export async function rollBooster(rarity: string, slot?: string) {
+  const pool = await prisma.booster.findMany({
+    where: { rarity, isActive: true, ...(slot ? { type: slot } : {}) },
+  });
   if (pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }

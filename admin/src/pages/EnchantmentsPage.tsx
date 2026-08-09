@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Copy, Search, Sparkles, Table2, Trash2, Eye, Plus, Loader2, Pencil } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import { adminApi } from "../api";
 import IconPicker from "../components/IconPicker";
 import {
@@ -8,8 +9,7 @@ import {
   computeEnchantmentStats,
   clampLevel,
   ENCHANT_MAX_LEVEL,
-  GROWTH_PER_RARITY,
-  MAIN_STAT_GROWTH_BONUS,
+  ENCHANT_STEP_PER_LEVEL,
 } from "../enchantmentFormula";
 
 const RARITY_OPTIONS = [
@@ -365,7 +365,14 @@ export default function EnchantmentsPage() {
                   <tr key={item.id} className="border-b border-dark-700 hover:bg-dark-800/50">
                     <td className="py-2.5 px-4">
                       {item.icon ? (
-                        <img src={item.icon} alt="" className="w-9 h-9 object-contain rounded bg-dark-700 p-0.5" style={{ imageRendering: "pixelated" }} />
+                        item.icon.startsWith("/") || item.icon.startsWith("http") ? (
+                          <img src={item.icon} alt="" className="w-9 h-9 object-contain rounded bg-dark-700 p-0.5" style={{ imageRendering: "pixelated" }} />
+                        ) : (
+                          (() => {
+                            const Icon = (LucideIcons as Record<string, any>)[item.icon] || Sparkles;
+                            return <Icon size={18} className="text-purple-400" />;
+                          })()
+                        )
                       ) : (
                         <Sparkles size={18} className="text-purple-400/60" />
                       )}
@@ -583,12 +590,12 @@ export default function EnchantmentsPage() {
                     ))}
                   </div>
                   <p className="text-[11px] text-gray-600 mt-2">
-                    No nível 150, {STAT_LABELS[form.category]} chega a ~
+                    No nível 100, {STAT_LABELS[form.category]} chega a ~
                     {(() => {
-                      const growth = (GROWTH_PER_RARITY[form.rarity] ?? GROWTH_PER_RARITY.common) + MAIN_STAT_GROWTH_BONUS;
-                      return Math.round(Number(form[form.category] || 1) * (1 + growth * (ENCHANT_MAX_LEVEL - 1)));
+                      const base = Number(form[form.category]) || 1;
+                      return Math.max(1, base + ENCHANT_STEP_PER_LEVEL * (ENCHANT_MAX_LEVEL - 1));
                     })()}
-                    (base × fórmula).
+                    (base +2 por nível).
                   </p>
                 </div>
 

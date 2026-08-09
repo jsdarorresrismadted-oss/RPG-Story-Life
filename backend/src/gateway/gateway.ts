@@ -4,6 +4,7 @@ import { config } from "../core/config";
 import { PrismaClient } from "@prisma/client";
 import { CombatService } from "../modules/combat/combat.service";
 import { CooldownManager } from "../modules/combat/cooldown.manager";
+import { PvpService } from "../modules/pvp/pvp.service";
 
 const prisma = new PrismaClient();
 
@@ -24,10 +25,16 @@ interface AuthenticatedSocket extends Socket {
 export function createGateway(
   io: SocketIOServer,
   combatService: CombatService,
-  cooldownManager: CooldownManager
+  cooldownManager: CooldownManager,
+  pvpService: PvpService
 ): void {
   combatService.setOnTick((payload) => {
     io.to(`character:${payload.characterId}`).emit("combat:tick", sanitize(payload));
+  });
+
+  pvpService.setOnTick((payload) => {
+    io.to(`character:${payload.challengerCharacterId}`).emit("pvp:tick", sanitize(payload));
+    io.to(`character:${payload.opponentCharacterId}`).emit("pvp:tick", sanitize(payload));
   });
 
   io.use((socket: AuthenticatedSocket, next) => {

@@ -43,6 +43,7 @@ export default function ShopsPage() {
   const [shopFilterCategory, setShopFilterCategory] = useState("");
   const [shopFilterRarity, setShopFilterRarity] = useState("");
   const [shopFilterMinLevel, setShopFilterMinLevel] = useState("");
+  const [npcFilterType, setNpcFilterType] = useState("all");
 
   const ENCH_CATEGORIES = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
   const STAT_LABELS: Record<string, string> = {
@@ -61,6 +62,25 @@ export default function ShopsPage() {
     legendary: "Lendário",
     mythic: "Mítico",
   };
+  const NPC_TYPE_LABELS: Record<string, string> = {
+    vendor: "Vendedor (itens)",
+    quest_giver: "Dador de missões",
+    gacha: "Gacha",
+    enchantments: "Encantamentos",
+    classes: "Classes",
+  };
+  const NPC_TYPE_BADGE: Record<string, string> = {
+    vendor: "bg-sky-500/15 text-sky-300",
+    quest_giver: "bg-emerald-500/15 text-emerald-300",
+    gacha: "bg-pink-500/15 text-pink-300",
+    enchantments: "bg-purple-500/15 text-purple-300",
+    classes: "bg-orange-500/15 text-orange-300",
+  };
+  const availableNpcTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of npcs) if (n.type) set.add(n.type);
+    return Array.from(set);
+  }, [npcs]);
 
   const load = async () => {
     setLoading(true);
@@ -95,10 +115,13 @@ export default function ShopsPage() {
   }, []);
 
   const filteredNpcs = useMemo(() => {
-    if (!filter.trim()) return npcs;
-    const q = filter.toLowerCase();
-    return npcs.filter((n) => n.name.toLowerCase().includes(q) || n.type.toLowerCase().includes(q));
-  }, [npcs, filter]);
+    return npcs.filter((n) => {
+      if (npcFilterType !== "all" && n.type !== npcFilterType) return false;
+      if (!filter.trim()) return true;
+      const q = filter.toLowerCase();
+      return n.name.toLowerCase().includes(q) || n.type.toLowerCase().includes(q);
+    });
+  }, [npcs, filter, npcFilterType]);
 
   const selectedShopItems = useMemo(() => {
     const base = selected?.shopItems ?? [];
@@ -261,13 +284,19 @@ export default function ShopsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
         {/* Lista de NPCs */}
         <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden h-fit">
-          <div className="p-4 border-b border-dark-600">
+          <div className="p-4 border-b border-dark-600 space-y-2">
             <input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Buscar NPC..."
               className={inputClass}
             />
+            <select value={npcFilterType} onChange={(e) => setNpcFilterType(e.target.value)} className={inputClass}>
+              <option value="all">Todos os tipos</option>
+              {availableNpcTypes.map((t) => (
+                <option key={t} value={t}>{NPC_TYPE_LABELS[t] ?? t}</option>
+              ))}
+            </select>
           </div>
           <div className="max-h-[70vh] overflow-y-auto">
             {loading && <p className="text-center text-gray-500 py-8">Loading...</p>}
@@ -284,7 +313,10 @@ export default function ShopsPage() {
               >
                 <span className="font-medium text-white block">{n.name}</span>
                 <span className="text-xs text-gray-500">
-                  {n.type} • {n.shopItems?.length ?? 0} itens • {n.mapNpcs?.length ?? 0} mapas
+                  <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] mr-1.5 ${NPC_TYPE_BADGE[n.type] ?? "bg-dark-700 text-gray-400"}`}>
+                    {NPC_TYPE_LABELS[n.type] ?? n.type}
+                  </span>
+                  {n.shopItems?.length ?? 0} itens • {n.mapNpcs?.length ?? 0} mapas
                 </span>
               </button>
             ))}
@@ -295,8 +327,13 @@ export default function ShopsPage() {
         {selected ? (
           <div className="space-y-6">
             <div className="bg-dark-800 border border-dark-600 rounded-xl p-4">
-              <h2 className="text-lg font-bold text-white">{selected.name}</h2>
-              <p className="text-sm text-gray-400">{selected.description}</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-white">{selected.name}</h2>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] ${NPC_TYPE_BADGE[selected.type] ?? "bg-dark-700 text-gray-400"}`}>
+                  {NPC_TYPE_LABELS[selected.type] ?? selected.type}
+                </span>
+              </div>
+              <p className="text-sm text-gray-400 mt-1">{selected.description}</p>
             </div>
 
             {/* Itens da loja */}

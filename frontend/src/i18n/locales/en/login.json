@@ -1,0 +1,14 @@
+{
+  "title": "RPG Story Life",
+  "subtitle": "Sign in to continue your adventure",
+  "username": "Username",
+  "username_placeholder": "Enter your username",
+  "password": "Password",
+  "password_placeholder": "Enter your password",
+  "sign_in": "Sign In",
+  "signing_in": "Signing in...",
+  "no_account": "Don't have an account?",
+  "register": "Register",
+  "welcome_back": "Welcome back!",
+  "failed": "Login failed"
+}

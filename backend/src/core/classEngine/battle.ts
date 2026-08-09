@@ -53,6 +53,7 @@ export interface BattleOptions {
   monster: any;
   monsterSkills?: SkillDef[];
   classResource: Record<string, any>;
+  autoPilot?: boolean; // arena PvP: o personagem lança skills sozinho a cada tick
   onEnd: (state: "won" | "lost") => void;  syncPlayerEffects: (effects: ActiveEffectRuntime[]) => Promise<void>;
 }
 
@@ -628,6 +629,15 @@ export class Battle {
     if (this.state === "active" && !entityHasKind(this.player, "stun") && now - this.player.lastAttackAt >= pStats.attackSpeedMs) {
       this.player.lastAttackAt = now;
       this.autoAttack();
+    }
+
+    // AutoPilot (arena PvP): lança uma skill ativa pronta por tick
+    if (this.opts.autoPilot && this.state === "active" && !entityHasKind(this.player, "stun") && !entityHasKind(this.player, "silence") && !this.channeling) {
+      const ready = this.skills
+        .filter((s) => s.trigger === "active" || s.trigger === "skill")
+        .sort((a, b) => this.getCooldown(b.id) - this.getCooldown(a.id))
+        .find((s) => this.canUseSkill(s).ok);
+      if (ready) this.useSkill(ready);
     }
 
     // Summons

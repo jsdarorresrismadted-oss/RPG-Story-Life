@@ -60,6 +60,10 @@ model Character {
   currentHp       Int       @default(100)
   currentMana     Int       @default(50)
   pvpKills        Int       @default(0)
+  arenaRating     Int       @default(1200)
+  arenaWins       Int       @default(0)
+  arenaLosses     Int       @default(0)
+  lastArenaAt     DateTime?
   raidAttempts    Int       @default(0)
   raidClears      Int       @default(0)
   lastRaidResetAt DateTime?
@@ -74,9 +78,27 @@ model Character {
   activeCooldowns ActiveCooldown[] @relation()
   classProgress   CharacterClass[] @relation()
   combatSessions  CombatSession[]  @relation()
+  pvpAsChallenger PvpMatch[]       @relation("PvpChallenger")
+  pvpAsOpponent   PvpMatch[]       @relation("PvpOpponent")
 
   @@index([userId])
   @@index([classId])
+}
+
+model PvpMatch {
+  id                    String    @id @default(uuid())
+  challengerCharacterId String
+  opponentCharacterId   String
+  winnerCharacterId     String?
+  state                 String    @default("active") // active | challenger_win | challenger_loss | draw | fled
+  ratingDelta           Int       @default(0)
+  startedAt             DateTime  @default(now())
+  endedAt               DateTime?
+  challengerCharacter   Character @relation("PvpChallenger", fields: [challengerCharacterId], references: [id], onDelete: Cascade)
+  opponentCharacter     Character @relation("PvpOpponent", fields: [opponentCharacterId], references: [id], onDelete: Cascade)
+
+  @@index([challengerCharacterId])
+  @@index([opponentCharacterId])
 }
 
 model CombatSession {
@@ -415,7 +437,9 @@ model CraftRecipe {
   resultItemId   String
   resultQuantity Int      @default(1)
   requiredLevel  Int      @default(1) // nível mínimo do personagem para craftar
+  requiredVip    Boolean  @default(false) // requer VIP ativo para craftar
   requiredQuestIds String? // JSON: ids de quests que o jogador precisa ter concluído
+  goldCost       BigInt   @default(0) // ouro consumido no craft
   ingredients    String   @default("[]") // JSON: [{ "itemName": "Ossos", "quantity": 3 }]
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -507,14 +531,15 @@ model UserBooster {
   @@index([equipped])
 }
 
-// Config global do Gacha (uma linha): tickets grátis, custo de ticket extra e chances por raridade
+// Config global do Gacha (uma linha): tickets grátis, custo de ticket extra, chances por raridade e peso Anel vs Colar
 model GachaConfig {
-  id          String   @id @default("gacha")
-  freeTickets Int      @default(3)
-  ticketCost  BigInt   @default(0) // ouro por ticket extra (0 = não vendável)
-  chances     Json     @default("{}") // { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3 }
-  active      Boolean  @default(true)
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default("gacha")
+  freeTickets  Int      @default(3)
+  ticketCost   BigInt   @default(0) // ouro por ticket extra (0 = não vendável)
+  chances      Json     @default("{}") // { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3 }
+  slotChances  Json     @default("{\"ring\":50,\"necklace\":50}") // peso de sorteio Anel vs Colar
+  active       Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
 }
 
 model Inventory {

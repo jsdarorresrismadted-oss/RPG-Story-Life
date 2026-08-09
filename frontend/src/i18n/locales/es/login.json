@@ -1,0 +1,14 @@
+{
+  "title": "RPG Story Life",
+  "subtitle": "Inicia sesión para continuar tu aventura",
+  "username": "Nombre de usuario",
+  "username_placeholder": "Ingresa tu nombre de usuario",
+  "password": "Contraseña",
+  "password_placeholder": "Ingresa tu contraseña",
+  "sign_in": "Iniciar sesión",
+  "signing_in": "Iniciando sesión...",
+  "no_account": "¿No tienes una cuenta?",
+  "register": "Regístrate",
+  "welcome_back": "¡Bienvenido de nuevo!",
+  "failed": "Fallo en el inicio de sesión"
+}

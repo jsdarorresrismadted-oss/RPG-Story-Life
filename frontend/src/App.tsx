@@ -17,6 +17,8 @@ import { CodexPage } from './pages/CodexPage';
 import { SupportPage } from './pages/SupportPage';
 import { SeasonPage } from './pages/SeasonPage';
 import { ShopPage } from './pages/ShopPage';
+import CharPage from './pages/CharPage';
+import { ArenaPage } from './pages/ArenaPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -58,6 +60,8 @@ export default function App() {
         <Route path="support" element={<CharacterGate><SupportPage /></CharacterGate>} />
         <Route path="season" element={<CharacterGate><SeasonPage /></CharacterGate>} />
         <Route path="shop" element={<CharacterGate><ShopPage /></CharacterGate>} />
+        <Route path="arena" element={<CharacterGate><ArenaPage /></CharacterGate>} />
+        <Route path="player/:username" element={<CharacterGate><CharPage /></CharacterGate>} />
       </Route>
     </Routes>
   );

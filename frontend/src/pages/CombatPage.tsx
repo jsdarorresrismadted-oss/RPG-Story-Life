@@ -7,6 +7,7 @@ import { CombatUpdate, InventoryItem } from "../types";
 import { authApi, charactersApi, inventoryApi, monstersApi } from "../services/api";
 import { ArrowLeft, Sword, Shield, Zap, Skull, Heart, Sparkles, Coins, Lock, Star, DoorOpen, FlaskConical, HeartPulse, Droplets } from "lucide-react";
 import toast from "react-hot-toast";
+import { EntityIcon } from "../components/EntityIcon";
 
 interface CombatPotion {
   inventoryId: string;
@@ -520,11 +521,7 @@ export function CombatPage() {
               <div className="flex items-stretch justify-center gap-1.5 flex-wrap">
               {/* Auto attack */}
               <div className="w-28 card-hover py-2 text-center opacity-80" title={autoSkill?.description ?? "Ataque automático"}>
-                {autoSkill?.icon ? (
-                  <img src={autoSkill.icon} alt="" className="w-6 h-6 mx-auto mb-1 object-contain" style={{ imageRendering: "pixelated" }} />
-                ) : (
-                  <Sword size={18} className="mx-auto mb-1 text-purple-400" />
-                )}
+                <EntityIcon src={autoSkill?.icon} size={18} className="mx-auto mb-1 text-purple-400" imgClassName="w-6 h-6 mx-auto mb-1 object-contain" />
                 <span className="text-[10px] block truncate px-0.5">{autoSkill?.name || "Auto"}</span>
                 <span className="text-[8px] text-gray-500 block">Sempre ativo</span>
               </div>
@@ -562,14 +559,9 @@ export function CombatPage() {
                       <Lock size={18} className="mx-auto mb-1 text-gray-500" />
                     ) : skill.icon ? (
                       <div className="relative mx-auto mb-1 w-6 h-6">
-                        <img src={skill.icon} alt="" className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
+                        <EntityIcon src={skill.icon} size={22} className="mx-auto" imgClassName="w-full h-full object-contain" />
                         {skill.iconSecondary && (
-                          <img
-                            src={skill.iconSecondary}
-                            alt=""
-                            className="absolute -bottom-1 -right-1 w-3.5 h-3.5 object-contain rounded bg-dark-800 border border-dark-600"
-                            style={{ imageRendering: "pixelated" }}
-                          />
+                          <EntityIcon src={skill.iconSecondary} size={12} className="absolute -bottom-1 -right-1 rounded bg-dark-800 border border-dark-600" imgClassName="absolute -bottom-1 -right-1 w-3.5 h-3.5 object-contain rounded bg-dark-800 border border-dark-600" />
                         )}
                       </div>
                     ) : skill.trigger === "ultimate" ? (
@@ -604,7 +596,7 @@ export function CombatPage() {
                     title={`Poção de cura: restaura ${p.heal} de vida (x${p.quantity})`}
                   >
                     {p.icon ? (
-                      <img src={p.icon} alt="" className="w-6 h-6 mx-auto mb-1 object-contain" style={{ imageRendering: "pixelated" }} />
+                      <EntityIcon src={p.icon} size={18} className="mx-auto mb-1 text-red-400" imgClassName="w-6 h-6 mx-auto mb-1 object-contain" />
                     ) : (
                       <HeartPulse size={18} className="mx-auto mb-1 text-red-400" />
                     )}
@@ -629,7 +621,7 @@ export function CombatPage() {
                     title={`Poção de mana: restaura ${p.manaRestore} de mana (x${p.quantity})`}
                   >
                     {p.icon ? (
-                      <img src={p.icon} alt="" className="w-6 h-6 mx-auto mb-1 object-contain" style={{ imageRendering: "pixelated" }} />
+                      <EntityIcon src={p.icon} size={18} className="mx-auto mb-1 text-blue-400" imgClassName="w-6 h-6 mx-auto mb-1 object-contain" />
                     ) : (
                       <Droplets size={18} className="mx-auto mb-1 text-blue-400" />
                     )}

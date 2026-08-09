@@ -19,6 +19,8 @@ import { createRaidModule } from "./modules/raid/raid.module";
 import { createLeaderboardModule } from "./modules/leaderboard/leaderboard.module";
 import { createCraftModule } from "./modules/craft/craft.module";
 import { createGachaModule } from "./modules/gacha/gacha.module";
+import { createPvpModule } from "./modules/pvp/pvp.module";
+import { PvpService } from "./modules/pvp/pvp.service";
 
 export function registerModules(app: Express): void {
   createAuthModule(app);
@@ -41,4 +43,5 @@ export function registerModules(app: Express): void {
   createCraftModule(app);
   createGachaModule(app);
   createAdminModule(app);
+  createPvpModule(app, app.get("pvpService") as PvpService);
 }

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { inventoryApi, authApi, marketApi, classesApi } from "../services/api";
+import { inventoryApi, authApi, marketApi, classesApi, craftApi, questsApi } from "../services/api";
 import { InventoryItem, UserEnchantment } from "../types";
 import {
   Backpack, Search, Star, Coins, Lock,
   Sword, Crown, HardHat, Shield, Wind, Gem, Link2, Sparkles, X, Swords,
 } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
+import { EntityIcon } from "../components/EntityIcon";
 import { useAuthStore } from "../store/authStore";
 import CharacterPreview from "../components/CharacterPreview";
 import { effectiveEnchantmentStats } from "../lib/enchantmentStats";
@@ -50,6 +51,8 @@ export function InventoryPage() {
   const [enchantBusy, setEnchantBusy] = useState(false);
   const [unlockedClasses, setUnlockedClasses] = useState<any[]>([]);
   const [switchingClass, setSwitchingClass] = useState<string | null>(null);
+  const [crafting, setCrafting] = useState(false);
+  const [doneQuests, setDoneQuests] = useState<Set<string>>(new Set());
   const { selectedCharacter, setCharacter } = useGameStore();
   const { user, setUser } = useAuthStore();
   const navigate = useNavigate();
@@ -70,6 +73,14 @@ export function InventoryPage() {
       .finally(() => setLoading(false));
     inventoryApi.enchantments()
       .then(({ data }) => setOwnedEnchants(Array.isArray(data) ? data : []))
+      .catch(() => {});
+    questsApi.progress()
+      .then(({ data }) => {
+        const done = (Array.isArray(data) ? data : [])
+          .filter((p: any) => ["completed", "claimed"].includes(p.status))
+          .map((p: any) => p.questId as string);
+        setDoneQuests(new Set(done));
+      })
       .catch(() => {});
   }, []);
 
@@ -216,11 +227,32 @@ export function InventoryPage() {
     }
   };
 
+  const handleCraft = async (recipeId: string) => {
+    setCrafting(true);
+    try {
+      const { data } = await craftApi.craft(recipeId);
+      toast.success(data.message || "Item craftado!");
+      setSelectedItem(null);
+      loadItems();
+      refreshUser();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha ao craftar");
+    } finally {
+      setCrafting(false);
+    }
+  };
+
+  const ownedCount = (name: string): number =>
+    items
+      .filter((inv) => inv.item.name.toLowerCase() === String(name).toLowerCase())
+      .reduce((acc, inv) => acc + inv.quantity, 0);
+
   const equippedItems = items.filter((i) => i.isEquipped);
   const equippedMap: Record<string, InventoryItem> = {};
   for (const inv of equippedItems) {
     equippedMap[inv.item.type] = inv;
   }
+  const isVip = !!user?.vipUntil && new Date(user.vipUntil).getTime() > Date.now();
 
   const filtered = items
     .filter(i => filterType === "all" || i.item.type === filterType)
@@ -244,30 +276,37 @@ export function InventoryPage() {
         <h2 className="font-display font-semibold mb-3 flex items-center gap-2">
           <Shield size={16} className="text-yellow-400" /> Equipamento
         </h2>
-        <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
+        <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
           <CharacterPreview
+            name={selectedCharacter?.name}
             equipped={equippedMap}
             gender={selectedCharacter?.gender as any}
-            onItemClick={(inv) => setSelectedItem(inv)}
             onClassClick={() => selectedCharacter?.class?.slug && navigate(`/class/${selectedCharacter.class.slug}`)}
           />
-          <div className="flex-1 flex flex-col items-center gap-2">
-            {(() => {
-              const key = "weapon";
+          <div className="flex-1 w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {(["weapon", "helm", "armor", "cape", "ring", "necklace", "class"] as const).map((key) => {
               const slot = { key, label: SLOT_LABELS[key], icon: SLOT_ICONS[key] };
               const inv = equippedMap[key];
               const Icon = slot.icon;
+              const isClass = key === "class";
               return (
                 <button
-                  onClick={() => inv && setSelectedItem(inv)}
-                  className={`card-hover p-3 text-center w-28 sm:w-32 min-h-[110px] flex flex-col items-center justify-center gap-2 ${
+                  key={key}
+                  onClick={() => isClass
+                    ? selectedCharacter?.class?.slug && navigate(`/class/${selectedCharacter.class.slug}`)
+                    : inv && setSelectedItem(inv)}
+                  className={`card-hover p-3 text-center min-h-[110px] flex flex-col items-center justify-center gap-2 ${
                     inv ? "border-purple-500/40" : "border-dashed border-dark-600"
                   }`}
                 >
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                     inv ? "bg-gradient-to-br from-purple-600 to-blue-600" : "bg-dark-800/60"
                   }`}>
-                    <Icon size={18} className={inv ? "text-white" : "text-gray-600"} />
+                    {inv?.item?.icon ? (
+                      <img src={inv.item.icon} alt="" className="w-full h-full object-contain p-0.5" style={{ imageRendering: "pixelated" }} />
+                    ) : (
+                      <Icon size={18} className={inv ? "text-white" : "text-gray-600"} />
+                    )}
                   </div>
                   {inv ? (
                     <>
@@ -284,10 +323,7 @@ export function InventoryPage() {
                   )}
                 </button>
               );
-            })()}
-            <p className="text-[11px] text-gray-600 text-center max-w-[220px]">
-              A arma não aparece no personagem — os slots ficam sobre ele e a arma ao lado.
-            </p>
+            })}
           </div>
         </div>
       </div>
@@ -371,7 +407,7 @@ export function InventoryPage() {
             {inv.item.enchantment && (
               <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-yellow-500/15 text-yellow-400 text-[10px] rounded font-bold flex items-center gap-1">
                 {inv.item.enchantment.icon ? (
-                  <img src={inv.item.enchantment.icon} alt="" className="w-3 h-3 object-contain" style={{ imageRendering: "pixelated" }} />
+                  <EntityIcon src={inv.item.enchantment.icon} size={10} className="text-yellow-400" imgClassName="w-3 h-3 object-contain" />
                 ) : (
                   <Sparkles size={10} />
                 )} {inv.item.enchantment.name}
@@ -547,6 +583,68 @@ export function InventoryPage() {
                 {compatibleEnchants(selectedItem).length === 0 && !selectedItem.item.enchantment && (
                   <p className="text-[11px] text-gray-600">Nenhum encantamento compatível na sua mochila.</p>
                 )}
+              </div>
+            )}
+
+            {selectedItem.recipe && (
+              <div className="bg-dark-800/50 rounded-lg p-3 mb-4">
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-orange-400" /> Receita de Craft
+                </p>
+                <p className="text-sm font-medium text-orange-300">{selectedItem.recipe.name}</p>
+                {selectedItem.recipe.description && (
+                  <p className="text-[11px] text-gray-500 mt-0.5">{selectedItem.recipe.description}</p>
+                )}
+
+                <div className="mt-2 space-y-1">
+                  {selectedItem.recipe.ingredients.map((ing) => {
+                    const have = ownedCount(ing.itemName);
+                    const ok = have >= ing.quantity;
+                    return (
+                      <div key={ing.itemName} className="flex items-center justify-between text-xs">
+                        <span className={ok ? "text-gray-300" : "text-red-400"}>{ing.itemName}</span>
+                        <span className={`font-mono ${ok ? "text-green-400" : "text-red-400"}`}>{have} / {ing.quantity}</span>
+                      </div>
+                    );
+                  })}
+                  {selectedItem.recipe.goldCost > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-yellow-300 flex items-center gap-1"><Coins size={11} /> Ouro</span>
+                      <span className={`font-mono ${Number(user?.gold) >= selectedItem.recipe.goldCost ? "text-green-400" : "text-red-400"}`}>
+                        {Number(user?.gold ?? 0).toLocaleString("pt-BR")} / {selectedItem.recipe.goldCost.toLocaleString("pt-BR")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-2 flex gap-1.5 flex-wrap">
+                  {selectedItem.recipe.requiredLevel > 1 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${(selectedCharacter?.level ?? 0) >= selectedItem.recipe.requiredLevel ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"}`}>
+                      Nível {selectedItem.recipe.requiredLevel}
+                    </span>
+                  )}
+                  {selectedItem.recipe.requiredVip && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${isVip ? "bg-yellow-500/15 text-yellow-300" : "bg-red-500/15 text-red-300"}`}>
+                      Requer VIP
+                    </span>
+                  )}
+                  {selectedItem.recipe.requiredQuests.map((q) => {
+                    const ok = doneQuests.has(q.id);
+                    return (
+                      <span key={q.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${ok ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"}`}>
+                        {ok ? "✓" : "✗"} {q.title}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => handleCraft(selectedItem.recipe!.id)}
+                  disabled={crafting}
+                  className="mt-3 w-full btn-primary text-sm disabled:opacity-50"
+                >
+                  {crafting ? "Craftando..." : `Craftar (${selectedItem.recipe.resultQuantity}x ${selectedItem.item.name})`}
+                </button>
               </div>
             )}
 

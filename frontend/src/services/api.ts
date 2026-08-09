@@ -39,6 +39,7 @@ export const charactersApi = {
     api.post("/characters", data),
   my: () => api.get("/characters/my"),
   rankUp: () => api.post("/characters/rank-up"),
+  publicProfile: (username: string) => api.get(`/characters/${encodeURIComponent(username)}/public`),
 };
 
 export const redeemApi = {
@@ -153,4 +154,11 @@ export const craftApi = {
 
 export const leaderboardApi = {
   list: () => api.get("/leaderboard"),
+};
+
+export const pvpApi = {
+  arena: () => api.get("/pvp/arena"),
+  active: () => api.get("/pvp/arena/active"),
+  challenge: (targetCharacterId: string) => api.post("/pvp/arena/challenge", { targetCharacterId }),
+  flee: (matchId: string) => api.post(`/pvp/arena/${matchId}/flee`),
 };

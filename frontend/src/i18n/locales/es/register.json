@@ -1,0 +1,17 @@
+{
+  "title": "Crear Cuenta",
+  "subtitle": "Tu nick será el nombre de tu personaje",
+  "nickname": "Nickname",
+  "nickname_placeholder": "Tu nick (será el nombre del personaje)",
+  "nickname_hint": "3-20 caracteres, solo letras, números y _.",
+  "email": "Email (opcional)",
+  "password": "Contraseña",
+  "password_placeholder": "Mínimo 6 caracteres",
+  "confirm_password": "Confirmar Contraseña",
+  "confirm_password_placeholder": "Confirma la contraseña",
+  "create_account": "Crear Cuenta",
+  "creating_account": "Creando cuenta...",
+  "has_account": "¿Ya tienes una cuenta?",
+  "sign_in": "Iniciar sesión",
+  "failed": "Fallo en el registro"
+}

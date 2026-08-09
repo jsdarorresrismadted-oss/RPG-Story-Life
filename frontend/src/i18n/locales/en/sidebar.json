@@ -1,0 +1,15 @@
+{
+  "dashboard": "Dashboard",
+  "map": "Map",
+  "classes": "Classes",
+  "inventory": "Inventory",
+  "season": "Season",
+  "shop": "Shop",
+  "quests": "Quests",
+  "settings": "Settings",
+  "codex": "Codex",
+  "support": "Support",
+  "connected": "Connected",
+  "combat_blocked": "You are in combat — finish the fight to navigate.",
+  "combat_blocked_banner": "In combat — navigation blocked"
+}

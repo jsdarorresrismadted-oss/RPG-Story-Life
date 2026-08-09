@@ -278,6 +278,53 @@ export interface CombatLogEntry {
   isDodge?: boolean;
 }
 
+export interface PvpOpponent {
+  id: string;
+  name: string;
+  username: string;
+  level: number;
+  className: string;
+  arenaRating: number;
+  arenaWins: number;
+  arenaLosses: number;
+}
+
+export interface PvpMe {
+  id: string;
+  name: string;
+  level: number;
+  className: string;
+  arenaRating: number;
+  arenaWins: number;
+  arenaLosses: number;
+  pvpKills: number;
+}
+
+export interface PvpMatchState {
+  matchId: string;
+  challengerCharacterId: string;
+  opponentCharacterId: string;
+  challengerName: string;
+  opponentName: string;
+  challengerHp: number;
+  challengerMaxHp: number;
+  challengerMana: number;
+  challengerMaxMana: number;
+  opponentHp: number;
+  opponentMaxHp: number;
+  opponentMana: number;
+  opponentMaxMana: number;
+  opponentLevel?: number;
+  challengerRating?: number;
+  opponentRating?: number;
+  skills?: any[];
+  messages?: string[];
+  state: "active" | "won" | "lost" | "error";
+  won?: boolean;
+  ratingDelta?: number;
+  goldReward?: number;
+}
+
 export interface InventoryItem {
   id: string;
   characterId?: string;
@@ -285,6 +332,25 @@ export interface InventoryItem {
   quantity: number;
   isEquipped: boolean;
   item: Item;
+  recipe?: CraftRecipeInfo | null;
+}
+
+export interface CraftIngredient {
+  itemName: string;
+  quantity: number;
+}
+
+export interface CraftRecipeInfo {
+  id: string;
+  name: string;
+  description: string;
+  resultQuantity: number;
+  requiredLevel: number;
+  requiredVip: boolean;
+  goldCost: number;
+  requiredQuestIds: string[];
+  requiredQuests: { id: string; title: string }[];
+  ingredients: CraftIngredient[];
 }
 
 export interface Enchantment {

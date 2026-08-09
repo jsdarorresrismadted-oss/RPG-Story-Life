@@ -1,0 +1,15 @@
+{
+  "dashboard": "Dashboard",
+  "map": "Mapa",
+  "classes": "Classes",
+  "inventory": "Inventário",
+  "season": "Temporada",
+  "shop": "Loja",
+  "quests": "Quests",
+  "settings": "Configurações",
+  "codex": "Codex",
+  "support": "Suporte",
+  "connected": "Conectado",
+  "combat_blocked": "Você está em combate — termine a luta para navegar.",
+  "combat_blocked_banner": "Em combate — navegação bloqueada"
+}

@@ -5,6 +5,7 @@ import { AppError } from "../../core/middleware/errorHandler";
 import { getGameLimits } from "../../core/gameLimits";
 import { computeStats } from "../../core/classEngine/stat-calculator";
 import { addItemsToInventory, classXpToNextRank, xpToNextLevel } from "../../core/progression";
+import { sumCoreStats } from "../../core/stats/coreStats";
 
 function parseJson(value: any, fallback: any): any {
   if (!value) return fallback;
@@ -206,6 +207,153 @@ export function createCharacterModule(app: Express): void {
         data: { rank: { increment: 1 }, experience: { decrement: BigInt(xpNeeded) } },
       });
       res.json({ rank: updated.rank, experience: Number(updated.experience), xpToNext: classXpToNextRank(updated.rank) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Public profile (CharPage): visível por qualquer pessoa autenticada pelo username/displayName.
+  app.get("/api/characters/:username/public", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const username = String(req.params.username || "");
+      const user = await prisma.user.findFirst({
+        where: { OR: [{ username }, { displayName: username }] },
+        include: {
+          guildMembers: { include: { guild: { select: { id: true, name: true, tag: true, icon: true } } } },
+          userAchievements: {
+            where: { isCompleted: true },
+            include: { achievement: true },
+          },
+          characters: {
+            include: {
+              class: {
+                include: {
+                  statModel: true,
+                  passives: { where: { isActive: true } },
+                },
+              },
+              classProgress: { where: { isActive: true } },
+              equipment: {
+                include: {
+                  weapon: true,
+                  classItem: true,
+                  helm: true,
+                  armor: true,
+                  cape: true,
+                  ring: true,
+                  necklace: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!user) throw new AppError(404, "Jogador não encontrado");
+
+      const characters = [...user.characters].sort(
+        (a, b) => b.level - a.level || Number(b.experience) - Number(a.experience)
+      );
+      const character = characters[0];
+      if (!character) throw new AppError(404, "Este jogador ainda não criou um personagem");
+
+      const gameClass = character.class;
+      const rank = character.classProgress?.[0]?.rank ?? 1;
+      const passives = (gameClass?.passives || [])
+        .filter((p: any) => (p.rankRequired ?? 1) <= rank)
+        .map((p: any) => ({ ...p, statModifiers: parseJson(p.statModifiers, {}) }));
+
+      const EQUIP_SLOTS = ["weapon", "classItem", "helm", "armor", "cape", "ring", "necklace"] as const;
+      const equipmentList = EQUIP_SLOTS
+        .map((slot) => {
+          const item = (character.equipment as any)?.[slot];
+          if (!item) return null;
+          return {
+            slot,
+            name: item.name,
+            icon: item.icon || null,
+            rarity: item.rarity || "common",
+            type: item.type || slot,
+          };
+        })
+        .filter(Boolean);
+
+      const coreStats = sumCoreStats(
+        EQUIP_SLOTS.map((slot) => {
+          const item = (character.equipment as any)?.[slot];
+          if (!item) return null;
+          return {
+            strength: item.strength ?? 0,
+            intellect: item.intellect ?? 0,
+            endurance: item.endurance ?? 0,
+            dexterity: item.dexterity ?? 0,
+            wisdom: item.wisdom ?? 0,
+            luck: item.luck ?? 0,
+          };
+        })
+      );
+
+      const stats = computeStats({
+        level: character.level,
+        statModel: {
+          coreStats: parseJson(gameClass?.statModel?.coreStats, {}),
+        },
+        resource: parseJson(gameClass?.resource, {}),
+        passives,
+        coreStats,
+        attackSpeedMs: (character.equipment as any)?.weapon?.attackSpeedMs || undefined,
+        weaponDps: Number((character.equipment as any)?.weapon?.dps) || undefined,
+      });
+
+      const limits = await getGameLimits();
+      const achievements = (user.userAchievements || []).map((ua: any) => ({
+        id: ua.achievement.id,
+        name: ua.achievement.name,
+        description: ua.achievement.description,
+        icon: ua.achievement.icon,
+        category: ua.achievement.category,
+        completedAt: ua.completedAt,
+      }));
+
+      res.json({
+        username: user.username,
+        displayName: user.displayName,
+        isOnline: user.isOnline,
+        isVip: !!(user.vipUntil && new Date(user.vipUntil).getTime() > Date.now()),
+        createdAt: character.createdAt,
+        character: {
+          id: character.id,
+          name: character.name,
+          gender: character.gender,
+          level: character.level,
+          experience: Number(character.experience),
+          xpToNext: Number(xpToNextLevel(character.level, limits)),
+          class: gameClass ? { name: gameClass.name, slug: gameClass.slug, icon: gameClass.icon } : null,
+          rank,
+          pvpKills: character.pvpKills,
+          raidClears: character.raidClears,
+          classXp: Number(character.classProgress?.[0]?.experience || 0),
+        },
+        guild: user.guildMembers?.[0]?.guild || null,
+        achievements,
+        achievementsCount: achievements.length,
+        equipment: equipmentList,
+        stats: {
+          hp: stats.hp,
+          mana: stats.mana,
+          attack: stats.attack,
+          defense: stats.defense,
+          magic: stats.magic,
+          magicDefense: stats.magicDefense,
+          speed: stats.speed,
+          attackPower: stats.attackPower,
+          spellPower: stats.spellPower,
+          critChance: stats.critChance,
+          critDamage: stats.critDamage,
+          dodge: stats.dodge,
+          attackSpeedMs: stats.attackSpeedMs,
+          manaRegenPerTick: stats.manaRegenPerTick,
+        },
+      });
     } catch (err) {
       next(err);
     }

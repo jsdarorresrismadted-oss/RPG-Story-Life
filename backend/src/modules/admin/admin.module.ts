@@ -925,14 +925,16 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/gacha-config", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { freeTickets, ticketCost, chances, active } = req.body;
+      const { freeTickets, ticketCost, chances, slotChances, active } = req.body;
       const parsedChances = typeof chances === "string" ? JSON.parse(chances) : chances ?? {};
+      const parsedSlotChances = typeof slotChances === "string" ? JSON.parse(slotChances) : slotChances ?? {};
       res.json(await prisma.gachaConfig.upsert({
         where: { id: "gacha" },
         update: {
           freeTickets: Number(freeTickets) || 3,
           ticketCost: BigInt(Number(ticketCost) || 0),
           chances: parsedChances,
+          slotChances: parsedSlotChances,
           active: active !== false,
         },
         create: {
@@ -940,6 +942,7 @@ export function createAdminModule(app: Express): void {
           freeTickets: Number(freeTickets) || 3,
           ticketCost: BigInt(Number(ticketCost) || 0),
           chances: parsedChances,
+          slotChances: parsedSlotChances,
           active: active !== false,
         },
       }));

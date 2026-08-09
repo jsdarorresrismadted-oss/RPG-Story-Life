@@ -1,0 +1,17 @@
+{
+  "welcome": "¡Bienvenido, aventurero!",
+  "welcome_body": "Crea tu personaje y elige entre 5 clases únicas. Cada clase tiene su propio árbol de habilidades, pasivas y estilo de juego.",
+  "choose_class_cta": "Elegir clase",
+  "fight": "Enfréntate a monstruos",
+  "fight_body": "Abre el Mapa y comienza un combate. ¡Usa tus habilidades, bebe pociones y recolecta drops raros! Tu progreso se guarda automáticamente — puedes irte y volver.",
+  "go_map_cta": "Ir al mapa",
+  "inventory": "Gestiona tu inventario",
+  "inventory_body": "Equipa mejores objetos, vende drops no deseados en el mercado y desbloquea nuevas clases a medida que subes de nivel.",
+  "open_inventory_cta": "Abrir inventario",
+  "quests": "Completa misiones",
+  "quests_body": "Acepta misiones de NPCs, completa objetivos y reclama recompensas. ¡Las misiones encadenadas liberan jefes como el Duende Brujo!",
+  "see_quests_cta": "Ver misiones",
+  "skip": "Omitir",
+  "next": "Siguiente",
+  "start_adventure": "Comenzar aventura"
+}

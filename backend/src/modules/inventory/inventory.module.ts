@@ -3,6 +3,7 @@ import { prisma } from "../../core/database";
 import { authenticate } from "../../core/middleware/auth";
 import { AppError } from "../../core/middleware/errorHandler";
 import { withEnchantmentStats } from "../../core/enchantments/enchantmentStats";
+import { parseQuestIds } from "../../core/progression";
 
 const EQUIP_SLOTS = ["weapon", "class", "helm", "armor", "cape", "ring", "necklace"] as const;
 
@@ -12,6 +13,46 @@ const enrichItems = (rows: any[]): any[] =>
     ...inv,
     item: inv.item?.enchantment ? { ...inv.item, enchantment: withEnchantmentStats(inv.item.enchantment) } : inv.item,
   }));
+
+// Anexa a receita de craft (se o item for craftável) com ingredientes, custo e requisitos resolvidos.
+async function enrichWithRecipe(rows: any[]): Promise<any[]> {
+  if (!rows.length) return rows;
+  const recipes = await prisma.craftRecipe.findMany({ where: { isActive: true } });
+  if (!recipes.length) return rows;
+  const questIds = [...new Set(recipes.flatMap((r) => parseQuestIds(r.requiredQuestIds)))];
+  const quests = questIds.length
+    ? await prisma.quest.findMany({ where: { id: { in: questIds } }, select: { id: true, title: true } })
+    : [];
+  const questTitle = new Map(quests.map((q) => [q.id, q.title]));
+  const byItem = new Map(recipes.map((r) => [r.resultItemId, r]));
+  return rows.map((inv) => {
+    const rec = byItem.get(inv.itemId);
+    if (!rec) return inv;
+    const reqIds = parseQuestIds(rec.requiredQuestIds);
+    let ingredients: { itemName: string; quantity: number }[] = [];
+    try {
+      const parsed = JSON.parse(rec.ingredients || "[]");
+      ingredients = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      ingredients = [];
+    }
+    return {
+      ...inv,
+      recipe: {
+        id: rec.id,
+        name: rec.name,
+        description: rec.description,
+        resultQuantity: rec.resultQuantity,
+        requiredLevel: rec.requiredLevel,
+        requiredVip: rec.requiredVip,
+        goldCost: Number(rec.goldCost) || 0,
+        requiredQuestIds: reqIds,
+        requiredQuests: reqIds.map((id) => ({ id, title: questTitle.get(id) || "Missão" })),
+        ingredients,
+      },
+    };
+  });
+}
 
 const SLOT_MAP: Record<string, string> = {
   weapon: "weaponId",
@@ -40,7 +81,7 @@ export function createInventoryModule(app: Express): void {
         include: { item: { include: { enchantment: true } } },
         orderBy: { acquiredAt: "desc" },
       });
-      res.json(enrichItems(items));
+      res.json(await enrichWithRecipe(enrichItems(items)));
     } catch (err) {
       next(err);
     }

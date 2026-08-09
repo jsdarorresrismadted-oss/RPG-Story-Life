@@ -10,12 +10,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-const rankNames: Record<number, string> = {
-  1: "Iniciante", 2: "Aprendiz", 3: "Adepto", 4: "Especialista",
-  5: "Mestre", 6: "Grão-Mestre", 7: "Elite", 8: "Lenda",
-  9: "Mítico", 10: "Transcendente",
-};
-
 function formatMs(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
   return `${ms}ms`;
@@ -243,7 +237,6 @@ export function ClassPage() {
           </div>
           <div className="flex flex-col items-center justify-center p-4 bg-dark-800/50 rounded-xl border border-dark-600 min-w-[200px]">
             <span className="text-2xl font-display font-bold text-purple-400">Rank {rank}</span>
-            <span className="text-xs text-gray-400">{rankNames[rank]}</span>
             <div className="flex gap-1 mt-3">
               {Array.from({ length: maxRank }, (_, i) => i + 1).map(r => (
                 <div key={r} className={`w-2 h-4 rounded-sm ${r <= rank ? "bg-purple-500" : "bg-dark-600"}`} />
@@ -276,7 +269,7 @@ export function ClassPage() {
           { label: "Defesa", value: charStats.defense ?? stats.defense, icon: ShieldCheck, color: "text-yellow-400" },
           { label: "Magia", value: charStats.magic ?? stats.magic, icon: Sparkles, color: "text-purple-400" },
           { label: "Res. Mágica", value: charStats.magicDefense ?? stats.magicDefense, icon: Shield, color: "text-cyan-400" },
-          { label: "Velocidade", value: charStats.speed ?? stats.speed, icon: Zap, color: "text-green-400" },
+          { label: "Velocidade", value: charStats.attackSpeedMs && charStats.attackSpeedMs > 0 ? `${(charStats.attackSpeedMs / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "—", icon: Zap, color: "text-green-400" },
           { label: "Regen de Mana", value: charStats.manaRegenPerTick ?? stats.manaRegenPerTick, icon: Droplets, color: "text-blue-300" },
         ].map((stat) => (
           <div key={stat.label} className="panel p-3 flex items-center gap-3">

@@ -31,8 +31,19 @@ export function createCraftModule(app: Express): void {
       const userId = req.user!.userId;
       await assertPurchaseRequirements(userId, {
         requiredLevel: recipe.requiredLevel,
+        requiredVip: recipe.requiredVip,
         requiredQuestIds: recipe.requiredQuestIds,
       });
+
+      const goldCost = Number(recipe.goldCost) || 0;
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { gold: true },
+      });
+      if (!user) throw new AppError(404, "User not found");
+      if (Number(user.gold) < goldCost) {
+        throw new AppError(400, `Ouro insuficiente (precisa de ${goldCost.toLocaleString("pt-BR")}).`);
+      }
 
       let ingredients: { itemName: string; quantity: number }[] = [];
       try {
@@ -57,6 +68,12 @@ export function createCraftModule(app: Express): void {
       }
 
       await prisma.$transaction(async (tx) => {
+        if (goldCost > 0) {
+          await tx.user.update({
+            where: { id: userId },
+            data: { gold: { decrement: goldCost } },
+          });
+        }
         for (const ing of ingredients) {
           const rows = await tx.inventory.findMany({
             where: { userId, item: { name: { equals: ing.itemName, mode: "insensitive" } }, slotIndex: null },

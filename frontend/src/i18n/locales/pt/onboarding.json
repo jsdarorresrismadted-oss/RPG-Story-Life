@@ -1,0 +1,17 @@
+{
+  "welcome": "Bem-vindo, aventureiro!",
+  "welcome_body": "Crie seu personagem e escolha entre 5 classes únicas. Cada classe tem sua própria árvore de habilidades, passivas e estilo de jogo.",
+  "choose_class_cta": "Escolher classe",
+  "fight": "Enfrente monstros",
+  "fight_body": "Abra o Mapa e comece um combate. Use suas habilidades, beba poções e colete drops raros! Seu progresso é salvo automaticamente — pode sair e voltar.",
+  "go_map_cta": "Ir para o mapa",
+  "inventory": "Gerencie seu inventário",
+  "inventory_body": "Equipe itens melhores, venda drops indesejados no mercado e desbloqueie novas classes conforme seu nível sobe.",
+  "open_inventory_cta": "Abrir inventário",
+  "quests": "Complete missões",
+  "quests_body": "Aceite quests com NPCs, complete objetivos e reivindique recompensas. Questes encadeadas liberam chefes como o Goblin Bruxo!",
+  "see_quests_cta": "Ver quests",
+  "skip": "Pular",
+  "next": "Próximo",
+  "start_adventure": "Começar aventura"
+}

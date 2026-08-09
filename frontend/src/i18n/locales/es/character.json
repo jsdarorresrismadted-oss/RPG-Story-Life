@@ -1,0 +1,17 @@
+{
+  "title": "Crea Tu Personaje",
+  "subtitle": "Tu personaje usará el mismo nick de tu cuenta: {{username}}. Elige tu clase para comenzar.",
+  "choose_class": "Elige tu clase",
+  "no_starter_classes": "Aún no hay clases iniciales disponibles.",
+  "choose_gender": "Elige el sexo",
+  "male": "Masculino",
+  "female": "Femenino",
+  "nick": "Nick del personaje",
+  "nick_hint": "El personaje usa el mismo nick de la cuenta — no se puede elegir otro.",
+  "create": "Crear Personaje",
+  "creating": "Creando...",
+  "need_class": "Elige una clase arriba para crear tu personaje.",
+  "failed_load": "Fallo al cargar las opciones de personaje",
+  "failed_create": "Fallo al crear el personaje",
+  "created": "¡Personaje {{name}} creado!"
+}

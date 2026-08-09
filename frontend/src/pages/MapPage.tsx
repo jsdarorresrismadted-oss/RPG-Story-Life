@@ -11,6 +11,7 @@ import {
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
 import { effectiveEnchantmentStats } from "../lib/enchantmentStats";
+import { EntityIcon } from "../components/EntityIcon";
 
 const ENCH_STAT_LABELS: { key: string; label: string }[] = [
   { key: "strength", label: "Força" },
@@ -20,6 +21,15 @@ const ENCH_STAT_LABELS: { key: string; label: string }[] = [
   { key: "wisdom", label: "Sabedoria" },
   { key: "luck", label: "Sorte" },
 ];
+
+const RARITY_CLASSES: Record<string, string> = {
+  common: "bg-gray-500/15 text-gray-300",
+  uncommon: "bg-green-500/15 text-green-300",
+  rare: "bg-blue-500/15 text-blue-300",
+  epic: "bg-purple-500/15 text-purple-300",
+  legendary: "bg-orange-500/15 text-orange-300",
+  mythic: "bg-red-500/15 text-red-300",
+};
 
 interface NpcDetail {
   id: string;
@@ -41,6 +51,24 @@ interface RaidStatusEntry {
   resetsInMs: number;
 }
 
+interface CraftResultItem {
+  id: string;
+  name: string;
+  icon?: string | null;
+  description?: string | null;
+  type?: string;
+  rarity?: string;
+  level?: number;
+  dps?: number;
+  attackSpeedMs?: number;
+  strength?: number;
+  intellect?: number;
+  endurance?: number;
+  dexterity?: number;
+  wisdom?: number;
+  luck?: number;
+}
+
 interface CraftRecipe {
   id: string;
   name: string;
@@ -51,7 +79,7 @@ interface CraftRecipe {
   requiredQuestIds?: string | null;
   ingredients: string;
   isActive: boolean;
-  resultItem?: { name: string } | null;
+  resultItem?: CraftResultItem | null;
 }
 
 interface GachaBooster {
@@ -75,7 +103,7 @@ interface OwnedBooster {
 
 interface GachaData {
   npc: { id: string; name: string; description: string; type: string };
-  config: { id: string; freeTickets: number; ticketCost: number; chances: Record<string, number>; active: boolean } | null;
+  config: { id: string; freeTickets: number; ticketCost: number; chances: Record<string, number>; slotChances?: Record<string, number>; active: boolean } | null;
   tickets: number;
   gold: number;
   catalog: GachaBooster[];
@@ -176,6 +204,8 @@ export function MapPage() {
   const [crafts, setCrafts] = useState<CraftRecipe[]>([]);
   const [craftingId, setCraftingId] = useState<string | null>(null);
   const [vendorTab, setVendorTab] = useState<"items" | "enchantments" | "crafts">("items");
+  const [enchantCategory, setEnchantCategory] = useState<string>("all");
+  const [enchantMaxLevel, setEnchantMaxLevel] = useState<number>(10);
   const [gachaData, setGachaData] = useState<GachaData | null>(null);
   const [gachaLoading, setGachaLoading] = useState(false);
   const [rolling, setRolling] = useState(false);
@@ -186,6 +216,14 @@ export function MapPage() {
     questProgress.filter((q) => q.status === "completed" || q.status === "claimed").map((q) => q.questId)
   );
   const vipActive = !!user?.vipUntil && new Date(user.vipUntil).getTime() > Date.now();
+
+  const shopTabs = (offers: { enchantmentId?: string | null }[]): Array<"items" | "enchantments" | "crafts"> => {
+    const tabs: Array<"items" | "enchantments" | "crafts"> = [];
+    if ((offers ?? []).some((o) => !o.enchantmentId)) tabs.push("items");
+    if ((offers ?? []).some((o) => !!o.enchantmentId)) tabs.push("enchantments");
+    if (crafts.length > 0) tabs.push("crafts");
+    return tabs;
+  };
 
   const refreshUser = async () => {
     try {
@@ -261,10 +299,17 @@ export function MapPage() {
     setVendorTab("items");
     setLastRoll(null);
     setGachaData(null);
+    setEnchantCategory("all");
+    setEnchantMaxLevel(10);
     try {
       const { data } = await npcApi.get(npcId);
       setNpc(data);
       if (isGachaNpc(data.type)) loadGacha(npcId);
+      if (isShopNpc(data.type) && !isEnchantNpc(data.type) && !isClassNpc(data.type)) {
+        const offers = data.shopItems ?? [];
+        const tabs = shopTabs(offers);
+        if (tabs.length > 0) setVendorTab(tabs[0]);
+      }
     } catch {
       toast.error("Failed to load NPC");
     } finally {
@@ -590,40 +635,83 @@ export function MapPage() {
 
             {isShopNpc(npc.type) && (
               <div className="space-y-2">
-                {!isEnchantNpc(npc.type) && !isClassNpc(npc.type) && (
-                <div className="flex gap-2 flex-wrap border-b border-dark-700 pb-2">
-                  {(
-                    [
-                      { key: "items", label: "Itens", icon: ShoppingBag, count: npc.shopItems?.filter((o) => !o.enchantmentId).length ?? 0 },
-                      { key: "enchantments", label: "Encantamentos", icon: Sparkles, count: npc.shopItems?.filter((o) => !!o.enchantmentId).length ?? 0 },
-                      { key: "crafts", label: "Craftar", icon: Hammer, count: crafts.length },
-                    ] as const
-                  ).map((t) => {
-                    const Icon = t.icon;
-                    return (
-                      <button
-                        key={t.key}
-                        onClick={() => setVendorTab(t.key)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          vendorTab === t.key
-                            ? "bg-gradient-to-r from-purple-600/30 to-blue-600/30 border border-purple-500/40 text-white"
-                            : "bg-dark-800 border border-dark-600 text-gray-400 hover:text-white"
-                        }`}
-                      >
-                        <Icon size={14} /> {t.label}
-                        {t.count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-dark-700 text-gray-400">{t.count}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-                )}
+                {!isEnchantNpc(npc.type) && !isClassNpc(npc.type) && (() => {
+                  const tabs = ([
+                    { key: "items", label: "Itens", icon: ShoppingBag, count: npc.shopItems?.filter((o) => !o.enchantmentId).length ?? 0 },
+                    { key: "enchantments", label: "Encantamentos", icon: Sparkles, count: npc.shopItems?.filter((o) => !!o.enchantmentId).length ?? 0 },
+                    { key: "crafts", label: "Craftar", icon: Hammer, count: crafts.length },
+                  ] as const).filter((t) => t.count > 0);
+                  if (tabs.length === 0) return null;
+                  return (
+                    <div className="flex gap-2 flex-wrap border-b border-dark-700 pb-2">
+                      {tabs.map((t) => {
+                        const Icon = t.icon;
+                        return (
+                          <button
+                            key={t.key}
+                            onClick={() => setVendorTab(t.key)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              vendorTab === t.key
+                                ? "bg-gradient-to-r from-purple-600/30 to-blue-600/30 border border-purple-500/40 text-white"
+                                : "bg-dark-800 border border-dark-600 text-gray-400 hover:text-white"
+                            }`}
+                          >
+                            <Icon size={14} /> {t.label}
+                            {t.count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-dark-700 text-gray-400">{t.count}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {(vendorTab === "items" || vendorTab === "enchantments") && (() => {
+                  const isEnchView = isEnchantNpc(npc.type) || vendorTab === "enchantments";
                   const offers = (npc.shopItems ?? []).filter((o) =>
-                    (isEnchantNpc(npc.type) || vendorTab === "enchantments") ? !!o.enchantmentId : !o.enchantmentId
-                  );
-                  return offers.length > 0 ? (
-                    offers.map((offer) => {
+                    isEnchView ? !!o.enchantmentId : !o.enchantmentId
+                  ).filter((o) => {
+                    if (!isEnchView) return true;
+                    if (enchantCategory !== "all" && o.enchantment?.category !== enchantCategory) return false;
+                    if ((o.enchantment?.level ?? 1) > enchantMaxLevel) return false;
+                    return true;
+                  });
+                  return (
+                    <>
+                    {isEnchView && (
+                      <div className="mb-3 space-y-2">
+                        <div className="flex gap-2 flex-wrap">
+                          {(["all", "strength", "intellect", "endurance", "dexterity", "wisdom", "luck"] as const).map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => setEnchantCategory(cat)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                                enchantCategory === cat
+                                  ? "bg-purple-600 text-white"
+                                  : "bg-dark-800 border border-dark-600 text-gray-400 hover:text-white"
+                              }`}
+                            >
+                              {cat === "all" ? "Todas" : cat === "strength" ? "Força" : cat === "intellect" ? "Intelecto" : cat === "endurance" ? "Vigor" : cat === "dexterity" ? "Destreza" : cat === "wisdom" ? "Sabedoria" : "Sorte"}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <label className="text-[11px] text-gray-500">Níveis:</label>
+                          <select
+                            value={enchantMaxLevel}
+                            onChange={(e) => setEnchantMaxLevel(Number(e.target.value))}
+                            className="input-rpg !py-1 !px-2 !text-xs w-28"
+                          >
+                            {[5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((lv) => (
+                              <option key={lv} value={lv}>até Nv. {lv}</option>
+                            ))}
+                          </select>
+                          <span className="text-[10px] text-gray-600">O mesmo encantamento vale para arma, armadura, capa e elmo — anéis/colares não encantam.</span>
+                        </div>
+                      </div>
+                    )}
+                    {offers.length > 0 ? (
+                      <div className="space-y-2 max-h-[46vh] overflow-y-auto pr-1">
+                      {offers.map((offer) => {
                       const isEnchantment = !!offer.enchantmentId;
                       const label = isEnchantment ? offer.enchantment?.name ?? "Encantamento" : offer.item?.name ?? "-";
                       const description = isEnchantment ? offer.enchantment?.description ?? "" : offer.item?.description ?? "";
@@ -637,12 +725,12 @@ export function MapPage() {
                           <div className={`w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden ${isEnchantment ? "bg-purple-500/20" : "bg-dark-700"}`}>
                             {isEnchantment ? (
                               offer.enchantment?.icon ? (
-                                <img src={offer.enchantment.icon} alt="" className="w-full h-full object-contain p-0.5" style={{ imageRendering: "pixelated" }} />
+                                <EntityIcon src={offer.enchantment.icon} size={16} className="text-purple-400" imgClassName="w-full h-full object-contain p-0.5" />
                               ) : (
                                 <ShoppingBag size={16} className="text-purple-400" />
                               )
                             ) : offer.item?.icon ? (
-                              <img src={offer.item.icon} alt="" className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
+                              <EntityIcon src={offer.item.icon} size={16} className="text-cyan-400" imgClassName="w-full h-full object-contain" />
                             ) : (
                               <ShoppingBag size={16} className="text-cyan-400" />
                             )}
@@ -722,11 +810,14 @@ export function MapPage() {
                           </div>
                         </div>
                       );
-                    })
+                      })}
+                      </div>
                   ) : (
                     <p className="text-sm text-gray-500">
                       {(isEnchantNpc(npc.type) || vendorTab === "enchantments") ? "Nenhum encantamento à venda." : "Nenhum item à venda."}
                     </p>
+                  )}
+                  </>
                   );
                 })()}
 
@@ -737,15 +828,48 @@ export function MapPage() {
                         const ings = parseIngredients(recipe.ingredients);
                         const questIds = parseQuestIdList(recipe.requiredQuestIds);
                         const craftLocked = questIds.length > 0 && !questIds.every((id) => doneQuests.has(id));
+                        const r = recipe.resultItem;
+                        const statKeys: { key: "strength" | "intellect" | "endurance" | "dexterity" | "wisdom" | "luck"; label: string }[] = [
+                          { key: "strength", label: "Força" },
+                          { key: "intellect", label: "Intelecto" },
+                          { key: "endurance", label: "Vigor" },
+                          { key: "dexterity", label: "Destreza" },
+                          { key: "wisdom", label: "Sabedoria" },
+                          { key: "luck", label: "Sorte" },
+                        ];
+                        const statBadges = r
+                          ? statKeys.filter((s) => Number(r[s.key] || 0) > 0)
+                          : [];
                         return (
                           <div key={recipe.id} className="card p-3 flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center shrink-0">
-                              <Hammer size={16} className="text-orange-400" />
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-600/40 to-amber-600/30 flex items-center justify-center overflow-hidden shrink-0">
+                              {r?.icon ? (
+                                <EntityIcon src={r.icon} size={18} className="text-orange-300" imgClassName="w-full h-full object-contain p-0.5" />
+                              ) : (
+                                <Hammer size={16} className="text-orange-400" />
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">{recipe.resultItem?.name ?? "Item"} <span className="text-gray-500">x{recipe.resultQuantity}</span></p>
-                              <p className="text-[11px] text-gray-500 line-clamp-1">{recipe.description}</p>
+                              <p className="text-sm font-medium">
+                                {r?.name ?? "Item"} <span className="text-gray-500">x{recipe.resultQuantity}</span>
+                                {r?.rarity && (
+                                  <span className={`text-[10px] ml-1.5 px-1.5 py-0.5 rounded-full align-middle uppercase ${RARITY_CLASSES[r.rarity] || "bg-dark-700 text-gray-300"}`}>
+                                    {r.rarity}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-[11px] text-gray-500 line-clamp-2">{r?.description || recipe.description}</p>
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                {r?.type === "weapon" && (
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/15 text-orange-300 rounded-md">
+                                    DPS {Number(r.dps || 0).toLocaleString()} · {Number(r.attackSpeedMs) > 0 ? `${(Number(r.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
+                                  </span>
+                                )}
+                                {statBadges.map(({ key, label }) => (
+                                  <span key={key} className="text-[10px] px-1.5 py-0.5 bg-dark-700 text-cyan-300 rounded-md">
+                                    {label} +{r![key]}
+                                  </span>
+                                ))}
                                 {Number(recipe.requiredLevel) > 0 && (
                                   <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/15 text-yellow-300 rounded-md">
                                     Nv. {recipe.requiredLevel}+
@@ -792,7 +916,7 @@ export function MapPage() {
                         <div key={offer.id} className="card p-3 flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center overflow-hidden shrink-0">
                             {cls.icon ? (
-                              <img src={cls.icon} alt="" className="w-full h-full object-contain p-0.5" style={{ imageRendering: "pixelated" }} />
+                              <EntityIcon src={cls.icon} size={18} className="text-purple-400" imgClassName="w-full h-full object-contain p-0.5" />
                             ) : (
                               <Swords size={16} className="text-purple-400" />
                             )}
@@ -945,6 +1069,19 @@ export function MapPage() {
                       <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                         <Gem size={12} className="text-cyan-400" /> Possíveis recompensas
                       </p>
+                      {gachaData.config?.slotChances && (() => {
+                        const sc = gachaData.config.slotChances as Record<string, number>;
+                        const ring = Number(sc.ring ?? 0);
+                        const neck = Number(sc.necklace ?? 0);
+                        const total = ring + neck;
+                        if (total <= 0) return null;
+                        return (
+                          <p className="text-[11px] text-gray-500 mb-2">
+                            Chance do prêmio ser <span className="text-yellow-400">Anel {Math.round((ring / total) * 100)}%</span> ·{" "}
+                            <span className="text-orange-400">Colar {Math.round((neck / total) * 100)}%</span>
+                          </p>
+                        );
+                      })()}
                       <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                         {gachaData.catalog.map((b) => {
                           const chance = gachaData.config?.chances?.[b.rarity] ?? null;

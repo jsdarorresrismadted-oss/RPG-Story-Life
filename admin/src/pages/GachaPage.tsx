@@ -20,6 +20,7 @@ export default function GachaPage() {
     freeTickets: 3,
     ticketCost: 5000,
     chances: { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3 },
+    slotChances: { ring: 50, necklace: 50 },
     active: true,
   });
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,7 @@ export default function GachaPage() {
           freeTickets: Number(data.freeTickets ?? 3),
           ticketCost: Number(data.ticketCost ?? 0),
           chances: { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3, ...(data.chances ?? {}) },
+          slotChances: { ring: 50, necklace: 50, ...(data.slotChances ?? {}) },
           active: data.active !== false,
         });
       }
@@ -56,6 +58,7 @@ export default function GachaPage() {
         freeTickets: Number(form.freeTickets),
         ticketCost: Number(form.ticketCost),
         chances: form.chances,
+        slotChances: form.slotChances,
         active: form.active,
       });
       toast.success("Configuração do gacha salva");
@@ -70,7 +73,12 @@ export default function GachaPage() {
     setForm((f) => ({ ...f, chances: { ...f.chances, [key]: Math.max(0, Number(value) || 0) } }));
   };
 
+  const setSlotChance = (key: "ring" | "necklace", value: number) => {
+    setForm((f) => ({ ...f, slotChances: { ...f.slotChances, [key]: Math.max(0, Number(value) || 0) } }));
+  };
+
   const totalChance = RARITY_FIELDS.reduce((acc, r) => acc + (form.chances[r.key] ?? 0), 0);
+  const totalSlotChance = (form.slotChances.ring ?? 0) + (form.slotChances.necklace ?? 0);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -106,6 +114,18 @@ export default function GachaPage() {
                 <div key={r.key} className="card p-3">
                   <p className="text-xs font-medium">{r.label} <span className="text-gray-500">(máx {r.max})</span></p>
                   <input type="number" min={0} step={1} value={form.chances[r.key] ?? 0} onChange={(e) => setChance(r.key, Number(e.target.value))} className={`${inputClass} mt-1.5`} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] text-gray-500 mb-2">Peso de sorteio Anel vs Colar (o total define a probabilidade de cada um) — total atual: <span className={totalSlotChance > 0 ? "text-green-400" : "text-yellow-400"}>{totalSlotChance}</span></p>
+            <div className="grid grid-cols-2 gap-3">
+              {(["ring", "necklace"] as const).map((slot) => (
+                <div key={slot} className="card p-3">
+                  <p className="text-xs font-medium capitalize">{slot === "ring" ? "Anel" : "Colar"}</p>
+                  <input type="number" min={0} step={1} value={form.slotChances[slot] ?? 0} onChange={(e) => setSlotChance(slot, Number(e.target.value))} className={`${inputClass} mt-1.5`} />
                 </div>
               ))}
             </div>

@@ -1,0 +1,17 @@
+{
+  "title": "Create Your Character",
+  "subtitle": "Your character will use the same nickname as your account: {{username}}. Choose your class to begin.",
+  "choose_class": "Choose your class",
+  "no_starter_classes": "No starter classes available yet.",
+  "choose_gender": "Choose gender",
+  "male": "Male",
+  "female": "Female",
+  "nick": "Character nickname",
+  "nick_hint": "The character uses the same nickname as your account — it cannot be changed.",
+  "create": "Create Character",
+  "creating": "Creating...",
+  "need_class": "Choose a class above to create your character.",
+  "failed_load": "Failed to load character options",
+  "failed_create": "Failed to create character",
+  "created": "Character {{name}} created!"
+}

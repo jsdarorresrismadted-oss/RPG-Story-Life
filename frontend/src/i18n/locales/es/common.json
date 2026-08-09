@@ -1,0 +1,20 @@
+{
+  "loading": "Cargando...",
+  "level": "Nivel",
+  "gold": "Oro",
+  "diamonds": "Diamantes",
+  "hp": "HP",
+  "mana": "Maná",
+  "atk": "ATK",
+  "def": "DEF",
+  "male": "Masculino",
+  "female": "Femenino",
+  "cancel": "Cancelar",
+  "confirm": "Confirmar",
+  "search": "Buscar",
+  "save": "Guardar",
+  "saving": "Guardando...",
+  "processing": "Procesando...",
+  "yes": "Sí",
+  "no": "No"
+}

@@ -1,0 +1,17 @@
+{
+  "welcome": "Welcome, adventurer!",
+  "welcome_body": "Create your character and choose from 5 unique classes. Each class has its own skill tree, passives and playstyle.",
+  "choose_class_cta": "Choose class",
+  "fight": "Fight monsters",
+  "fight_body": "Open the Map and start a combat. Use your skills, drink potions and collect rare drops! Your progress is saved automatically — feel free to leave and return.",
+  "go_map_cta": "Go to map",
+  "inventory": "Manage your inventory",
+  "inventory_body": "Equip better items, sell unwanted drops on the market and unlock new classes as your level rises.",
+  "open_inventory_cta": "Open inventory",
+  "quests": "Complete quests",
+  "quests_body": "Accept quests from NPCs, complete objectives and claim rewards. Chained quests unlock bosses like the Goblin Wizard!",
+  "see_quests_cta": "See quests",
+  "skip": "Skip",
+  "next": "Next",
+  "start_adventure": "Start adventure"
+}

@@ -1,0 +1,19 @@
+{
+  "title": "Create Account",
+  "subtitle": "Your nickname will be your character's name",
+  "nickname": "Nickname",
+  "nickname_placeholder": "Your nick (will be the character's name)",
+  "nickname_hint": "3-20 characters, only letters, numbers and _.",
+  "email": "Email (optional)",
+  "password": "Password",
+  "password_placeholder": "Min 6 characters",
+  "confirm_password": "Confirm Password",
+  "confirm_password_placeholder": "Confirm password",
+  "create_account": "Create Account",
+  "creating_account": "Creating account...",
+  "has_account": "Already have an account?",
+  "sign_in": "Sign in",
+  "failed": "Registration failed",
+  "password_mismatch": "Passwords don't match",
+  "success": "Welcome to RPG Story Life!"
+}

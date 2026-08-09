@@ -8,6 +8,7 @@ import {
   getGachaConfig,
   rollBooster,
   rollRarity,
+  rollSlot,
 } from "../../core/boosters";
 
 const GACHA_TYPES = new Set(["gacha"]);
@@ -64,7 +65,8 @@ export function createGachaModule(app: Express): void {
       if (user.gachaTickets < 1) throw new AppError(400, "Você não tem tickets de gacha. Compre um no NPC.");
 
       const rarity = rollRarity(config.chances);
-      const booster = await rollBooster(rarity);
+      const slot = rollSlot(config.slotChances);
+      const booster = await rollBooster(rarity, slot);
       if (!booster) throw new AppError(404, `Nenhuma recompensa configurada para a raridade ${RARITY_LABELS[rarity] ?? rarity}.`);
 
       const boostValue = Math.min(booster.boostValue, BOOST_MAX_BY_RARITY[rarity] ?? booster.boostValue);

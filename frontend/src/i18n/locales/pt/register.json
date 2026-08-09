@@ -1,0 +1,19 @@
+{
+  "title": "Criar Conta",
+  "subtitle": "Seu nick será o nome do seu personagem",
+  "nickname": "Nickname",
+  "nickname_placeholder": "Seu nick (será o nome do personagem)",
+  "nickname_hint": "3-20 caracteres, apenas letras, números e _.",
+  "email": "Email (opcional)",
+  "password": "Senha",
+  "password_placeholder": "Mínimo 6 caracteres",
+  "confirm_password": "Confirmar Senha",
+  "confirm_password_placeholder": "Confirme a senha",
+  "create_account": "Criar Conta",
+  "creating_account": "Criando conta...",
+  "has_account": "Já tem uma conta?",
+  "sign_in": "Entrar",
+  "failed": "Falha no registro",
+  "password_mismatch": "As senhas não coincidem",
+  "success": "Bem-vindo ao RPG Story Life!"
+}

@@ -101,7 +101,7 @@ function parseEffect(e: any): EffectDef {
   };
 }
 
-function serializeSkillForClient(s: SkillDef, mods: { damagePercent?: number; healPercent?: number } | null): any {
+export function serializeSkillForClient(s: SkillDef, mods: { damagePercent?: number; healPercent?: number } | null): any {
   return {
     id: s.id,
     name: s.name,
@@ -161,7 +161,17 @@ export class CombatService {
     this.onTickListener = listener;
   }
 
-  private async loadCombatContext(characterId: string, monsterId: string): Promise<any> {
+  async buildPlayerContext(characterId: string): Promise<{
+    character: any;
+    gameClass: any;
+    rank: number;
+    skills: SkillDef[];
+    passives: PassiveDef[];
+    effects: EffectDef[];
+    coreStats: any;
+    boosterBonuses: any;
+    statsInput: StatsInput;
+  }> {
     const character = await this.prisma.character.findUnique({
       where: { id: characterId },
       include: {
@@ -191,11 +201,6 @@ export class CombatService {
     const gameClass = character.class;
     if (!gameClass) throw new Error("Personagem sem classe");
 
-    const monster = await this.prisma.monster.findUnique({
-      where: { id: monsterId },
-    });
-    if (!monster) throw new Error("Monstro não encontrado");
-
     const rank = character.classProgress?.[0]?.rank ?? 1;
 
     // Catálogo de efeitos (para skills que aplicam por slug)
@@ -203,9 +208,6 @@ export class CombatService {
     const effects: EffectDef[] = effectRows.map(parseEffect);
 
     const skills: SkillDef[] = (gameClass.skills || []).map(parseSkill);
-    const monsterSkills: SkillDef[] = (parseJson(monster.skills, []) || [])
-      .slice(0, 4)
-      .map(parseSkill);
     const passives: PassiveDef[] = (gameClass.passives || [])
       .filter((p: any) => (p.rankRequired ?? 1) <= rank)
       .map(parsePassive);
@@ -213,7 +215,6 @@ export class CombatService {
     // Core Stats de equipamento — o encantamento SUBSTITUI os valores do item:
     // sem encantamento, soma os valores do item; encantado, vale só o encantamento
     // (com os valores calculados pela fórmula de progressão: base nível 1 × crescimento).
-    // Total = classe (fixa) + itens — convertido pela Combat Engine.
     const coreStats = sumCoreStats([
       ...["weapon", "classItem", "helm", "armor", "cape", "ring", "necklace"].map((slot) => {
         const item = (character.equipment as any)?.[slot];
@@ -248,6 +249,21 @@ export class CombatService {
       attackSpeedMs: (character.equipment as any)?.weapon?.attackSpeedMs > 0 ? (character.equipment as any).weapon.attackSpeedMs : undefined,
       weaponDps: Number((character.equipment as any)?.weapon?.dps) > 0 ? Number((character.equipment as any).weapon.dps) : undefined,
     };
+
+    return { character, gameClass, rank, skills, passives, effects, coreStats, boosterBonuses, statsInput };
+  }
+
+  private async loadCombatContext(characterId: string, monsterId: string): Promise<any> {
+    const { character, gameClass, rank, skills, passives, effects, statsInput } = await this.buildPlayerContext(characterId);
+
+    const monster = await this.prisma.monster.findUnique({
+      where: { id: monsterId },
+    });
+    if (!monster) throw new Error("Monstro não encontrado");
+
+    const monsterSkills: SkillDef[] = (parseJson(monster.skills, []) || [])
+      .slice(0, 4)
+      .map(parseSkill);
 
     const battle = new Battle({
       characterId: character.id,

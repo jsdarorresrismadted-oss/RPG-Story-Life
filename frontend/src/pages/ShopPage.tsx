@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
+import { EntityIcon } from "../components/EntityIcon";
 
 interface ShopEnchantment {
   name: string;
@@ -213,9 +214,9 @@ export function ShopPage() {
   };
 
   const productIcon = (product: ShopProduct) => {
-    if (product.icon) return <img src={product.icon} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: "pixelated" }} />;
-    if (product.type === "item" && product.item?.icon) return <img src={product.item.icon} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: "pixelated" }} />;
-    if (product.type === "class" && product.gameClass?.icon) return <img src={product.gameClass.icon} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: "pixelated" }} />;
+    if (product.icon) return <EntityIcon src={product.icon} size={18} className="text-gray-300" imgClassName="w-6 h-6 object-contain" />;
+    if (product.type === "item" && product.item?.icon) return <EntityIcon src={product.item.icon} size={18} className="text-gray-300" imgClassName="w-6 h-6 object-contain" />;
+    if (product.type === "class" && product.gameClass?.icon) return <EntityIcon src={product.gameClass.icon} size={18} className="text-red-400" imgClassName="w-6 h-6 object-contain" />;
     if (product.type === "item") return <Package size={18} className="text-gray-400" />;
     if (product.type === "class") return <Swords size={18} className="text-red-400" />;
     return null;

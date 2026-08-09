@@ -54,6 +54,7 @@ const MASTER_RULES = [
   "Voce e um artista profissional especializado em criar equipamentos para jogos RPG. Sua funcao e criar apenas assets de jogo, nunca ilustracoes.",
   "Todos os equipamentos devem seguir exatamente o mesmo estilo visual.",
   "REGRAS DE ARTE: Pixel Art; fundo transparente; alta qualidade, pronto para uso em jogos; sem personagem, sem texto, sem interface, sem logotipos, sem molduras, sem sombra externa; objeto centralizado, apenas um item por imagem.",
+  "SEM EFEITOS MAGICOS: sem aura, sem brilho/glow ao redor do item, sem particulas, sem faiscas, sem raios de luz, sem chamas ou energia saindo do item — o item em repouso, como seria exibido em uma loja ou inventario.",
   "Mesmo nivel de detalhamento, mesma iluminacao, mesmo tipo de contorno, mesma densidade de pixels, mesmo estilo artistico, mesmo padrao de cores e mesmo nivel de qualidade dos equipamentos anteriores.",
   "O jogador nunca deve perceber diferenca entre um item antigo e um item criado agora.",
   "COMPATIBILIDADE: os equipamentos serao usados por um sistema de avatar modular 64x64 (personagens masculinos e femininos).",
@@ -116,7 +117,7 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     '{"name":"Nome em portugues, curto e fantastico",',
     '"description":"1-2 frases em portugues descrevendo visual e lendinha",',
     '"subtype":"um de: sword, dagger, staff, axe, tome, bow (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | vazio para capa/anel/colar",',
-    '"artPrompt":"PROMPT DE ARTE EM INGLES, auto-contido, descrevendo o item com detalhes (formato, material, cor, ornamentos, iluminacao) e terminando com: pixel art icon, 64x64 game asset, flat solid uniform single-color background, no gradient, no scene, no floor, no clouds, nothing behind the item, single item centered, no character, no text, no UI, no logo, no frame, no external shadow, consistent style with the game other equipment (same detail level, same lighting, same outline, same pixel density)",',
+    '"artPrompt":"PROMPT DE ARTE EM INGLES, auto-contido, descrevendo o item com detalhes (formato, material, cor, ornamentos, iluminacao) e terminando com: pixel art icon, 64x64 game asset, flat solid uniform single-color background, no gradient, no scene, no floor, no clouds, nothing behind the item, single item centered, no character, no text, no UI, no logo, no frame, no external shadow, no aura, no glow, no magic particles, no sparks, no light rays, no fire or energy coming out of the item, item at rest, consistent style with the game other equipment (same detail level, same lighting, same outline, same pixel density)",',
     '"stats":{"strength":0,"intellect":0,"endurance":0,"dexterity":0,"wisdom":0,"luck":0},',
     '"attackSpeedMs":0,"dps":0,"buyPrice":0,"sellPrice":0}',
   ]
@@ -401,4 +402,39 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
     log.push("Aviso: fundo pode nao ter sido removido (" + Math.round(removedPct) + "% da imagem) - gere de novo se quiser");
   }
   return { icon, plan };
+}
+
+// ===== 5) Icone APENAS para item existente (sem replanejar stats/nome) =====
+// Usado na regeneracao em lote: mantem nome/raridade/slot do item atual e
+// desenha um icone novo com o estilo "sem aura" padronizado do jogo.
+export interface IconSeedInput {
+  name: string;
+  type: string;
+  rarity?: string;
+  description?: string;
+  seed?: number;
+}
+
+export async function generateItemIcon(input: IconSeedInput, log?: string[]): Promise<{ icon: string; removedPct: number }> {
+  const type = input.type;
+  if (!CATEGORY_BY_TYPE[type]) throw new AppError(400, "Tipo invalido: " + type);
+  const rarity = VALID_RARITIES.includes(String(input.rarity || "")) ? String(input.rarity) : "common";
+  const slotRule = SLOT_RULES[type] || "";
+  const artPrompt =
+    `A pixel art icon for an RPG ${TYPE_PT[type]} equipment item named "${input.name}" (rarity: ${RARITY_PT[rarity]}). ` +
+    `${slotRule} ` +
+    (input.description ? `Item description: ${input.description}. ` : "") +
+    "pixel art icon, 64x64 game asset, flat solid uniform single-color background, no gradient, no scene, no floor, no clouds, nothing behind the item, single item centered, no character, no text, no UI, no logo, no frame, no external shadow, no aura, no glow, no magic particles, no sparks, no light rays, no fire or energy coming out of the item, item at rest, consistent style with the game other equipment (same detail level, same lighting, same outline, same pixel density)";
+  const seed = Math.floor(Number(input.seed) || (Date.now() % 1000000));
+  const png = await renderSprite(artPrompt, seed);
+  const { png: processed, removedPct } = await postProcess(png);
+  const filename = "ai-" + Date.now() + "-" + seed + ".png";
+  const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, processed);
+  if (log) {
+    log.push("Pollinations (imagem) - prompt direto");
+    if (removedPct < 15) {
+      log.push("Aviso: fundo pode nao ter sido removido (" + Math.round(removedPct) + "% da imagem) - gere de novo se quiser");
+    }
+  }
+  return { icon, removedPct };
 }
