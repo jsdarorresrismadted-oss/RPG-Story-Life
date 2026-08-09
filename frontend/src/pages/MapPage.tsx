@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { mapsApi, npcApi, questsApi, raidApi, craftApi, authApi, gachaApi } from "../services/api";
+import { mapsApi, npcApi, questsApi, raidApi, craftApi, authApi, gachaApi, inventoryApi } from "../services/api";
 import { Map as MapType } from "../types";
 import { getSocket } from "../services/socket";
 import {
   ArrowLeft, Skull, Store, ScrollText, Navigation, Shield, Map as MapIcon,
   X, ShoppingBag, CheckCircle2, Clock, Gift, Lock, Swords, Hammer, Crown, Sparkles,
-  Dices, Ticket, Gem,
+  Dices, Ticket, Gem, Package, Coins,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
@@ -22,20 +22,153 @@ const ENCH_STAT_LABELS: { key: string; label: string }[] = [
   { key: "luck", label: "Sorte" },
 ];
 
-const RARITY_CLASSES: Record<string, string> = {
-  common: "bg-gray-500/15 text-gray-300",
-  uncommon: "bg-green-500/15 text-green-300",
-  rare: "bg-blue-500/15 text-blue-300",
-  epic: "bg-purple-500/15 text-purple-300",
-  legendary: "bg-orange-500/15 text-orange-300",
-  mythic: "bg-red-500/15 text-red-300",
+const RARITY_BADGE: Record<string, string> = {
+  common: "bg-gray-500/15 text-gray-300 border-gray-500/30",
+  uncommon: "bg-green-500/15 text-green-300 border-green-500/30",
+  rare: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+  epic: "bg-purple-500/15 text-purple-300 border-purple-500/30",
+  legendary: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  mythic: "bg-red-500/15 text-red-300 border-red-500/30",
+  artifact: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
 };
+
+const RARITY_TEXT: Record<string, string> = {
+  common: "text-gray-400",
+  uncommon: "text-green-400",
+  rare: "text-blue-400",
+  epic: "text-purple-400",
+  legendary: "text-orange-400",
+  mythic: "text-red-400",
+  artifact: "text-cyan-400",
+};
+
+const RARITY_ICON_FRAME: Record<string, string> = {
+  common: "from-gray-700/40 to-gray-800/30 border-gray-600/50",
+  uncommon: "from-green-600/30 to-emerald-800/20 border-green-500/40",
+  rare: "from-blue-600/30 to-indigo-800/20 border-blue-500/40",
+  epic: "from-purple-600/30 to-fuchsia-800/20 border-purple-500/40",
+  legendary: "from-orange-600/30 to-amber-800/20 border-orange-500/40",
+  mythic: "from-red-600/30 to-rose-800/20 border-red-500/40",
+  artifact: "from-cyan-600/30 to-teal-800/20 border-cyan-500/40",
+};
+
+const ITEM_TYPE_LABELS: Record<string, string> = {
+  weapon: "Arma",
+  class: "Classe",
+  helm: "Capacete",
+  armor: "Armadura",
+  cape: "Capa",
+  ring: "Anel",
+  necklace: "Colar",
+  consumable: "Consumível",
+};
+
+const CORE_STATS: { key: keyof UnifiedShopItem; label: string; color: string }[] = [
+  { key: "strength", label: "Força", color: "text-orange-400" },
+  { key: "intellect", label: "Intelecto", color: "text-blue-400" },
+  { key: "endurance", label: "Vigor", color: "text-red-400" },
+  { key: "dexterity", label: "Destreza", color: "text-green-400" },
+  { key: "wisdom", label: "Sabedoria", color: "text-purple-400" },
+  { key: "luck", label: "Sorte", color: "text-yellow-400" },
+];
+
+function itemStatRows(item: UnifiedShopItem): { label: string; value: string; valueColor: string }[] {
+  const rows: { label: string; value: string; valueColor: string }[] = [];
+  if (item.type === "weapon") {
+    rows.push({ label: "DPS", value: Number(item.dps || 0).toLocaleString("pt-BR"), valueColor: "text-orange-300" });
+    rows.push({
+      label: "Intervalo de Ataque",
+      value:
+        Number(item.attackSpeedMs) > 0
+          ? `${(Number(item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s`
+          : "2s",
+      valueColor: "text-orange-300",
+    });
+  } else if (item.type === "consumable") {
+    try {
+      const fx = JSON.parse(item.effects || "{}");
+      for (const [k, v] of Object.entries(fx)) rows.push({ label: k, value: `+${v}`, valueColor: "text-green-400" });
+    } catch {
+      /* sem efeitos */
+    }
+  } else {
+    for (const { key, label, color } of CORE_STATS) {
+      const v = Number(item[key] || 0);
+      if (v > 0) rows.push({ label, value: `+${v}`, valueColor: color });
+    }
+  }
+  return rows;
+}
+
+interface NpcShopEnchantment {
+  name: string;
+  slug: string;
+  description: string;
+  icon?: string | null;
+  requiredVip?: boolean;
+  level?: number;
+  rarity?: string;
+  category?: string;
+  strength?: number;
+  intellect?: number;
+  endurance?: number;
+  dexterity?: number;
+  wisdom?: number;
+  luck?: number;
+  computedStats?: Record<string, number>;
+}
+
+interface NpcShopClass {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  icon?: string | null;
+  role: string;
+  requiredLevel: number;
+  requiredVip: boolean;
+  price: string | number;
+}
+
+interface NpcShopItem {
+  id: string;
+  price: string | number;
+  currency?: string;
+  itemId?: string | null;
+  enchantmentId?: string | null;
+  classId?: string | null;
+  requiredLevel?: number;
+  requiredVip?: boolean;
+  requiredQuestIds?: string | null;
+  class?: NpcShopClass | null;
+  item?: {
+    id: string;
+    name: string;
+    description: string;
+    type: string;
+    rarity: string;
+    icon?: string | null;
+    level?: number;
+    rank?: number;
+    effects?: string | null;
+    attackSpeedMs?: number;
+    dps?: number;
+    strength?: number;
+    intellect?: number;
+    endurance?: number;
+    dexterity?: number;
+    wisdom?: number;
+    luck?: number;
+    requiredVip?: boolean;
+  } | null;
+  enchantment?: NpcShopEnchantment | null;
+}
 
 interface NpcDetail {
   id: string;
   name: string;
   type: string;
-  shopItems?: { id: string; price: string | number; currency?: string; itemId?: string | null; enchantmentId?: string | null; classId?: string | null; requiredLevel?: number; requiredVip?: boolean; requiredQuestIds?: string | null; class?: { id: string; name: string; slug: string; description: string; icon?: string | null; role: string; requiredLevel: number; requiredVip: boolean; price: string | number } | null; item: { id: string; name: string; description: string; type: string; rarity: string; icon?: string | null; attackSpeedMs?: number; dps?: number; requiredVip?: boolean } | null; enchantment?: { name: string; slug: string; description: string; icon?: string | null; requiredVip?: boolean; level?: number; rarity?: string; category?: string; strength?: number; intellect?: number; endurance?: number; dexterity?: number; wisdom?: number; luck?: number; computedStats?: Record<string, number> } | null }[];
+  shopItems?: NpcShopItem[];
   quests?: { id: string; title: string; description: string; requiredLevel: number; requiredRank: number; requiredQuestIds?: string | null; xpReward: string | number; goldReward: string | number }[];
 }
 
@@ -76,10 +209,38 @@ interface CraftRecipe {
   resultItemId: string;
   resultQuantity: number;
   requiredLevel: number;
+  requiredVip?: boolean;
   requiredQuestIds?: string | null;
   ingredients: string;
+  goldCost?: number | string;
   isActive: boolean;
   resultItem?: CraftResultItem | null;
+}
+
+interface UnifiedShopItem {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  rarity: string;
+  icon?: string | null;
+  level: number;
+  rank: number;
+  effects?: string | null;
+  dps: number;
+  attackSpeedMs: number;
+  strength: number;
+  intellect: number;
+  endurance: number;
+  dexterity: number;
+  wisdom: number;
+  luck: number;
+}
+
+interface UnifiedShopEntry {
+  item: UnifiedShopItem;
+  buyOffer?: NpcShopItem;
+  recipes: CraftRecipe[];
 }
 
 interface GachaBooster {
@@ -203,7 +364,8 @@ export function MapPage() {
   const [buyingItemId, setBuyingItemId] = useState<string | null>(null);
   const [crafts, setCrafts] = useState<CraftRecipe[]>([]);
   const [craftingId, setCraftingId] = useState<string | null>(null);
-  const [vendorTab, setVendorTab] = useState<"items" | "enchantments" | "crafts">("items");
+  const [shopSelectedId, setShopSelectedId] = useState<string | null>(null);
+  const [inventoryByName, setInventoryByName] = useState<Record<string, number>>({});
   const [enchantCategory, setEnchantCategory] = useState<string>("all");
   const [enchantMaxLevel, setEnchantMaxLevel] = useState<number>(10);
   const [gachaData, setGachaData] = useState<GachaData | null>(null);
@@ -217,19 +379,63 @@ export function MapPage() {
   );
   const vipActive = !!user?.vipUntil && new Date(user.vipUntil).getTime() > Date.now();
 
-  const shopTabs = (offers: { enchantmentId?: string | null }[]): Array<"items" | "enchantments" | "crafts"> => {
-    const tabs: Array<"items" | "enchantments" | "crafts"> = [];
-    if ((offers ?? []).some((o) => !o.enchantmentId)) tabs.push("items");
-    if ((offers ?? []).some((o) => !!o.enchantmentId)) tabs.push("enchantments");
-    if (crafts.length > 0) tabs.push("crafts");
-    return tabs;
-  };
-
   const refreshUser = async () => {
     try {
       const { data } = await authApi.me();
       if (data.user) setUser(data.user);
     } catch { /* ignore */ }
+  };
+
+  const loadInventory = () => {
+    inventoryApi.list().then(({ data }) => {
+      const map: Record<string, number> = {};
+      for (const inv of Array.isArray(data) ? data : []) {
+        const name = String(inv.item?.name || "").toLowerCase();
+        if (!name) continue;
+        map[name] = (map[name] ?? 0) + Number(inv.quantity || 0);
+      }
+      setInventoryByName(map);
+    }).catch(() => {});
+  };
+
+  const ownedQty = (name: string) => inventoryByName[String(name).toLowerCase()] ?? 0;
+
+  const normalizeShopItem = (it: any): UnifiedShopItem => ({
+    id: it.id,
+    name: it.name ?? "Item",
+    description: it.description ?? "",
+    type: it.type ?? "consumable",
+    rarity: it.rarity ?? "common",
+    icon: it.icon ?? null,
+    level: Number(it.level || 1),
+    rank: Number(it.rank || 1),
+    effects: it.effects ?? null,
+    dps: Number(it.dps || 0),
+    attackSpeedMs: Number(it.attackSpeedMs || 0),
+    strength: Number(it.strength || 0),
+    intellect: Number(it.intellect || 0),
+    endurance: Number(it.endurance || 0),
+    dexterity: Number(it.dexterity || 0),
+    wisdom: Number(it.wisdom || 0),
+    luck: Number(it.luck || 0),
+  });
+
+  const buildShopEntries = (): UnifiedShopEntry[] => {
+    if (!npc) return [];
+    const byId = new Map<string, UnifiedShopEntry>();
+    for (const offer of npc.shopItems ?? []) {
+      if (!offer.itemId || offer.enchantmentId || offer.classId || !offer.item) continue;
+      const entry = byId.get(offer.itemId) ?? { item: normalizeShopItem(offer.item), buyOffer: undefined, recipes: [] };
+      entry.buyOffer = offer;
+      byId.set(offer.itemId, entry);
+    }
+    for (const recipe of crafts) {
+      if (!recipe.resultItem) continue;
+      const entry = byId.get(recipe.resultItemId) ?? { item: normalizeShopItem(recipe.resultItem), buyOffer: undefined, recipes: [] };
+      entry.recipes.push(recipe);
+      byId.set(recipe.resultItemId, entry);
+    }
+    return Array.from(byId.values());
   };
 
   const loadCrafts = () => {
@@ -240,6 +446,7 @@ export function MapPage() {
 
   useEffect(() => {
     loadCrafts();
+    loadInventory();
   }, []);
 
   const craftItem = async (recipe: CraftRecipe) => {
@@ -248,6 +455,8 @@ export function MapPage() {
       const { data } = await craftApi.craft(recipe.id);
       toast.success(data.message || "Craftado!");
       loadCrafts();
+      loadInventory();
+      refreshUser();
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Falha ao craftar.");
     } finally {
@@ -296,7 +505,7 @@ export function MapPage() {
   const openNpc = async (npcId: string) => {
     setNpcLoading(true);
     setNpc(null);
-    setVendorTab("items");
+    setShopSelectedId(null);
     setLastRoll(null);
     setGachaData(null);
     setEnchantCategory("all");
@@ -306,9 +515,7 @@ export function MapPage() {
       setNpc(data);
       if (isGachaNpc(data.type)) loadGacha(npcId);
       if (isShopNpc(data.type) && !isEnchantNpc(data.type) && !isClassNpc(data.type)) {
-        const offers = data.shopItems ?? [];
-        const tabs = shopTabs(offers);
-        if (tabs.length > 0) setVendorTab(tabs[0]);
+        loadInventory();
       }
     } catch {
       toast.error("Failed to load NPC");
@@ -385,7 +592,8 @@ export function MapPage() {
       const { data } = await npcApi.buy(npc.id, payload);
       const currency = data.currency === "diamond" ? "diamantes" : "gold";
       toast.success(isClass ? `Classe ${data.item} desbloqueada e equipada!` : `${data.quantity}x ${data.item} comprado (${data.totalPrice} ${currency})`);
-      if (currency === "diamantes") refreshUser();
+      refreshUser();
+      loadInventory();
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Falha na compra");
     } finally {
@@ -622,7 +830,7 @@ export function MapPage() {
       {/* NPC modal */}
       {npc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setNpc(null)}>
-          <div className="panel w-full max-w-lg max-h-[80vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+          <div className={`panel w-full ${isShopNpc(npc.type) && !isEnchantNpc(npc.type) && !isClassNpc(npc.type) ? "max-w-6xl" : "max-w-lg"} max-h-[85vh] overflow-y-auto p-5`} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="font-display font-bold text-lg">{npc.name}</h2>
@@ -636,37 +844,204 @@ export function MapPage() {
             {isShopNpc(npc.type) && (
               <div className="space-y-2">
                 {!isEnchantNpc(npc.type) && !isClassNpc(npc.type) && (() => {
-                  const tabs = ([
-                    { key: "items", label: "Itens", icon: ShoppingBag, count: npc.shopItems?.filter((o) => !o.enchantmentId).length ?? 0 },
-                    { key: "enchantments", label: "Encantamentos", icon: Sparkles, count: npc.shopItems?.filter((o) => !!o.enchantmentId).length ?? 0 },
-                    { key: "crafts", label: "Craftar", icon: Hammer, count: crafts.length },
-                  ] as const).filter((t) => t.count > 0);
-                  if (tabs.length === 0) return null;
+                  const entries = buildShopEntries();
+                  const charLevel = user?.characters?.[0]?.level ?? user?.level ?? 0;
+                  const gold = Number(user?.gold ?? 0);
+                  const diamonds = Number(user?.diamonds ?? 0);
+                  if (entries.length === 0) {
+                    return <p className="text-sm text-gray-500">Nenhum item à venda neste vendedor.</p>;
+                  }
+                  const selected = entries.find((e) => e.item.id === shopSelectedId) ?? entries[0];
+                  const statRows = itemStatRows(selected.item);
                   return (
-                    <div className="flex gap-2 flex-wrap border-b border-dark-700 pb-2">
-                      {tabs.map((t) => {
-                        const Icon = t.icon;
-                        return (
-                          <button
-                            key={t.key}
-                            onClick={() => setVendorTab(t.key)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              vendorTab === t.key
-                                ? "bg-gradient-to-r from-purple-600/30 to-blue-600/30 border border-purple-500/40 text-white"
-                                : "bg-dark-800 border border-dark-600 text-gray-400 hover:text-white"
-                            }`}
-                          >
-                            <Icon size={14} /> {t.label}
-                            {t.count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-dark-700 text-gray-400">{t.count}</span>}
-                          </button>
-                        );
-                      })}
+                    <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr_280px] gap-3 items-start">
+                      {/* PREVIEW */}
+                      <div className="rounded-xl border border-dark-600 bg-gradient-to-b from-dark-800/70 to-dark-900/70 p-4 flex flex-col">
+                        <div className="flex flex-col items-center text-center">
+                          <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${RARITY_ICON_FRAME[selected.item.rarity] || RARITY_ICON_FRAME.common} border-2 flex items-center justify-center mb-3 shadow-lg`}>
+                            {selected.item.icon ? (
+                              <EntityIcon src={selected.item.icon} size={48} className="text-gray-100" imgClassName="w-16 h-16 object-contain" />
+                            ) : (
+                              <Package size={44} className="text-gray-400" />
+                            )}
+                          </div>
+                          <h3 className="font-display font-bold text-lg leading-tight text-white">{selected.item.name}</h3>
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap justify-center">
+                            <span className="text-[10px] uppercase tracking-wider text-gray-500">{ITEM_TYPE_LABELS[selected.item.type] || selected.item.type}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase ${RARITY_BADGE[selected.item.rarity] || RARITY_BADGE.common}`}>
+                              {selected.item.rarity}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-dark-700 border border-dark-600 text-yellow-300">Nv. {selected.item.level}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 text-center">{selected.item.description}</p>
+                        {statRows.length > 0 && (
+                          <div className="mt-4 rounded-lg bg-dark-900/70 border border-dark-700 p-3 space-y-1">
+                            {statRows.map((row) => (
+                              <div key={row.label} className="flex items-center justify-between text-xs">
+                                <span className="text-gray-400">{row.label}</span>
+                                <span className={`font-mono ${row.valueColor}`}>{row.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CUSTO / OBTENÇÃO */}
+                      <div className="rounded-xl border border-dark-600 bg-dark-900/70 p-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between text-[11px] text-gray-500">
+                          <span className="flex items-center gap-1.5"><Coins size={12} className="text-yellow-400" /> Ouro</span>
+                          <span className="font-mono text-yellow-300">{gold.toLocaleString("pt-BR")}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-gray-500">
+                          <span className="flex items-center gap-1.5"><Gem size={12} className="text-cyan-400" /> Diamantes</span>
+                          <span className="font-mono text-cyan-300">{diamonds.toLocaleString("pt-BR")}</span>
+                        </div>
+
+                        {selected.buyOffer && (() => {
+                          const offer = selected.buyOffer!;
+                          const price = Number(offer.price);
+                          const isDiamond = offer.currency === "diamond";
+                          const enough = isDiamond ? diamonds >= price : gold >= price;
+                          const questIds = parseQuestIdList(offer.requiredQuestIds);
+                          const questLocked = questIds.length > 0 && !questIds.every((id) => doneQuests.has(id));
+                          const vipLocked = !!(offer.requiredVip || offer.item?.requiredVip) && !vipActive;
+                          const lvlLocked = Number(offer.requiredLevel) > 0 && charLevel < Number(offer.requiredLevel);
+                          const locked = questLocked || vipLocked || lvlLocked;
+                          const busy = buyingItemId === offer.itemId;
+                          return (
+                            <div className="rounded-lg border border-dark-700 bg-dark-800/60 p-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                                  {isDiamond ? <Gem size={13} className="text-cyan-400" /> : <Coins size={13} className="text-yellow-400" />}
+                                  {isDiamond ? "Diamantes" : "Ouro"}
+                                </span>
+                                <span className={`font-mono text-base ${isDiamond ? "text-cyan-200" : "text-yellow-200"}`}>{price.toLocaleString("pt-BR")}</span>
+                              </div>
+                              <button
+                                onClick={() => buyItem(offer)}
+                                disabled={locked || !enough || !!busy}
+                                className={`w-full mt-2.5 text-xs px-3 py-2 rounded-lg font-semibold tracking-wider transition-colors ${
+                                  locked
+                                    ? "bg-dark-700 text-gray-500"
+                                    : !enough
+                                    ? "bg-dark-700 text-red-400"
+                                    : "bg-gradient-to-r from-yellow-600 to-amber-500 text-black hover:opacity-90"
+                                }`}
+                              >
+                                {busy ? "..." : locked ? (questLocked ? "Quest bloqueada" : vipLocked ? "Requer VIP" : `Requer Nv. ${offer.requiredLevel}`) : !enough ? (isDiamond ? "Diamantes insuficientes" : "Ouro insuficiente") : "COMPRAR"}
+                              </button>
+                            </div>
+                          );
+                        })()}
+
+                        {selected.buyOffer && selected.recipes.length > 0 && (
+                          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-gray-600">
+                            <span className="flex-1 h-px bg-dark-700" /> OU <span className="flex-1 h-px bg-dark-700" />
+                          </div>
+                        )}
+
+                        {selected.recipes.map((recipe) => {
+                          const ings = parseIngredients(recipe.ingredients);
+                          const questIds = parseQuestIdList(recipe.requiredQuestIds);
+                          const questLocked = questIds.length > 0 && !questIds.every((id) => doneQuests.has(id));
+                          const vipLocked = !!recipe.requiredVip && !vipActive;
+                          const lvlLocked = Number(recipe.requiredLevel) > 0 && charLevel < Number(recipe.requiredLevel);
+                          const goldCost = Number(recipe.goldCost || 0);
+                          const matMet = ings.every((ing) => ownedQty(ing.itemName) >= ing.quantity);
+                          const goldMet = gold >= goldCost;
+                          const ready = !questLocked && !vipLocked && !lvlLocked && matMet && goldMet;
+                          const busy = craftingId === recipe.id;
+                          return (
+                            <div key={recipe.id} className="rounded-lg border border-dark-700 bg-dark-800/60 p-3 space-y-1.5">
+                              {ings.map((ing) => {
+                                const have = ownedQty(ing.itemName);
+                                const ok = have >= ing.quantity;
+                                return (
+                                  <div key={ing.itemName} className="flex items-center justify-between text-xs gap-2">
+                                    <span className="text-gray-300">{ing.itemName}</span>
+                                    <span className={`font-mono ${ok ? "text-green-400" : "text-red-400"}`}>
+                                      {Math.min(have, ing.quantity).toLocaleString("pt-BR")} / {ing.quantity.toLocaleString("pt-BR")}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              {goldCost > 0 && (
+                                <div className="flex items-center justify-between text-xs gap-2">
+                                  <span className="text-gray-300 flex items-center gap-1.5"><Coins size={12} className="text-yellow-400" /> Ouro</span>
+                                  <span className={`font-mono ${goldMet ? "text-green-400" : "text-red-400"}`}>
+                                    {Math.min(gold, goldCost).toLocaleString("pt-BR")} / {goldCost.toLocaleString("pt-BR")}
+                                  </span>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => craftItem(recipe)}
+                                disabled={!ready || busy}
+                                className={`w-full mt-1.5 text-xs px-3 py-2 rounded-lg font-semibold tracking-wider transition-colors ${
+                                  ready ? "bg-gradient-to-r from-orange-600 to-amber-500 text-white hover:opacity-90" : "bg-dark-700 text-gray-500"
+                                }`}
+                              >
+                                <span className="flex items-center justify-center gap-1.5">
+                                  {busy ? (
+                                    "Craftando..."
+                                  ) : (
+                                    <>
+                                      {ready && <Hammer size={12} />}
+                                      {ready ? "CRAFTAR" : questLocked ? "Quest bloqueada" : vipLocked ? "Requer VIP" : lvlLocked ? `Requer Nv. ${recipe.requiredLevel}` : "Requisitos pendentes"}
+                                    </>
+                                  )}
+                                </span>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* LISTA DE ITENS */}
+                      <div className="rounded-xl border border-dark-600 bg-dark-900/70 p-2 max-h-[60vh] overflow-y-auto">
+                        <div className="px-2 pt-1.5 pb-2 text-[10px] uppercase tracking-widest text-gray-600 flex items-center justify-between">
+                          <span>Itens</span>
+                          <span className="text-gray-700">{entries.length}</span>
+                        </div>
+                        <div className="space-y-1">
+                          {entries.map((entry) => {
+                            const it = entry.item;
+                            const active = selected.item.id === it.id;
+                            return (
+                              <button
+                                key={it.id}
+                                onClick={() => setShopSelectedId(it.id)}
+                                className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-left transition-colors ${
+                                  active
+                                    ? "bg-purple-600/15 border border-purple-500/40"
+                                    : "hover:bg-dark-700/50 border border-transparent"
+                                }`}
+                              >
+                                <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${RARITY_ICON_FRAME[it.rarity] || RARITY_ICON_FRAME.common} border flex items-center justify-center overflow-hidden shrink-0`}>
+                                  {it.icon ? (
+                                    <EntityIcon src={it.icon} size={18} className="text-gray-100" imgClassName="w-6 h-6 object-contain" />
+                                  ) : (
+                                    <Package size={16} className="text-gray-400" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{it.name}</p>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className={`text-[10px] uppercase ${RARITY_TEXT[it.rarity] || "text-gray-500"}`}>{it.rarity}</span>
+                                    <span className="text-[10px] text-yellow-300">Lv. {it.level}</span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}
 
-                {(vendorTab === "items" || vendorTab === "enchantments") && (() => {
-                  const isEnchView = isEnchantNpc(npc.type) || vendorTab === "enchantments";
+                {isEnchantNpc(npc.type) && (() => {
+                  const isEnchView = true;
                   const offers = (npc.shopItems ?? []).filter((o) =>
                     isEnchView ? !!o.enchantmentId : !o.enchantmentId
                   ).filter((o) => {
@@ -813,96 +1188,11 @@ export function MapPage() {
                       })}
                       </div>
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      {(isEnchantNpc(npc.type) || vendorTab === "enchantments") ? "Nenhum encantamento à venda." : "Nenhum item à venda."}
-                    </p>
+                    <p className="text-sm text-gray-500">Nenhum encantamento à venda.</p>
                   )}
                   </>
                   );
                 })()}
-
-                {!isEnchantNpc(npc.type) && !isClassNpc(npc.type) && vendorTab === "crafts" && (
-                  crafts.length > 0 ? (
-                    <div className="space-y-2">
-                      {crafts.map((recipe) => {
-                        const ings = parseIngredients(recipe.ingredients);
-                        const questIds = parseQuestIdList(recipe.requiredQuestIds);
-                        const craftLocked = questIds.length > 0 && !questIds.every((id) => doneQuests.has(id));
-                        const r = recipe.resultItem;
-                        const statKeys: { key: "strength" | "intellect" | "endurance" | "dexterity" | "wisdom" | "luck"; label: string }[] = [
-                          { key: "strength", label: "Força" },
-                          { key: "intellect", label: "Intelecto" },
-                          { key: "endurance", label: "Vigor" },
-                          { key: "dexterity", label: "Destreza" },
-                          { key: "wisdom", label: "Sabedoria" },
-                          { key: "luck", label: "Sorte" },
-                        ];
-                        const statBadges = r
-                          ? statKeys.filter((s) => Number(r[s.key] || 0) > 0)
-                          : [];
-                        return (
-                          <div key={recipe.id} className="card p-3 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-600/40 to-amber-600/30 flex items-center justify-center overflow-hidden shrink-0">
-                              {r?.icon ? (
-                                <EntityIcon src={r.icon} size={18} className="text-orange-300" imgClassName="w-full h-full object-contain p-0.5" />
-                              ) : (
-                                <Hammer size={16} className="text-orange-400" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">
-                                {r?.name ?? "Item"} <span className="text-gray-500">x{recipe.resultQuantity}</span>
-                                {r?.rarity && (
-                                  <span className={`text-[10px] ml-1.5 px-1.5 py-0.5 rounded-full align-middle uppercase ${RARITY_CLASSES[r.rarity] || "bg-dark-700 text-gray-300"}`}>
-                                    {r.rarity}
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-[11px] text-gray-500 line-clamp-2">{r?.description || recipe.description}</p>
-                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                {r?.type === "weapon" && (
-                                  <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/15 text-orange-300 rounded-md">
-                                    DPS {Number(r.dps || 0).toLocaleString()} · {Number(r.attackSpeedMs) > 0 ? `${(Number(r.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
-                                  </span>
-                                )}
-                                {statBadges.map(({ key, label }) => (
-                                  <span key={key} className="text-[10px] px-1.5 py-0.5 bg-dark-700 text-cyan-300 rounded-md">
-                                    {label} +{r![key]}
-                                  </span>
-                                ))}
-                                {Number(recipe.requiredLevel) > 0 && (
-                                  <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/15 text-yellow-300 rounded-md">
-                                    Nv. {recipe.requiredLevel}+
-                                  </span>
-                                )}
-                                {ings.map((ing, i) => (
-                                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-dark-700 text-gray-300 rounded-md">
-                                    {ing.quantity}x {ing.itemName}
-                                  </span>
-                                ))}
-                                {craftLocked && (
-                                  <span className="text-[10px] px-1.5 py-0.5 bg-sky-500/15 text-sky-300 rounded-md flex items-center gap-1">
-                                    <Lock size={9} /> Quest
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => craftItem(recipe)}
-                              disabled={craftingId === recipe.id || craftLocked}
-                              className="btn-secondary text-xs px-3 py-1 mt-1 shrink-0 disabled:opacity-50"
-                              title={craftLocked ? "Requer concluir uma quest" : undefined}
-                            >
-                              {craftingId === recipe.id ? "..." : craftLocked ? "Quest bloqueada" : "Craftar"}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">Nenhuma receita disponível.</p>
-                  )
-                )}
 
               {isClassNpc(npc.type) && (() => {
                 const classOffers = (npc.shopItems ?? []).filter((o) => !!o.classId && !o.itemId && !o.enchantmentId);
