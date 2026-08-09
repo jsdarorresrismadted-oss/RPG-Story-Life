@@ -61,6 +61,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<GeneratedItemResult | null>(null);
   const [seed, setSeed] = useState(1);
+  const [variants, setVariants] = useState(3);
 
   useEffect(() => {
     adminApi.classes
@@ -81,6 +82,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         material: material.trim() || undefined,
         color: color.trim() || undefined,
         seed,
+        variants,
       });
       setResult(data);
       setSeed((s) => s + 1);
@@ -169,8 +171,9 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             </div>
 
             <p className="text-xs text-gray-500 mb-4">
-              Groq planeja o item (nome, atributos, prompt de arte) e o Pollinations.ai renderiza o ícone pixel art 64x64.
-              Deixe Tema/Material/Cor vazios para a IA escolher tudo. O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
+              Groq planeja o item (nome, atributos, prompt de arte) e o Pollinations.ai renderiza o ícone pixel art 64x64
+              com fundo magenta removido automaticamente. Deixe Tema/Material/Cor vazios para a IA escolher tudo.
+              O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -203,8 +206,12 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 <input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="ex.: aço negro" className={inputClass + " mt-1"} />
               </label>
               <label className="text-xs text-gray-400">
-                Cor (opcional)
-                <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="ex.: azul gélido" className={inputClass + " mt-1"} />
+                Qualidade (candidatos)
+                <select value={variants} onChange={(e) => setVariants(Number(e.target.value))} className={inputClass + " mt-1"}>
+                  <option value={1}>1 — rápido (~15s)</option>
+                  <option value={2}>2 — equilibrado (~30s)</option>
+                  <option value={3}>3 — melhor (~45s)</option>
+                </select>
               </label>
             </div>
 
@@ -215,7 +222,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {busy ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                {busy ? "Planejando e desenhando (~30s)..." : "Gerar item"}
+                {busy ? "Planejando e desenhando..." : "Gerar item"}
               </button>
             </div>
 
