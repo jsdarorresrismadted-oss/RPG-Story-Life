@@ -19,7 +19,7 @@ export function createNpcModule(app: Express): void {
   app.get("/api/npcs", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { type, mapId } = req.query;
-      const where: any = {};
+      const where: any = { isActive: true };
       if (type) where.type = type;
       if (mapId) where.mapNpcs = { some: { mapId: mapId as string } };
 

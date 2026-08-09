@@ -22,14 +22,15 @@ export function createContentModule(app: Express): void {
           orderBy: { name: "asc" },
         }),
         prisma.monster.findMany({
+          where: { isActive: true },
           include: { drops: { include: { item: true } } },
           orderBy: { name: "asc" },
         }),
         prisma.map.findMany({
           where: { isActive: true },
           include: {
-            npcs: { include: { npc: true } },
-            monsters: { include: { monster: true }, orderBy: { spawnRate: "desc" as const } },
+            npcs: { where: { npc: { isActive: true } }, include: { npc: true } },
+            monsters: { where: { monster: { isActive: true } }, include: { monster: true }, orderBy: { spawnRate: "desc" as const } },
             connections: { include: { toMap: true } },
           },
           orderBy: { sortOrder: "asc" },

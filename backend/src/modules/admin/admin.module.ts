@@ -266,10 +266,35 @@ export function createAdminModule(app: Express): void {
     } catch (err) { next(err); }
   });
 
-  // Delete user (children cascade)
+  // Delete user (apaga dados relacionados na ordem correta)
   app.delete("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await prisma.user.delete({ where: { id: req.params.id } });
+      const id = req.params.id;
+      await prisma.$transaction([
+        prisma.pvpMatch.deleteMany({ where: { OR: [{ challengerCharacter: { userId: id } }, { opponentCharacter: { userId: id } }] } }),
+        prisma.combatSession.deleteMany({ where: { character: { userId: id } } }),
+        prisma.activeEffect.deleteMany({ where: { character: { userId: id } } }),
+        prisma.activeCooldown.deleteMany({ where: { character: { userId: id } } }),
+        prisma.equipment.deleteMany({ where: { character: { userId: id } } }),
+        prisma.characterClass.deleteMany({ where: { character: { userId: id } } }),
+        prisma.character.deleteMany({ where: { userId: id } }),
+        prisma.mailItem.deleteMany({ where: { mail: { senderId: id } } }),
+        prisma.mailItem.deleteMany({ where: { mail: { receiverId: id } } }),
+        prisma.mail.deleteMany({ where: { OR: [{ senderId: id }, { receiverId: id }] } }),
+        prisma.inventory.deleteMany({ where: { userId: id } }),
+        prisma.questProgress.deleteMany({ where: { userId: id } }),
+        prisma.marketListing.deleteMany({ where: { sellerId: id } }),
+        prisma.guildMember.deleteMany({ where: { userId: id } }),
+        prisma.userTitle.deleteMany({ where: { userId: id } }),
+        prisma.userAchievement.deleteMany({ where: { userId: id } }),
+        prisma.friendship.deleteMany({ where: { OR: [{ userId: id }, { friendId: id }] } }),
+        prisma.redeemRedemption.deleteMany({ where: { userId: id } }),
+        prisma.shopOrder.deleteMany({ where: { userId: id } }),
+        prisma.userEnchantment.deleteMany({ where: { userId: id } }),
+        prisma.userBooster.deleteMany({ where: { userId: id } }),
+        prisma.partyMember.deleteMany({ where: { userId: id } }),
+        prisma.user.delete({ where: { id } }),
+      ]);
       res.json({ message: "User deleted" });
     } catch (err) { next(err); }
   });
@@ -428,8 +453,8 @@ export function createAdminModule(app: Express): void {
 
   app.delete("/api/admin/codes/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await prisma.redeemCode.delete({ where: { id: req.params.id } });
-      res.json({ message: "Deleted" });
+      const r = await deleteWithSoftFallback(prisma.redeemCode, req.params.id);
+      res.json({ message: r === "deleted" ? "Deleted" : "Desativado (já resgatado por jogadores)" });
     } catch (err) { next(err); }
   });
 

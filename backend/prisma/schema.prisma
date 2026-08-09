@@ -656,6 +656,7 @@ model Monster {
   attackSpeed    Int          @default(2000)
   skills         String?
   behavior       String?
+  isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   mapMonsters    MapMonster[]
@@ -687,6 +688,7 @@ model Npc {
   imageUrl    String?
   type        String
   dialogue    String?
+  isActive    Boolean   @default(true)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   mapNpcs     MapNpc[]

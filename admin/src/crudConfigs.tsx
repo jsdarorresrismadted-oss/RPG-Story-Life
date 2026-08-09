@@ -306,6 +306,7 @@ export const crudConfigs: CrudConfig[] = [
       { key: "attack", label: "Attack" },
       { key: "isElite", label: "Elite", render: (v) => boolBadge(v) },
       { key: "isBoss", label: "Boss", render: (v) => boolBadge(v, "bg-red-500/20 text-red-400") },
+      { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
@@ -326,6 +327,7 @@ export const crudConfigs: CrudConfig[] = [
       { name: "attackSpeed", label: "Attack Speed (ms)", type: "number", defaultValue: 2000, hint: "Intervalo entre ataques do monstro" },
       { name: "faction", label: "Faction", type: "text" },
       { name: "element", label: "Element", type: "text" },
+      { name: "isActive", label: "Active (exibir no jogo)", type: "boolean", defaultValue: true },
       { name: "skills", label: "Skills (JSON array, máx 4)", type: "json", hint: "Actions ficam como JSON em texto: [{\"type\":\"damage\",\"power\":2}]", jsonSchema: { mode: "object-array", addLabel: "Adicionar skill", fields: [
           { name: "name", label: "Name", type: "text" },
           { name: "cooldown", label: "Cooldown (ms)", type: "number" },
@@ -447,6 +449,7 @@ export const crudConfigs: CrudConfig[] = [
       { key: "name", label: "Name", render: (v) => <span className="font-medium text-white">{v}</span> },
       { key: "type", label: "Type", render: (v) => <span className="px-2 py-0.5 rounded-full text-xs bg-blue-500/20 text-blue-400">{v || "-"}</span> },
       { key: "description", label: "Description", render: (v) => <span className="text-gray-400 max-w-xs truncate block">{v}</span> },
+      { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
@@ -460,6 +463,7 @@ export const crudConfigs: CrudConfig[] = [
       { name: "description", label: "Description", type: "textarea", required: true },
       { name: "imageUrl", label: "Image URL", type: "text" },
       { name: "dialogue", label: "Dialogue", type: "textarea" },
+      { name: "isActive", label: "Active (exibir no jogo)", type: "boolean", defaultValue: true },
     ],
   },
   {

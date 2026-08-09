@@ -13,7 +13,7 @@ export function createRaidModule(app: Express): void {
       const raidMaps = await prisma.map.findMany({
         where: { type: "raid", isActive: true },
         include: {
-          monsters: { include: { monster: true }, orderBy: { spawnRate: "desc" } },
+          monsters: { where: { monster: { isActive: true } }, include: { monster: true }, orderBy: { spawnRate: "desc" } },
         },
         orderBy: { sortOrder: "asc" },
       });
