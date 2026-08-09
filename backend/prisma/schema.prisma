@@ -1091,6 +1091,22 @@ model GameLog {
   @@index([createdAt])
 }
 
+// Log de ações de moderação no painel admin (delete com tipo 10/20/30/40/50)
+model AdminLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String   // delete | soft_delete
+  entity    String   // item, class, user, code...
+  targetId  String
+  tipo      Int      @default(0) // motivo/severidade da exclusão
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([entity])
+  @@index([createdAt])
+}
+
 model AnalyticsEvent {
   id        String   @id @default(uuid())
   eventType String

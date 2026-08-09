@@ -43,6 +43,14 @@ interface CrudPageProps {
   config: CrudConfig;
 }
 
+export const DELETE_TIPOS = [
+  { value: 10, label: "10 — Erro / conteúdo inválido" },
+  { value: 20, label: "20 — Descontinuado / obsoleto" },
+  { value: 30, label: "30 — Substituído por outro" },
+  { value: 40, label: "40 — Violação / moderação" },
+  { value: 50, label: "50 — Teste / rascunho" },
+];
+
 const inputClass =
   "w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white focus:border-accent-500 focus:outline-none";
 
@@ -62,6 +70,10 @@ export default function CrudPage({ config }: CrudPageProps) {
   const [moveField, setMoveField] = useState("");
   const [moveValue, setMoveValue] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
+  const [deleteTipo, setDeleteTipo] = useState(10);
 
   useEffect(() => {
     const sources = config.fields.filter((f) => f.optionsFrom);
@@ -214,14 +226,33 @@ export default function CrudPage({ config }: CrudPageProps) {
     }
   };
 
-  const handleDelete = async (item: any) => {
-    if (!window.confirm(`Delete this ${config.key.slice(0, -1)}?`)) return;
+  const openDeleteModal = (ids: string[]) => {
+    setDeleteTargets(ids);
+    setDeleteTipo(10);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = (item: any) => openDeleteModal([item.id]);
+
+  const confirmDelete = async () => {
+    if (deleteTargets.length === 0) return;
+    setBusy(true);
     try {
-      await (adminApi as any)[config.key].delete(item.id);
-      toast.success(`${config.title}: deleted`);
+      await Promise.all(
+        deleteTargets.map((id) =>
+          (adminApi as any)[config.key].delete(id, { params: { tipo: deleteTipo } })
+        )
+      );
+      toast.success(
+        deleteTargets.length > 1 ? `${deleteTargets.length} deletado(s)` : `${config.title}: deleted`
+      );
+      setDeleteOpen(false);
+      clearSelection();
       load();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to delete");
+      toast.error(err.response?.data?.message || "Falha ao deletar");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -243,21 +274,10 @@ export default function CrudPage({ config }: CrudPageProps) {
 
   const clearSelection = () => setSelected(new Set());
 
-  const bulkDelete = async () => {
+  const bulkDelete = () => {
     const count = selectedItems.length;
     if (count === 0) return;
-    if (!window.confirm(`Deletar ${count} ${config.key}?`)) return;
-    setBusy(true);
-    try {
-      await Promise.all(selectedItems.map((it) => (adminApi as any)[config.key].delete(it.id)));
-      toast.success(`${count} deletado(s)`);
-      clearSelection();
-      load();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Falha ao deletar");
-    } finally {
-      setBusy(false);
-    }
+    openDeleteModal(selectedItems.map((it) => it.id));
   };
 
   const bulkDuplicate = async () => {
@@ -682,6 +702,51 @@ export default function CrudPage({ config }: CrudPageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => setDeleteOpen(false)}
+        >
+          <div
+            className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold mb-1">
+              Deletar {deleteTargets.length > 1 ? `${deleteTargets.length} registro(s)` : config.title}
+            </h2>
+            <p className="text-sm text-gray-400 mb-4">Escolha o tipo/motivo da exclusão:</p>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1.5">Tipo</label>
+              <select
+                value={deleteTipo}
+                onChange={(e) => setDeleteTipo(Number(e.target.value))}
+                className={inputClass}
+              >
+                {DELETE_TIPOS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-3 pt-5">
+              <button
+                onClick={() => setDeleteOpen(false)}
+                disabled={busy}
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={busy}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {busy ? "Deletando..." : "Deletar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
