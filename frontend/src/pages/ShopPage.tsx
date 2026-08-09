@@ -24,10 +24,32 @@ interface ShopEnchantment {
 interface ShopItem {
   id: string;
   name: string;
+  description?: string;
   icon?: string | null;
   type: string;
   rarity: string;
+  rank?: number;
+  level?: number;
   requiredVip?: boolean;
+  dps?: number;
+  attackSpeedMs?: number;
+  strength?: number;
+  intellect?: number;
+  endurance?: number;
+  dexterity?: number;
+  wisdom?: number;
+  luck?: number;
+  sellPrice?: number;
+  craftRecipes?: CraftRecipeRaw[];
+}
+
+interface CraftRecipeRaw {
+  id: string;
+  name: string;
+  description?: string;
+  resultQuantity?: number;
+  goldCost?: number | string;
+  ingredients?: string;
 }
 
 interface ShopClass {
@@ -129,6 +151,7 @@ export function ShopPage() {
   const [confirm, setConfirm] = useState<ShopProduct | null>(null);
   const [buying, setBuying] = useState(false);
   const [tab, setTab] = useState<TabKey>("items");
+  const [selected, setSelected] = useState<ShopProduct | null>(null);
   const [doneQuests, setDoneQuests] = useState<Set<string>>(new Set());
   const { user, setUser } = useAuthStore();
 
@@ -222,6 +245,158 @@ export function ShopPage() {
     return null;
   };
 
+  const CORE_STAT_LABELS: { key: string; label: string; color: string }[] = [
+    { key: "strength", label: "Força", color: "text-orange-400" },
+    { key: "intellect", label: "Intelecto", color: "text-blue-400" },
+    { key: "endurance", label: "Vigor", color: "text-red-400" },
+    { key: "dexterity", label: "Destreza", color: "text-green-400" },
+    { key: "wisdom", label: "Sabedoria", color: "text-purple-400" },
+    { key: "luck", label: "Sorte", color: "text-yellow-400" },
+  ];
+
+  const craftRecipeOf = (item?: ShopItem | null) => {
+    if (!item || !Array.isArray(item.craftRecipes) || item.craftRecipes.length === 0) return null;
+    const r = item.craftRecipes[0];
+    let ingredients: { itemName: string; quantity: number }[] = [];
+    try { ingredients = JSON.parse(r.ingredients || "[]"); } catch { ingredients = []; }
+    return {
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      resultQuantity: r.resultQuantity ?? 1,
+      goldCost: Number(r.goldCost || 0),
+      ingredients: Array.isArray(ingredients) ? ingredients : [],
+    };
+  };
+
+  const renderItemDetail = (product: ShopProduct) => {
+    const item = product.item;
+    if (!item) return null;
+    const recipe = craftRecipeOf(item);
+    const enough = enoughFor(product);
+    const locked = productLocked(product);
+    const inGameCurrency = product.currency === "diamond" || product.currency === "gold";
+    return (
+      <div className="panel p-4 space-y-3 lg:sticky lg:top-4">
+        <div className="flex items-start gap-3">
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600/30 to-blue-600/20 border border-purple-500/20 flex items-center justify-center shrink-0">
+            {productIcon(product) ?? <Package size={20} className="text-gray-400" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-display font-bold">{item.name}</p>
+              {item.rarity && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-md capitalize ${rarityColor[item.rarity] || "text-gray-400"}`}>
+                  {item.rarity}
+                </span>
+              )}
+              {productVip(product) && (
+                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-yellow-500/15 text-yellow-300 rounded-md">
+                  <Crown size={9} /> VIP
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 capitalize">{item.type} {item.rank ? `• Rank ${item.rank}` : ""} {item.level && item.level > 1 ? `• Nv. ${item.level}` : ""}</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-400">{item.description}</p>
+
+        {(item.type === "weapon" || item.dps) && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-dark-800/50 rounded-lg p-2.5">
+              <p className="text-[10px] text-gray-500 uppercase">Dano (DPS)</p>
+              <p className="text-sm font-mono text-orange-300">{Number(item.dps || 0).toLocaleString("pt-BR")}</p>
+            </div>
+            <div className="bg-dark-800/50 rounded-lg p-2.5">
+              <p className="text-[10px] text-gray-500 uppercase">Velocidade</p>
+              <p className="text-sm font-mono text-orange-300">
+                {Number(item.attackSpeedMs) > 0 ? `${(Number(item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {item.type !== "consumable" && CORE_STAT_LABELS.some(({ key }) => Number((item as any)[key]) > 0) && (
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-[10px] text-gray-500 uppercase mb-1.5">Atributos</p>
+            <div className="grid grid-cols-2 gap-1 text-sm">
+              {CORE_STAT_LABELS.map(({ key, label, color }) => {
+                const value = Number((item as any)[key] ?? 0);
+                if (!value) return null;
+                return (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className={`text-xs ${color}`}>{label}</span>
+                    <span className="font-mono text-green-400">+{value}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {recipe && (
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1.5">
+              <Sparkles size={12} className="text-orange-400" /> Materiais de craft
+            </p>
+            <div className="space-y-1">
+              {recipe.ingredients.length === 0 && <p className="text-[11px] text-gray-600">—</p>}
+              {recipe.ingredients.map((ing) => (
+                <div key={ing.itemName} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-300">{ing.itemName}</span>
+                  <span className="font-mono text-gray-400">{ing.quantity}x</span>
+                </div>
+              ))}
+              {recipe.goldCost > 0 && (
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-dark-700">
+                  <span className="text-yellow-300 flex items-center gap-1"><Coins size={11} /> Ouro</span>
+                  <span className="font-mono text-gray-300">{recipe.goldCost.toLocaleString("pt-BR")}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between bg-dark-800/50 rounded-lg p-3">
+          <span className="text-xs text-gray-400">Valor</span>
+          <span className="text-sm font-bold text-yellow-300 flex items-center gap-1.5">
+            {product.currency === "diamond" ? <Gem size={14} className="text-cyan-300" /> : <Coins size={14} className="text-yellow-400" />}
+            {priceLabel(product)}
+          </span>
+        </div>
+
+        <button
+          onClick={() => setConfirm(product)}
+          disabled={locked || (inGameCurrency && !enough)}
+          className={`w-full text-sm px-3 py-2.5 rounded-lg font-medium transition-colors ${
+            locked
+              ? "bg-dark-700 text-gray-500"
+              : inGameCurrency
+              ? enough
+                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:opacity-90"
+                : "bg-dark-700 text-gray-500"
+              : "btn-primary"
+          }`}
+        >
+          <span className="flex items-center justify-center gap-1.5">
+            {locked ? (
+              <>
+                <Lock size={14} />
+                {questLocked(product) ? "Requer quest" : levelLocked(product) ? `Requer Nv. ${product.requiredLevel}` : "Requer VIP"}
+              </>
+            ) : (
+              <>
+                {product.currency === "diamond" ? <Gem size={14} className="text-cyan-300" /> : <Coins size={14} className="text-yellow-400" />}
+                Comprar por {priceLabel(product)}
+              </>
+            )}
+          </span>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -267,6 +442,45 @@ export function ShopPage() {
       </div>
 
       {byTab(tab).length > 0 ? (
+        tab === "items" ? (
+          <div className="grid lg:grid-cols-[1fr_340px] gap-4 items-start">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {byTab("items").map((product) => {
+                return (
+                  <button
+                    key={product.id}
+                    onClick={() => setSelected(product)}
+                    className={`panel p-4 text-left transition-all ${
+                      selected?.id === product.id ? "border-purple-500/60 ring-1 ring-purple-500/40" : "hover:border-purple-500/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600/30 to-blue-600/20 border border-purple-500/20 flex items-center justify-center">
+                        {productIcon(product) ?? <Package size={18} className="text-gray-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{product.name}</p>
+                        {product.item?.rarity && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md capitalize ${rarityColor[product.item.rarity] || "text-gray-400"}`}>
+                            {product.item.rarity}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-yellow-300 font-medium flex items-center gap-1">
+                        {product.currency === "diamond" ? <Gem size={12} className="text-cyan-300" /> : <Coins size={12} className="text-yellow-400" />}
+                        {priceLabel(product)}
+                      </span>
+                      <span className="text-[10px] text-gray-500">Detalhes ›</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {selected && selected.type === "item" && renderItemDetail(selected)}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {byTab(tab).map((product) => {
             const isVip = productVip(product);
@@ -342,6 +556,7 @@ export function ShopPage() {
             );
           })}
         </div>
+        )
       ) : (
         <div className="panel p-8 text-center text-gray-500">
           <ShoppingBag size={48} className="mx-auto mb-3 opacity-50" />

@@ -106,7 +106,11 @@ export function createShopModule(app: Express): void {
     try {
       const products = await prisma.shopProduct.findMany({
         where: { isActive: true },
-        include: { enchantment: true, item: true, gameClass: true },
+        include: {
+          enchantment: true,
+          item: { include: { craftRecipes: { where: { isActive: true } } } },
+          gameClass: true,
+        },
         orderBy: [{ type: "asc" }, { sortOrder: "asc" }],
       });
       res.json(enrichProducts(products));

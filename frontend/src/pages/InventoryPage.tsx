@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { inventoryApi, authApi, marketApi, classesApi, craftApi, questsApi } from "../services/api";
+import { inventoryApi, authApi, marketApi, classesApi, craftApi } from "../services/api";
 import { InventoryItem, UserEnchantment } from "../types";
 import {
-  Backpack, Search, Star, Coins, Lock,
-  Sword, Crown, HardHat, Shield, Wind, Gem, Link2, Sparkles, X, Swords,
+  Backpack, Search, Star, Coins,
+  Shield, Sparkles, Swords,
 } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 import { EntityIcon } from "../components/EntityIcon";
@@ -16,16 +16,6 @@ import toast from "react-hot-toast";
 
 const rarityOrder: Record<string, number> = {
   common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4, mythic: 5, artifact: 6,
-};
-
-const SLOT_LABELS: Record<string, string> = {
-  weapon: "Arma", class: "Classe", helm: "Elmo", armor: "Armadura",
-  cape: "Capa", ring: "Anel", necklace: "Colar",
-};
-
-const SLOT_ICONS: Record<string, any> = {
-  weapon: Sword, class: Crown, helm: HardHat, armor: Shield,
-  cape: Wind, ring: Gem, necklace: Link2,
 };
 
 const CORE_STAT_LABELS: { key: string; label: string; color: string }[] = [
@@ -52,7 +42,6 @@ export function InventoryPage() {
   const [unlockedClasses, setUnlockedClasses] = useState<any[]>([]);
   const [switchingClass, setSwitchingClass] = useState<string | null>(null);
   const [crafting, setCrafting] = useState(false);
-  const [doneQuests, setDoneQuests] = useState<Set<string>>(new Set());
   const { selectedCharacter, setCharacter } = useGameStore();
   const { user, setUser } = useAuthStore();
   const navigate = useNavigate();
@@ -73,14 +62,6 @@ export function InventoryPage() {
       .finally(() => setLoading(false));
     inventoryApi.enchantments()
       .then(({ data }) => setOwnedEnchants(Array.isArray(data) ? data : []))
-      .catch(() => {});
-    questsApi.progress()
-      .then(({ data }) => {
-        const done = (Array.isArray(data) ? data : [])
-          .filter((p: any) => ["completed", "claimed"].includes(p.status))
-          .map((p: any) => p.questId as string);
-        setDoneQuests(new Set(done));
-      })
       .catch(() => {});
   }, []);
 
@@ -252,7 +233,6 @@ export function InventoryPage() {
   for (const inv of equippedItems) {
     equippedMap[inv.item.type] = inv;
   }
-  const isVip = !!user?.vipUntil && new Date(user.vipUntil).getTime() > Date.now();
 
   const filtered = items
     .filter(i => filterType === "all" || i.item.type === filterType)
@@ -276,55 +256,14 @@ export function InventoryPage() {
         <h2 className="font-display font-semibold mb-3 flex items-center gap-2">
           <Shield size={16} className="text-yellow-400" /> Equipamento
         </h2>
-        <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+        <div className="flex justify-center">
           <CharacterPreview
-            name={selectedCharacter?.name}
             equipped={equippedMap}
-            gender={selectedCharacter?.gender as any}
+            onSlotClick={(slot, inv) => {
+              if (inv) setSelectedItem(inv);
+            }}
             onClassClick={() => selectedCharacter?.class?.slug && navigate(`/class/${selectedCharacter.class.slug}`)}
           />
-          <div className="flex-1 w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {(["weapon", "helm", "armor", "cape", "ring", "necklace", "class"] as const).map((key) => {
-              const slot = { key, label: SLOT_LABELS[key], icon: SLOT_ICONS[key] };
-              const inv = equippedMap[key];
-              const Icon = slot.icon;
-              const isClass = key === "class";
-              return (
-                <button
-                  key={key}
-                  onClick={() => isClass
-                    ? selectedCharacter?.class?.slug && navigate(`/class/${selectedCharacter.class.slug}`)
-                    : inv && setSelectedItem(inv)}
-                  className={`card-hover p-3 text-center min-h-[110px] flex flex-col items-center justify-center gap-2 ${
-                    inv ? "border-purple-500/40" : "border-dashed border-dark-600"
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    inv ? "bg-gradient-to-br from-purple-600 to-blue-600" : "bg-dark-800/60"
-                  }`}>
-                    {inv?.item?.icon ? (
-                      <img src={inv.item.icon} alt="" className="w-full h-full object-contain p-0.5" style={{ imageRendering: "pixelated" }} />
-                    ) : (
-                      <Icon size={18} className={inv ? "text-white" : "text-gray-600"} />
-                    )}
-                  </div>
-                  {inv ? (
-                    <>
-                      <p className="text-xs font-medium leading-tight line-clamp-2">{inv.item.name}</p>
-                      <p className={`text-[10px] capitalize text-rarity-${inv.item.rarity || "common"}`}>
-                        {inv.item.rarity}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs font-medium text-gray-500">{slot.label}</p>
-                      <p className="text-[10px] text-gray-600">Vazio</p>
-                    </>
-                  )}
-                </button>
-              );
-            })}
-          </div>
         </div>
       </div>
 
@@ -485,6 +424,11 @@ export function InventoryPage() {
                   {selectedItem.item.rarity} • Rank {selectedItem.item.rank} • {selectedItem.item.type}
                 </p>
                 <p className="text-sm text-gray-400 mt-1">{selectedItem.item.description}</p>
+                {Number(selectedItem.item.sellPrice) > 0 && (
+                  <p className="text-xs text-yellow-300/90 mt-1.5 flex items-center gap-1">
+                    <Coins size={12} /> Valor: {selectedItem.item.sellPrice}G
+                  </p>
+                )}
               </div>
               <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-gray-300">✕</button>
             </div>
@@ -615,27 +559,6 @@ export function InventoryPage() {
                       </span>
                     </div>
                   )}
-                </div>
-
-                <div className="mt-2 flex gap-1.5 flex-wrap">
-                  {selectedItem.recipe.requiredLevel > 1 && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${(selectedCharacter?.level ?? 0) >= selectedItem.recipe.requiredLevel ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"}`}>
-                      Nível {selectedItem.recipe.requiredLevel}
-                    </span>
-                  )}
-                  {selectedItem.recipe.requiredVip && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${isVip ? "bg-yellow-500/15 text-yellow-300" : "bg-red-500/15 text-red-300"}`}>
-                      Requer VIP
-                    </span>
-                  )}
-                  {selectedItem.recipe.requiredQuests.map((q) => {
-                    const ok = doneQuests.has(q.id);
-                    return (
-                      <span key={q.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${ok ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"}`}>
-                        {ok ? "✓" : "✗"} {q.title}
-                      </span>
-                    );
-                  })}
                 </div>
 
                 <button

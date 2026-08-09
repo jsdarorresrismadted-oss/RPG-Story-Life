@@ -72,9 +72,6 @@ export default function CharPage() {
       .finally(() => setLoading(false));
   }, [username]);
 
-  const initial = (data?.character?.name || username || "?").trim().charAt(0).toUpperCase();
-  const isMale = data?.character?.gender !== "female";
-
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
       <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white">
@@ -93,12 +90,6 @@ export default function CharPage() {
       {data && (
         <>
           <div className="card p-5 flex items-center gap-5 flex-wrap">
-            <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-dark-600 shadow-lg shadow-purple-500/20 shrink-0">
-              <span className="text-4xl font-bold text-white drop-shadow">{initial}</span>
-              <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-dark-800 border border-dark-600 flex items-center justify-center text-[13px] leading-none">
-                {isMale ? "♂" : "♀"}
-              </span>
-            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-display font-bold">{data.character.name}</h1>
@@ -166,7 +157,6 @@ export default function CharPage() {
                   ["Esquiva", `${data.stats.dodge.toLocaleString("pt-BR")}%`, "text-cyan-300"],
                   ["Velocidade", `${((data.stats.attackSpeedMs || 2000) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s`, "text-gray-300"],
                   ["Regen Mana", data.stats.manaRegenPerTick.toLocaleString("pt-BR"), "text-blue-300"],
-                  ["Status", data.character.gender === "female" ? "Feminino" : "Masculino", "text-gray-300"],
                 ].map(([label, value, color]) => (
                   <div key={String(label)} className="flex items-center justify-between py-0.5 border-b border-dark-800">
                     <span className="text-gray-500 text-xs">{label}</span>
