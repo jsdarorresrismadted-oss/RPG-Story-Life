@@ -39,12 +39,14 @@ interface ProfileData {
 const SLOT_LABELS: Record<string, string> = {
   weapon: "Arma",
   classItem: "Classe",
-  helm: "Elmo",
+  helm: "Capacete",
   armor: "Armadura",
   cape: "Capa",
   ring: "Anel",
   necklace: "Colar",
 };
+
+const SLOT_ORDER = ["helm", "necklace", "armor", "cape", "ring", "weapon", "classItem"];
 
 const RARITY_TEXT: Record<string, string> = {
   common: "text-gray-300",
@@ -172,7 +174,9 @@ export default function CharPage() {
                 <p className="text-sm text-gray-500">Nenhum equipamento.</p>
               ) : (
                 <div className="space-y-2">
-                  {data.equipment.map((e) => (
+                  {[...data.equipment]
+                    .sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot))
+                    .map((e) => (
                     <div key={e.slot} className="flex items-center gap-2.5 py-1.5 border-b border-dark-800 last:border-0">
                       <div className="w-8 h-8 rounded-lg bg-dark-700 flex items-center justify-center overflow-hidden shrink-0">
                         {e.icon ? (

@@ -14,12 +14,16 @@ interface CharacterPreviewProps<T extends PreviewItem> {
 const SLOT_LABELS: Record<string, string> = {
   weapon: "Arma",
   class: "Classe",
-  helm: "Elmo",
+  helm: "Capacete",
   armor: "Armadura",
   cape: "Capa",
   ring: "Anel",
   necklace: "Colar",
 };
+
+const SLOT_ORDER = ["helm", "necklace", "armor", "cape", "ring", "weapon", "class"];
+const EQUIP_SLOTS = SLOT_ORDER.slice(0, 5);
+const AUX_SLOTS = SLOT_ORDER.slice(5);
 
 const SLOT_ICONS: Record<string, any> = {
   weapon: Sword,
@@ -55,7 +59,7 @@ export default function CharacterPreview<T extends PreviewItem>({
       <button
         key={slot}
         onClick={() => (isClass ? onClassClick?.() : onSlotClick?.(slot, inv))}
-        className={`w-full min-h-[64px] rounded-xl border p-1.5 flex flex-col items-center justify-center gap-1 transition-colors ${
+        className={`w-16 min-h-[72px] rounded-xl border p-1.5 flex flex-col items-center justify-center gap-1 transition-colors ${
           inv
             ? "border-purple-500/40 bg-gradient-to-br from-purple-600/20 to-blue-600/10"
             : "border-dashed border-dark-600 bg-dark-800/40 hover:border-dark-400"
@@ -81,22 +85,10 @@ export default function CharacterPreview<T extends PreviewItem>({
 
   return (
     <div className={`shrink-0 flex flex-col items-center ${className || ""}`}>
-      <div className="grid grid-cols-3 gap-2 w-[230px]">
-        <div />
-        {renderSlot("helm")}
-        {renderSlot("class")}
-        <div />
-        {renderSlot("necklace")}
-        <div />
-        <div />
-        {renderSlot("armor")}
-        <div />
-        {renderSlot("weapon")}
-        <div />
-        {renderSlot("ring")}
-        <div />
-        {renderSlot("cape")}
-        <div />
+      <div className="flex items-center gap-2 flex-wrap justify-center">
+        {EQUIP_SLOTS.map(renderSlot)}
+        <div className="w-px h-16 bg-dark-600 mx-1" />
+        {AUX_SLOTS.map(renderSlot)}
       </div>
     </div>
   );
