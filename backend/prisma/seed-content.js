@@ -18,8 +18,15 @@ try {
   generatedIcons = {};
 }
 
+const ICONS_ROOT_DIR = path.resolve(__dirname, "../../Icons");
+
 function iconForItem(item) {
-  return generatedIcons[item.name] || item.icon || null;
+  const override = generatedIcons[item.name];
+  if (override) {
+    const rel = String(override).replace(/^\/icons\//, "");
+    if (fs.existsSync(path.join(ICONS_ROOT_DIR, rel))) return override;
+  }
+  return item.icon || null;
 }
 
 const starterClasses = [
@@ -944,6 +951,20 @@ async function seedMaterialItems(monsterMap) {
   const files = scanIconFiles();
 
   const referenced = new Set(items.map((i) => iconForItem(i)).filter(Boolean));
+  // Ícones de skills/effects/passives NÃO são itens — devem ser ignorados
+  // para não virarem "Matéria-Prima de Habilidades (...)".
+  for (const entry of classSkills || []) {
+    for (const skill of entry.skills || []) {
+      if (skill.icon) referenced.add(skill.icon);
+      if (skill.iconSecondary) referenced.add(skill.iconSecondary);
+    }
+    for (const passive of entry.passives || []) {
+      if (passive.icon) referenced.add(passive.icon);
+    }
+  }
+  for (const effect of effects || []) {
+    if (effect.icon) referenced.add(effect.icon);
+  }
   const dbItems = await prisma.item.findMany({
     where: { icon: { not: null } },
     select: { icon: true },
@@ -1283,6 +1304,20 @@ async function seedWorld() {
     console.log("  code:", created.code);
   }
 }async function main() {
+  if (process.argv.includes("--reset")) {
+    console.log("RESET: apagando todos os dados (players + conteúdo)...");
+    const tables = await prisma.$queryRawUnsafe(
+      "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+    );
+    const names = tables.map((t) => t.tablename);
+    if (names.length > 0) {
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE ${names.map((n) => `"${n}"`).join(", ")} CASCADE`
+      );
+      console.log("RESET: " + names.length + " tabelas apagadas");
+    }
+  }
+
   console.log("Seeding stat models...");
   for (const sm of statModels) {
     const data = { ...sm };
