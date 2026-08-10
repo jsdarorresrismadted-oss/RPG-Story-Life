@@ -3,6 +3,7 @@ import path from "path";
 import sharp from "sharp";
 import { AppError } from "../middleware/errorHandler";
 import { renderItemIcon } from "./pixelArt";
+import { renderSprite } from "./imageRenderer";
 
 // ===== Gerador de equipamentos (icones pixel art 64x64) =====
 // - Groq (llama-3.3-70b) PLANEJA: nome, descricao, atributos e precos.
@@ -438,6 +439,23 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
   const level = Math.max(1, Math.min(100, Number(input.level) || 1));
   const plan = await planItem({ type, theme: input.theme, material: input.material, color: input.color, rarity, level });
   const seed = Math.floor(Number(input.seed) || Date.now() % 1000000);
+
+  // 1) Tenta desenhar com a IA (Gemini flash-lite image -> Pollinations).
+  //    O Groq já planejou um artPrompt com fundo magenta para chroma key.
+  if (plan.artPrompt) {
+    try {
+      const { buf, provider } = await renderSprite(plan.artPrompt, seed);
+      const { png } = await processSprite(buf);
+      const filename = "ai-" + Date.now() + "-" + seed + ".png";
+      const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, png);
+      log.push("Groq (plano) + " + provider + " (IA de imagem)");
+      return { icon, plan };
+    } catch (e) {
+      log.push("IA de imagem falhou (" + (e as Error).message + ") - usando procedural");
+    }
+  }
+
+  // 2) Fallback: pixel art procedural deterministico.
   const png = await renderItemIcon({
     type,
     subtype: plan.subtype,

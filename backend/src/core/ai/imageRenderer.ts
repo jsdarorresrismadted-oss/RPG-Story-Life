@@ -1,10 +1,10 @@
-// ===== Renderizacao de imagens via IA (Gemini 2.5 Flash Image com fallback Pollinations) =====
-// - Gemini 2.5 Flash Image gera imagens em alta qualidade (sem key de graca nao).
+// ===== Renderizacao de imagens via IA (Gemini Flash-Lite Image com fallback Pollinations) =====
+// - Gemini Flash-Lite Image (gemini-3.1-flash-lite-image) gera pixel art barato e rapido.
 //   Usa a API REST generateContent com responseModalities IMAGE e devolve PNG base64.
 // - Pollinations.ai (flux, gratis) e o fallback: PNG 512x512.
 // - O pos-processamento (chroma key magenta + resize 64x64) fica no itemGenerator.
 
-const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-lite-image";
 
 export interface RenderResult {
   buf: Buffer;
