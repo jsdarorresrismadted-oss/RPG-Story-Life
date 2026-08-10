@@ -133,6 +133,25 @@ class Canvas {
     this.fillPolygon([a, b, cc], c);
   }
 
+  fillGradientPolygon(pts: [number, number][], colorFn: (t: number) => RGB, from: [number, number], to: [number, number]): void {
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    const lenSq = dx * dx + dy * dy || 1;
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const minX = Math.floor(Math.min(...xs));
+    const maxX = Math.ceil(Math.max(...xs));
+    const minY = Math.floor(Math.min(...ys));
+    const maxY = Math.ceil(Math.max(...ys));
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (!pointInPolygon(x, y, pts)) continue;
+        const t = ((x - from[0]) * dx + (y - from[1]) * dy) / lenSq;
+        this.setPx(x, y, colorFn(clamp(t, 0, 1)));
+      }
+    }
+  }
+
   fillPolygon(pts: [number, number][], c: RGB): void {
     const xs = pts.map((p) => p[0]);
     const ys = pts.map((p) => p[1]);
@@ -365,32 +384,62 @@ function rarityColor(rarity?: string): RGB {
   return RARITY_COLORS[key] || RARITY_COLORS.common;
 }
 
-function drawSword(c: Canvas, p: Palette, rng: () => number): void {
+const RAINBOW: RGB[] = [
+  [222, 62, 62],
+  [232, 128, 52],
+  [236, 208, 74],
+  [88, 196, 96],
+  [74, 196, 214],
+  [82, 138, 240],
+  [170, 92, 240],
+];
+
+function sectionGradient(stops: RGB[]): (t: number) => RGB {
+  return (t: number): RGB => {
+    const scaled = t * (stops.length - 1);
+    const i = Math.min(stops.length - 2, Math.floor(scaled));
+    return mix(stops[i], stops[i + 1], scaled - i);
+  };
+}
+
+function bladeGradient(p: Palette): (t: number) => RGB {
+  return (t: number): RGB => {
+    const light = mix(p.light, p.base, 0.4);
+    const mid = p.base;
+    const dark = mix(p.base, p.dark, 0.7);
+    if (t < 0.5) return mix(light, mid, t * 2);
+    return mix(mid, dark, (t - 0.5) * 2);
+  };
+}
+
+function isRainbow(input: ItemIconInput): boolean {
+  const joined = [input.theme, input.material, input.color, input.name]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return /(rainbow|arco.?iris|spectrum|prism)/.test(joined);
+}
+
+function drawSword(c: Canvas, p: Palette, rng: () => number, input?: ItemIconInput): void {
+  const gradient = (input && isRainbow(input)) ? sectionGradient(RAINBOW) : bladeGradient(p);
   const v = rng();
-  if (v < 0.34) {
-    c.fillPolygon([[32, 4], [29, 10], [35, 10]], p.base);
-    c.fillPolygon([[29, 10], [35, 10], [38, 30], [38, 34], [26, 34], [26, 30]], p.base);
-    c.fillPolygon([[30, 11], [31, 11], [31, 30], [27, 30], [27, 24], [30, 11]], p.light);
-    c.fillPolygon([[18, 34], [46, 34], [46, 39], [18, 39]], p.metal);
-    c.fillPolygon([[29, 39], [35, 39], [35, 49], [29, 49]], p.dark);
-    c.fillCircle(32, 52, 3, p.gem);
-    c.fillCircle(31, 51, 1.2, p.light);
-  } else if (v < 0.67) {
-    c.fillPolygon([[32, 4], [30, 9], [34, 9]], p.base);
-    c.fillPolygon([[30, 9], [34, 9], [39, 28], [39, 34], [25, 34], [25, 28]], p.base);
-    c.fillPolygon([[31, 10], [32, 10], [32, 28], [26, 28], [26, 22], [31, 10]], p.light);
-    c.fillPolygon([[22, 34], [42, 34], [40, 38], [24, 38]], p.metal);
-    c.fillPolygon([[30, 38], [34, 38], [34, 50], [30, 50]], p.wood);
-    c.fillCircle(32, 53, 2.6, p.gem);
-    c.fillDiamond(32, 16, 2, 3, p.accent);
+  if (v < 0.4) {
+    c.fillGradientPolygon([[24, 8], [34, 18], [30, 44], [24, 44]], gradient, [24, 8], [30, 44]);
+    c.fillGradientPolygon([[24, 8], [34, 18], [32, 20], [26, 10]], gradient, [24, 8], [30, 44]);
   } else {
-    c.fillPolygon([[32, 6], [30, 10], [34, 10]], p.base);
-    c.fillPolygon([[30, 10], [34, 10], [37, 26], [40, 32], [24, 32], [27, 26]], p.base);
-    c.fillPolygon([[31, 11], [32, 11], [32, 26], [28, 26], [28, 20], [31, 11]], p.light);
-    c.fillPolygon([[18, 32], [46, 32], [46, 37], [18, 37]], p.metal);
-    c.fillPolygon([[29, 37], [35, 37], [35, 47], [29, 47]], p.dark);
-    c.fillCircle(32, 50, 3.2, p.gem);
+    c.fillGradientPolygon([[26, 8], [36, 20], [31, 44], [25, 44]], gradient, [26, 8], [31, 44]);
+    c.fillGradientPolygon([[26, 8], [36, 20], [34, 22], [28, 10]], gradient, [26, 8], [31, 44]);
   }
+  c.fillPolygon([[18, 34], [44, 30], [44, 34], [18, 38]], p.metal);
+  c.fillPolygon([[22, 30], [26, 29], [24, 35], [20, 36]], p.metal);
+  c.fillPolygon([[40, 29], [44, 28], [44, 34], [40, 33]], p.metal);
+  c.fillPolygon([[24, 38], [28, 37], [27, 46], [23, 47]], p.dark);
+  c.fillPolygon([[23, 47], [27, 46], [28, 53], [22, 54]], p.dark);
+  c.fillCircle(25, 55, 2.6, p.gem);
+  c.fillCircle(24, 54, 1.2, p.light);
+  c.fillCircle(20, 36, 2, p.gem);
+  c.fillCircle(42, 31, 2, p.gem);
+  c.fillDiamond(26, 18, 1.6, 2.4, p.light);
 }
 
 function drawDagger(c: Canvas, p: Palette, rng: () => number): void {
@@ -629,9 +678,9 @@ function drawItem(c: Canvas, input: ItemIconInput, p: Palette, rng: () => number
     else if (subtype === "axe" || subtype === "machado") drawAxe(c, p, rng);
     else if (subtype === "tome" || subtype === "grimorio") drawTome(c, p, rng);
     else if (subtype === "bow" || subtype === "arco") drawBow(c, p, rng);
-    else if (swordLike) drawSword(c, p, rng);
+    else if (swordLike) drawSword(c, p, rng, input);
     else {
-      const shapes: ((c: Canvas, p: Palette, rng: () => number) => void)[] = [drawSword, drawAxe, drawStaff, drawTome];
+      const shapes: ((c: Canvas, p: Palette, rng: () => number) => void)[] = [drawAxe, drawStaff, drawTome, drawDagger];
       shapes[Math.floor(rng() * shapes.length)](c, p, rng);
     }
     applyElement(c, p, input, rng);
@@ -773,6 +822,24 @@ function sparkleCount(rarity?: string): number {
   return 0;
 }
 
+function drawMagicDust(c: Canvas, rarity: string | undefined, rng: () => number): void {
+  const count = sparkleCount(rarity);
+  if (count === 0) return;
+  const dustColors: RGB[] = [
+    [240, 244, 250],
+    [240, 210, 96],
+    [120, 160, 244],
+    [220, 140, 244],
+  ];
+  for (let i = 0; i < count; i++) {
+    const col = dustColors[Math.floor(rng() * dustColors.length)];
+    const x = 6 + rng() * (SIZE - 12);
+    const y = 6 + rng() * (SIZE - 12);
+    c.setPx(x, y, col);
+    if (rng() < 0.5) c.setPx(x + 1, y, col);
+  }
+}
+
 // Fundo de masmorra: pedras escuras + moldura rústica com runas e brilho da raridade.
 function dungeonBackdrop(p: Palette, rng: () => number): (x: number, y: number) => RGB | null {
   const frame = 4;
@@ -800,7 +867,6 @@ function dungeonBackdrop(p: Palette, rng: () => number): (x: number, y: number) 
     runeSpots.push(spot);
   }
   const isFrame = (x: number, y: number): boolean => x < frame || y < frame || x >= SIZE - frame || y >= SIZE - frame;
-
   return (x: number, y: number): RGB | null => {
     if (isFrame(x, y)) {
       const onCorner = (x < 2 || x >= SIZE - 2) && (y < 2 || y >= SIZE - 2);
@@ -831,7 +897,8 @@ export async function renderItemIcon(input: ItemIconInput): Promise<Buffer> {
   drawItem(canvas, input, pal, rng);
   canvas.applyShading(pal.light, pal.dark);
   canvas.applyOutline(pal.outline);
-  canvas.sparkle(sparkleCount(input.rarity), lighten(pal.gem, 0.4), rng);
+  canvas.paintBackground(dungeonBackdrop(pal, rng));
+  drawMagicDust(canvas, input.rarity, rng);
   return encode(canvas.buf);
 }
 
