@@ -53,7 +53,10 @@ export interface BattleOptions {
   monster: any;
   monsterSkills?: SkillDef[];
   classResource: Record<string, any>;
-  autoPilot?: boolean; // arena PvP: o personagem lança skills sozinho a cada tick
+  autoPilot?: boolean; // arena PvP (legado): o personagem lança skills sozinho a cada tick
+  pvp?: boolean; // PvP manual: os dois lados são jogadores reais controlados (skills/itens)
+  pvpDefenderRank?: number; // rank do defensor no PvP manual (skills do lado "monstro")
+  defenderClassResource?: Record<string, any>; // recurso de classe do defensor (manaOnHit)
   onEnd: (state: "won" | "lost") => void;  syncPlayerEffects: (effects: ActiveEffectRuntime[]) => Promise<void>;
 }
 
@@ -103,6 +106,7 @@ export class Battle {
   private effectModifiers: Map<string, EffectModifiers> = new Map();
   private cooldowns: Map<string, number> = new Map();
   private channeling: { skill: SkillDef; until: number } | null = null;
+  private monsterChanneling: { skill: SkillDef; until: number } | null = null;
   private summons: SummonRuntime[] = [];
   private passiveHandlers: EventHandler[] = [];
   private skillHandlers: EventHandler[] = [];
@@ -154,7 +158,7 @@ export class Battle {
       maxMana: monsterBase.mana,
       effects: [],
       lastAttackAt: Date.now(),
-      isPlayer: false,
+      isPlayer: !!opts.pvp,
     };
 
     this.rebuildModifiers();
@@ -310,8 +314,12 @@ export class Battle {
         }
       },
       onKill: () => {
-        if (target.hp <= 0 && target.isPlayer === false && this.state === "active") {
+        if (this.state !== "active" || target.hp > 0) return;
+        target.hp = 0;
+        if (actor.isPlayer) {
           this.state = "won";
+        } else {
+          this.state = "lost";
         }
       },
     };
@@ -340,43 +348,73 @@ export class Battle {
   }
 
   getCooldown(skillId: string): number {
-    const readyAt = this.cooldowns.get(skillId);
+    return this.getCooldownFor("player", skillId);
+  }
+
+  getCooldownFor(side: "player" | "monster", skillId: string): number {
+    const map = side === "player" ? this.cooldowns : this.monsterSkillCooldowns;
+    const readyAt = map.get(skillId);
     if (!readyAt) return 0;
     return Math.max(0, readyAt - Date.now());
   }
 
-  private actualCooldown(skill: SkillDef): number {
+  private cooldownMapFor(side: "player" | "monster"): Map<string, number> {
+    return side === "player" ? this.cooldowns : this.monsterSkillCooldowns;
+  }
+
+  private sideEntities(side: "player" | "monster"): { actor: BattleEntity; target: BattleEntity; actorStats: DerivedStats; targetStats: DerivedStats } {
+    const actor = side === "player" ? this.player : this.monster;
+    const target = side === "player" ? this.monster : this.player;
+    const actorStats = actor.isPlayer ? this.effectivePlayerStats() : this.effectiveMonsterStats();
+    const targetStats = target.isPlayer ? this.effectivePlayerStats() : this.effectiveMonsterStats();
+    return { actor, target, actorStats, targetStats };
+  }
+
+  private actualCooldownFor(side: "player" | "monster", skill: SkillDef): number {
+    const { actorStats } = this.sideEntities(side);
     const mods = this.skillModifiers.get(skill.slug) || this.skillModifiers.get("*");
-    const cdr = (mods?.cooldownPercent || 0) + this.player.stats.cooldownReduction;
+    const cdr = (mods?.cooldownPercent || 0) + actorStats.cooldownReduction;
     return Math.max(500, Math.floor(skill.cooldown * (1 - Math.min(80, cdr) / 100)));
   }
 
-  private actualManaCost(skill: SkillDef): number {
+  private actualManaCostFor(side: "player" | "monster", skill: SkillDef): number {
+    const { actorStats } = this.sideEntities(side);
     const mods = this.skillModifiers.get(skill.slug) || this.skillModifiers.get("*");
-    const reduction = Math.min(80, (mods?.manaPercent || 0) + this.player.stats.manaCostReduction);
+    const reduction = Math.min(80, (mods?.manaPercent || 0) + actorStats.manaCostReduction);
     return Math.max(0, Math.floor(skill.manaCost * (1 - reduction / 100)));
   }
 
   canUseSkill(skill: SkillDef): { ok: boolean; reason?: string; requirements: string[] } {
+    return this.canUseSkillFor("player", skill);
+  }
+
+  canUseSkillFor(side: "player" | "monster", skill: SkillDef): { ok: boolean; reason?: string; requirements: string[] } {
+    const { actor, target } = this.sideEntities(side);
     if (this.state !== "active") return { ok: false, reason: "Combate encerrado", requirements: [] };
-    if (entityHasKind(this.player, "stun")) return { ok: false, reason: "Atordoado(a) — não pode agir", requirements: [] };
-    if (entityHasKind(this.player, "silence")) return { ok: false, reason: "Silenciado(a) — skills bloqueadas", requirements: [] };
-    if (skill.rankRequired > this.rank) return { ok: false, reason: `Requer rank ${skill.rankRequired}`, requirements: [] };
-    if (this.getCooldown(skill.id) > 0) return { ok: false, reason: "Skill em cooldown", requirements: [] };
-    if (skill.manaCost > 0 && this.player.mana < this.actualManaCost(skill)) return { ok: false, reason: "Mana insuficiente", requirements: [] };
+    if (entityHasKind(actor, "stun")) return { ok: false, reason: "Atordoado(a) — não pode agir", requirements: [] };
+    if (entityHasKind(actor, "silence")) return { ok: false, reason: "Silenciado(a) — skills bloqueadas", requirements: [] };
+    const sideRank = side === "player" ? this.rank : (this.opts.pvpDefenderRank ?? this.rank);
+    if (skill.rankRequired > sideRank) return { ok: false, reason: `Requer rank ${skill.rankRequired}`, requirements: [] };
+    if (this.getCooldownFor(side, skill.id) > 0) return { ok: false, reason: "Skill em cooldown", requirements: [] };
+    if (skill.manaCost > 0 && actor.mana < this.actualManaCostFor(side, skill)) return { ok: false, reason: "Mana insuficiente", requirements: [] };
     const requirements = describeConditions(skill.conditions);
     if (requirements.length > 0 && !evaluateConditions(skill.conditions, { player: this.player, monster: this.monster, round: this.round })) {
       return { ok: false, reason: `Condição não atendida: ${requirements.join(", ")}`, requirements };
     }
-    if (this.channeling) return { ok: false, reason: "Canalizando", requirements: [] };
+    const ch = side === "player" ? this.channeling : this.monsterChanneling;
+    if (ch) return { ok: false, reason: "Canalizando", requirements: [] };
     return { ok: true, requirements };
   }
 
   useSkill(skill: SkillDef): SkillUseResult {
-    const check = this.canUseSkill(skill);
+    return this.useSkillFor("player", skill);
+  }
+
+  useSkillFor(side: "player" | "monster", skill: SkillDef): SkillUseResult {
+    const check = this.canUseSkillFor(side, skill);
     if (!check.ok) {
       if (check.reason === "Mana insuficiente") {
-        this.fire("onOutOfMana", { actor: this.player, target: this.monster });
+        this.fire("onOutOfMana", { actor: side === "player" ? this.player : this.monster, target: side === "player" ? this.monster : this.player });
       }
       return {
         ok: false,
@@ -396,14 +434,17 @@ export class Battle {
       };
     }
 
-    const manaCost = this.actualManaCost(skill);
-    if (manaCost > 0) this.player.mana -= manaCost;
-    const cd = this.actualCooldown(skill);
-    this.cooldowns.set(skill.id, Date.now() + cd);
+    const { actor } = this.sideEntities(side);
+    const manaCost = this.actualManaCostFor(side, skill);
+    if (manaCost > 0) actor.mana -= manaCost;
+    const cd = this.actualCooldownFor(side, skill);
+    this.cooldownMapFor(side).set(skill.id, Date.now() + cd);
 
     const channelMs = skill.channelMs || skill.castTime || 0;
     if (channelMs > 0) {
-      this.channeling = { skill, until: Date.now() + channelMs };
+      const ch = { skill, until: Date.now() + channelMs };
+      if (side === "player") this.channeling = ch;
+      else this.monsterChanneling = ch;
       this.pushMessage(`Canalizando ${skill.name}...`);
       return {
         ok: true,
@@ -423,13 +464,14 @@ export class Battle {
       };
     }
 
-    return this.executeSkill(skill);
+    return this.executeSkillFor(side, skill);
   }
 
-  private executeSkill(skill: SkillDef): SkillUseResult {
+  private executeSkillFor(side: "player" | "monster", skill: SkillDef): SkillUseResult {
+    const { actor, target } = this.sideEntities(side);
     const result = emptyResult();
     const actions: Action[] = skill.conditions && skill.conditions.length > 0 ? skill.onConditionMet : skill.actions;
-    const ctx = this.buildActionContext(this.player, this.monster, result, skill.slug);
+    const ctx = this.buildActionContext(actor, target, result, skill.slug);
     executeActions(actions && actions.length > 0 ? actions : skill.actions, ctx, result);
     this.collectResult(result, "");
 
@@ -437,12 +479,13 @@ export class Battle {
     for (const e of skill.events || []) {
       this.skillHandlers.push({ event: e.event, conditions: e.conditions, actions: e.actions, skillId: skill.id });
     }
-    this.fire("onSkillUsed", { actor: this.player, target: this.monster, skillId: skill.id });
-    if (result.hit) this.fire("onHit", { actor: this.player, target: this.monster, skillId: skill.id });
-    if (result.isCritical) this.fire("onCrit", { actor: this.player, target: this.monster, skillId: skill.id });
+    this.fire("onSkillUsed", { actor, target, skillId: skill.id });
+    if (result.hit) this.fire("onHit", { actor, target, skillId: skill.id });
+    if (result.isCritical) this.fire("onCrit", { actor, target, skillId: skill.id });
     if (result.damage > 0) {
-      const manaOnHit = Number(this.opts.classResource?.manaOnHit) || 0;
-      if (manaOnHit > 0) this.player.mana = Math.min(this.player.maxMana, this.player.mana + manaOnHit);
+      const resource = side === "player" ? this.opts.classResource : this.opts.defenderClassResource;
+      const manaOnHit = Number(resource?.manaOnHit) || 0;
+      if (manaOnHit > 0) actor.mana = Math.min(actor.maxMana, actor.mana + manaOnHit);
     }
 
     this.effectsDirty = true;
@@ -460,7 +503,7 @@ export class Battle {
       channeling: false,
       channelMs: 0,
       requirements: [],
-      cooldownMs: this.getCooldown(skill.id),
+      cooldownMs: this.getCooldownFor(side, skill.id),
     };
   }
 
@@ -480,6 +523,26 @@ export class Battle {
     const manaOnHit = Number(this.opts.classResource?.manaOnHit) || 0;
     if (manaOnHit > 0 && result.hit) {
       this.player.mana = Math.min(this.player.maxMana, this.player.mana + manaOnHit);
+    }
+    this.effectsDirty = true;
+  }
+
+  // Auto-ataque do lado do "monstro" (PvP: ataque básico do defensor)
+  private monsterAutoAttack(): void {
+    const autoSkill = this.monsterSkills.find((s) => s.trigger === "auto");
+    if (!autoSkill) return;
+    const result = emptyResult();
+    const ctx = this.buildActionContext(this.monster, this.player, result, autoSkill.slug);
+    executeActions(autoSkill.actions, ctx, result);
+    if (result.messages.length > 0) {
+      this.pushMessage(`[${autoSkill.name}] ${result.messages.join(" • ")}`);
+    }
+    this.fire("onAutoAttack", { actor: this.monster, target: this.player, skillId: autoSkill.id });
+    if (result.hit) this.fire("onHit", { actor: this.monster, target: this.player, skillId: autoSkill.id });
+    if (result.isCritical) this.fire("onCrit", { actor: this.monster, target: this.player, skillId: autoSkill.id });
+    const manaOnHit = Number(this.opts.defenderClassResource?.manaOnHit) || 0;
+    if (manaOnHit > 0 && result.hit) {
+      this.monster.mana = Math.min(this.monster.maxMana, this.monster.mana + manaOnHit);
     }
     this.effectsDirty = true;
   }
@@ -611,7 +674,16 @@ export class Battle {
       if (now >= this.channeling.until) {
         const skill = this.channeling.skill;
         this.channeling = null;
-        const result = this.executeSkill(skill);
+        const result = this.executeSkillFor("player", skill);
+        for (const m of result.messages) this.pushMessage(m);
+        this.effectsDirty = true;
+      }
+    }
+    if (this.monsterChanneling) {
+      if (now >= this.monsterChanneling.until) {
+        const skill = this.monsterChanneling.skill;
+        this.monsterChanneling = null;
+        const result = this.executeSkillFor("monster", skill);
         for (const m of result.messages) this.pushMessage(m);
         this.effectsDirty = true;
       }
@@ -623,6 +695,9 @@ export class Battle {
     }
     if (pStats.healthRegenPerTick > 0) {
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + pStats.healthRegenPerTick);
+    }
+    if (this.opts.pvp && mStats.manaRegenPerTick > 0) {
+      this.monster.mana = Math.min(this.monster.maxMana, this.monster.mana + mStats.manaRegenPerTick);
     }
 
     // Auto-ataque do jogador
@@ -656,8 +731,13 @@ export class Battle {
       }
     }
 
-    // Ataque do monstro
-    if (this.state === "active" && !entityHasKind(this.monster, "stun") && now - this.monster.lastAttackAt >= mStats.attackSpeedMs) {
+    // Ataque do monstro (PvE) / auto-ataque do defensor (PvP manual)
+    if (this.opts.pvp) {
+      if (this.state === "active" && !entityHasKind(this.monster, "stun") && now - this.monster.lastAttackAt >= mStats.attackSpeedMs) {
+        this.monster.lastAttackAt = now;
+        this.monsterAutoAttack();
+      }
+    } else if (this.state === "active" && !entityHasKind(this.monster, "stun") && now - this.monster.lastAttackAt >= mStats.attackSpeedMs) {
       this.monster.lastAttackAt = now;
       if (!this.monsterUseSkill()) {
         this.monsterAttack();
@@ -693,6 +773,7 @@ export class Battle {
     this.player.effects = playerStep.effects;
     for (const ev of playerStep.events.ticked) {
       const pStats = this.effectivePlayerStats();
+      const mStats = this.effectiveMonsterStats();
       if (ev.effect.kind === "hot" && ev.effect.tickHealing) {
         const mods = this.effectModifiers.get(ev.effect.slug) || this.effectModifiers.get("*");
         const raw = (ev.effect.tickHealing.base || 0) + (ev.effect.tickHealing.scaling || []).reduce((acc, s) => acc + (pStats[s.stat] || 0) * s.factor, 0);
@@ -703,6 +784,21 @@ export class Battle {
         if (applied > 0) {
           this.player.hp += applied;
           this.pushMessage(`${ev.effect.name} curou ${applied} de vida${ev.stacks > 1 ? ` (${ev.stacks} stacks)` : ""}`);
+        }
+      }
+      if (ev.effect.kind === "dot" && ev.effect.tickDamage) {
+        // DoTs no jogador escalam com as stats de quem aplicou (o adversário no PvP).
+        const mods = this.effectModifiers.get(ev.effect.slug) || this.effectModifiers.get("*");
+        const raw = (ev.effect.tickDamage.base || 0) + (ev.effect.tickDamage.scaling || []).reduce((acc, s) => acc + (mStats[s.stat] || 0) * s.factor, 0);
+        const boosted = raw * (1 + (mStats.dotPercent + (mods?.damagePercent || 0)) / 100) * (1 + (mods?.tickPercent || 0) / 100);
+        const dmg = Math.max(1, Math.floor(boosted)) * stackGrowthMultiplier(ev.effect, ev.stacks);
+        const { applied, absorbed } = absorbWithShield(this.player, dmg);
+        if (absorbed > 0) this.pushMessage(`Seu escudo absorveu ${absorbed} do dano de ${ev.effect.name}`);
+        this.player.hp = Math.max(0, this.player.hp - applied);
+        this.pushMessage(`${ev.effect.name} causou ${applied} de dano em você${ev.stacks > 1 ? ` (${ev.stacks} stacks)` : ""}`);
+        if (this.player.hp <= 0 && this.state === "active") {
+          this.player.hp = 0;
+          this.state = "lost";
         }
       }
       // onTick actions
@@ -759,9 +855,14 @@ export class Battle {
 
   // ============ Itens / Fuga ============
   useItem(heal: number, manaRestore: number): void {
+    this.useItemFor("player", heal, manaRestore);
+  }
+
+  useItemFor(side: "player" | "monster", heal: number, manaRestore: number): void {
     if (this.state !== "active") return;
-    this.player.hp = Math.min(this.player.maxHp, this.player.hp + Math.max(0, heal));
-    this.player.mana = Math.min(this.player.maxMana, this.player.mana + Math.max(0, manaRestore));
+    const actor = side === "player" ? this.player : this.monster;
+    actor.hp = Math.min(actor.maxHp, actor.hp + Math.max(0, heal));
+    actor.mana = Math.min(actor.maxMana, actor.mana + Math.max(0, manaRestore));
   }
 
   // ============ Persistência ============
@@ -887,9 +988,13 @@ export class Battle {
   }
 
   cooldownInfo(): Array<{ skillId: string; remaining: number }> {
+    return this.cooldownInfoFor("player");
+  }
+
+  cooldownInfoFor(side: "player" | "monster"): Array<{ skillId: string; remaining: number }> {
     const now = Date.now();
     const out: Array<{ skillId: string; remaining: number }> = [];
-    for (const [id, readyAt] of this.cooldowns) {
+    for (const [id, readyAt] of this.cooldownMapFor(side)) {
       out.push({ skillId: id, remaining: Math.max(0, readyAt - now) });
     }
     return out;

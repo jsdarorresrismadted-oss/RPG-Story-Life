@@ -6,6 +6,7 @@ import { clampGold } from "../../core/progression";
 import { CombatService, serializeSkillForClient } from "../combat/combat.service";
 
 const COOLDOWN_MS = 30 * 1000; // cooldown entre desafios na arena
+const CHALLENGE_TTL_MS = 30 * 1000; // tempo para o desafiado aceitar/recusar
 const K_FACTOR = 32;
 
 function parseJson(value: any, fallback: any = null): any {
@@ -37,11 +38,33 @@ function buildOpponentMonster(context: any): any {
     criticalDamage: stats.critDamage,
     dodge: stats.dodge,
     attackSpeed: stats.attackSpeedMs,
+    hitChance: stats.hitChance,
+    penetration: stats.penetration,
+    damageResistance: stats.damageResistance,
+    physicalResistance: stats.physicalResistance,
+    magicalResistance: stats.magicalResistance,
+    dotPercent: stats.dotPercent,
+    healingPercent: stats.healingPercent,
+    overhealPercent: stats.overhealPercent,
+    manaCostReduction: stats.manaCostReduction,
+    cooldownReduction: stats.cooldownReduction,
+    manaRegenPerTick: stats.manaRegenPerTick,
+    healthRegenPerTick: stats.healthRegenPerTick,
   };
 }
 
 function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+}
+
+interface PendingChallenge {
+  id: string;
+  fromCharacterId: string;
+  fromName: string;
+  toCharacterId: string;
+  toName: string;
+  expiresAt: number;
+  timeout: NodeJS.Timeout;
 }
 
 interface ActiveMatch {
@@ -53,23 +76,34 @@ interface ActiveMatch {
   opponentSkills: SkillDef[];
   challengerName: string;
   opponentName: string;
+  challengerRank: number;
+  opponentRank: number;
   challengerRating: number;
   opponentRating: number;
+  challengerClassResource: Record<string, any>;
+  opponentClassResource: Record<string, any>;
   startedAt: number;
   tickInterval: NodeJS.Timeout;
 }
 
 export class PvpService {
   private activeMatches: Map<string, ActiveMatch> = new Map();
-  private onTickListener: ((payload: any) => void) | null = null;
+  private pendingChallenges: Map<string, PendingChallenge> = new Map();
+  private onUpdateListener: ((payload: any) => void) | null = null;
 
   constructor(
     private prisma: PrismaClient,
     private combatService: CombatService
   ) {}
 
-  setOnTick(listener: (payload: any) => void): void {
-    this.onTickListener = listener;
+  // Emite qualquer atualização de PvP para AMBOS os personagens da luta.
+  setOnUpdate(listener: (payload: any) => void): void {
+    this.onUpdateListener = listener;
+  }
+
+  private emitToBoth(entry: ActiveMatch, payload: any): void {
+    if (!this.onUpdateListener) return;
+    this.onUpdateListener({ ...payload, challengerCharacterId: entry.challengerCharacterId, opponentCharacterId: entry.opponentCharacterId });
   }
 
   async getMyStats(userId: string): Promise<any | null> {
@@ -122,14 +156,20 @@ export class PvpService {
       .slice(0, 15);
   }
 
-  async getActiveMatch(userId: string): Promise<ActiveMatch | undefined> {
+  async getActiveMatch(characterId: string): Promise<ActiveMatch | undefined> {
     return Array.from(this.activeMatches.values()).find(
-      (m) => (m.challengerCharacterId === userId || m.opponentCharacterId === userId) && m.battle.state === "active"
+      (m) => (m.challengerCharacterId === characterId || m.opponentCharacterId === characterId) && m.battle.state === "active"
+    );
+  }
+
+  getMatchByCharacter(characterId: string): ActiveMatch | undefined {
+    return Array.from(this.activeMatches.values()).find(
+      (m) => m.challengerCharacterId === characterId || m.opponentCharacterId === characterId
     );
   }
 
   private async ensureNotBusy(characterId: string): Promise<void> {
-    if (Array.from(this.activeMatches.values()).some((m) => (m.challengerCharacterId === characterId || m.opponentCharacterId === characterId) && m.battle.state === "active")) {
+    if (this.getMatchByCharacter(characterId)?.battle.state === "active") {
       throw new Error("Esse personagem já está em uma luta de arena.");
     }
     const session = await this.prisma.combatSession.findFirst({
@@ -138,6 +178,7 @@ export class PvpService {
     if (session) throw new Error("Esse personagem está em combate PvE.");
   }
 
+  // ============ Desafio (pendente até o alvo aceitar) ============
   async challenge(userId: string, targetCharacterId: string): Promise<any> {
     const me = await this.prisma.character.findFirst({ where: { userId } });
     if (!me) throw new Error("Personagem não encontrado.");
@@ -158,26 +199,94 @@ export class PvpService {
     await this.ensureNotBusy(me.id);
     await this.ensureNotBusy(target.id);
 
-    const [myCtx, oppCtx] = await Promise.all([
-      this.combatService.buildPlayerContext(me.id),
-      this.combatService.buildPlayerContext(target.id),
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const timeout = setTimeout(() => this.pendingChallenges.delete(id), CHALLENGE_TTL_MS);
+    this.pendingChallenges.set(id, {
+      id,
+      fromCharacterId: me.id,
+      fromName: me.name,
+      toCharacterId: target.id,
+      toName: target.name,
+      expiresAt: Date.now() + CHALLENGE_TTL_MS,
+      timeout,
+    });
+
+    return {
+      challengeId: id,
+      fromName: me.name,
+      fromCharacterId: me.id,
+      targetName: target.name,
+      targetUserId: target.user.id,
+      expiresInMs: CHALLENGE_TTL_MS,
+    };
+  }
+
+  async getPendingChallenge(challengeId: string): Promise<PendingChallenge | undefined> {
+    return this.pendingChallenges.get(challengeId);
+  }
+
+  async getPendingChallengeByTarget(characterId: string): Promise<PendingChallenge | undefined> {
+    return Array.from(this.pendingChallenges.values()).find((p) => p.toCharacterId === characterId);
+  }
+
+  async getCharacterById(characterId: string): Promise<any | null> {
+    return this.prisma.character.findUnique({
+      where: { id: characterId },
+      include: { user: { select: { id: true } } },
+    });
+  }
+
+  // Resolve o desafio: aceita (inicia a luta manual) ou recusa (cancela).
+  async respondChallenge(challengeId: string, responderCharacterId: string, accept: boolean): Promise<any> {
+    const pending = this.pendingChallenges.get(challengeId);
+    if (!pending) throw new Error("Desafio expirado ou já respondido.");
+    clearTimeout(pending.timeout);
+    this.pendingChallenges.delete(challengeId);
+
+    if (pending.toCharacterId !== responderCharacterId) {
+      throw new Error("Esse desafio não foi enviado para você.");
+    }
+
+    if (!accept) {
+      return {
+        accepted: false,
+        challengeId,
+        challengerCharacterId: pending.fromCharacterId,
+        challengerName: pending.fromName,
+        targetName: pending.toName,
+      };
+    }
+
+    await this.ensureNotBusy(pending.fromCharacterId);
+    await this.ensureNotBusy(pending.toCharacterId);
+
+    const [challengerCtx, opponentCtx] = await Promise.all([
+      this.combatService.buildPlayerContext(pending.fromCharacterId),
+      this.combatService.buildPlayerContext(pending.toCharacterId),
+    ]);
+    const [challengerChar, opponentChar] = await Promise.all([
+      this.prisma.character.findUnique({ where: { id: pending.fromCharacterId } }),
+      this.prisma.character.findUnique({ where: { id: pending.toCharacterId } }),
     ]);
 
-    const opponentMonster = buildOpponentMonster(oppCtx);
+    const opponentMonster = buildOpponentMonster(opponentCtx);
 
     const battle = new Battle({
-      characterId: me.id,
-      characterName: me.name,
-      characterLevel: me.level,
-      statsInput: myCtx.statsInput,
-      rank: myCtx.rank,
-      skills: myCtx.skills,
-      passives: myCtx.passives,
-      effects: myCtx.effects,
+      characterId: pending.fromCharacterId,
+      characterName: pending.fromName,
+      characterLevel: challengerChar?.level ?? 1,
+      statsInput: challengerCtx.statsInput,
+      rank: challengerCtx.rank,
+      skills: challengerCtx.skills,
+      passives: challengerCtx.passives,
+      effects: challengerCtx.effects,
       monster: opponentMonster,
-      monsterSkills: (oppCtx.skills || []).slice(0, 4),
-      classResource: parseJson(myCtx.gameClass?.resource, {}),
-      autoPilot: true,
+      monsterSkills: opponentCtx.skills || [],
+      classResource: parseJson(challengerCtx.gameClass?.resource, {}),
+      defenderClassResource: parseJson(opponentCtx.gameClass?.resource, {}),
+      pvp: true,
+      pvpDefenderRank: opponentCtx.rank,
+      autoPilot: false,
       onEnd: () => {},
       syncPlayerEffects: async () => {},
     });
@@ -185,14 +294,18 @@ export class PvpService {
     const entry: ActiveMatch = {
       battle,
       matchId: battle.id,
-      challengerCharacterId: me.id,
-      opponentCharacterId: target.id,
-      challengerSkills: myCtx.skills,
-      opponentSkills: (oppCtx.skills || []).slice(0, 4),
-      challengerName: me.name,
-      opponentName: target.name,
-      challengerRating: me.arenaRating,
-      opponentRating: target.arenaRating,
+      challengerCharacterId: pending.fromCharacterId,
+      opponentCharacterId: pending.toCharacterId,
+      challengerSkills: challengerCtx.skills,
+      opponentSkills: opponentCtx.skills || [],
+      challengerName: pending.fromName,
+      opponentName: pending.toName,
+      challengerRank: challengerCtx.rank,
+      opponentRank: opponentCtx.rank,
+      challengerRating: challengerChar?.arenaRating ?? 0,
+      opponentRating: opponentChar?.arenaRating ?? 0,
+      challengerClassResource: parseJson(challengerCtx.gameClass?.resource, {}),
+      opponentClassResource: parseJson(opponentCtx.gameClass?.resource, {}),
       startedAt: Date.now(),
       tickInterval: setInterval(() => this.tick(battle.id), TICK_MS),
     };
@@ -201,51 +314,109 @@ export class PvpService {
     await this.prisma.pvpMatch.create({
       data: {
         id: battle.id,
-        challengerCharacterId: me.id,
-        opponentCharacterId: target.id,
+        challengerCharacterId: pending.fromCharacterId,
+        opponentCharacterId: pending.toCharacterId,
         state: "active",
       },
     });
 
-    return this.buildStartedPayload(entry);
+    const started = this.buildStartedPayload(entry);
+    this.emitToBoth(entry, { ...started, type: "started" });
+    return { accepted: true, ...started };
   }
 
-  async flee(userId: string, matchId: string): Promise<any> {
+  async cancelChallenge(challengeId: string, characterId: string): Promise<void> {
+    const pending = this.pendingChallenges.get(challengeId);
+    if (!pending) return;
+    if (pending.fromCharacterId !== characterId) throw new Error("Você não pode cancelar esse desafio.");
+    clearTimeout(pending.timeout);
+    this.pendingChallenges.delete(challengeId);
+  }
+
+  // ============ Ações durante a luta (controle manual) ============
+  private sideOf(entry: ActiveMatch, characterId: string): "player" | "monster" {
+    return entry.challengerCharacterId === characterId ? "player" : "monster";
+  }
+
+  async useSkill(characterId: string, matchId: string, skillId: string): Promise<any> {
     const entry = this.activeMatches.get(matchId);
     if (!entry) throw new Error("Luta de arena não encontrada.");
-    if (entry.challengerCharacterId !== userId && entry.opponentCharacterId !== userId) {
+    if (entry.challengerCharacterId !== characterId && entry.opponentCharacterId !== characterId) {
+      throw new Error("Você não participa dessa luta.");
+    }
+    if (entry.battle.state !== "active") throw new Error("A luta já terminou.");
+
+    const side = this.sideOf(entry, characterId);
+    const skills = side === "player" ? entry.challengerSkills : entry.opponentSkills;
+    const skill = skills.find((s) => s.id === skillId);
+    if (!skill) throw new Error("Skill não encontrada.");
+
+    const result = entry.battle.useSkillFor(side, skill);
+    if (!result.ok) throw new Error(result.error || "Não foi possível usar a skill.");
+    return {
+      matchId,
+      side,
+      ok: true,
+      damage: result.damage,
+      healed: result.healed,
+      isCritical: result.isCritical,
+      isDodged: result.isDodged,
+      appliedEffects: result.appliedEffects,
+      removedEffects: result.removedEffects,
+      consumedStacks: result.consumedStacks,
+      messages: result.messages,
+      channeling: result.channeling,
+      channelMs: result.channelMs,
+      cooldownMs: result.cooldownMs,
+      cooldowns: entry.battle.cooldownInfoFor(side),
+    };
+  }
+
+  async useItem(characterId: string, matchId: string, heal: number, mana: number): Promise<any> {
+    const entry = this.activeMatches.get(matchId);
+    if (!entry) throw new Error("Luta de arena não encontrada.");
+    if (entry.challengerCharacterId !== characterId && entry.opponentCharacterId !== characterId) {
+      throw new Error("Você não participa dessa luta.");
+    }
+    if (entry.battle.state !== "active") throw new Error("A luta já terminou.");
+
+    const side = this.sideOf(entry, characterId);
+    entry.battle.useItemFor(side, heal, mana);
+    return { matchId, side, ok: true, healed: heal, manaRestored: mana };
+  }
+
+  async flee(characterId: string, matchId: string): Promise<any> {
+    const entry = this.activeMatches.get(matchId);
+    if (!entry) throw new Error("Luta de arena não encontrada.");
+    if (entry.challengerCharacterId !== characterId && entry.opponentCharacterId !== characterId) {
       throw new Error("Você não participa dessa luta.");
     }
     if (entry.battle.state !== "active") throw new Error("A luta já terminou.");
 
     // Fuga: quem fugiu perde
-    const loserIsChallenger = entry.challengerCharacterId === userId;
+    const loserIsChallenger = entry.challengerCharacterId === characterId;
     const winnerId = loserIsChallenger ? entry.opponentCharacterId : entry.challengerCharacterId;
     const state = loserIsChallenger ? "challenger_loss" : "challenger_win";
     clearInterval(entry.tickInterval);
     this.activeMatches.delete(matchId);
     const result = await this.endMatch(entry, state, winnerId, true);
 
-    if (this.onTickListener) {
-      const snap = entry.battle.snapshot();
-      this.onTickListener({
-        matchId,
-        challengerCharacterId: entry.challengerCharacterId,
-        opponentCharacterId: entry.opponentCharacterId,
-        challengerName: entry.challengerName,
-        opponentName: entry.opponentName,
-        challengerHp: snap.characterHp,
-        challengerMaxHp: snap.maxHp,
-        opponentHp: snap.monsterHp,
-        opponentMaxHp: snap.monsterMaxHp,
-        messages: ["Um dos combatentes abandonou a arena."],
-        state: winnerId === entry.challengerCharacterId ? "won" : "lost",
-        ...result,
-      });
-    }
+    const snap = entry.battle.snapshot();
+    this.emitToBoth(entry, {
+      type: "ended",
+      state: loserIsChallenger ? "lost" : "won",
+      won: !loserIsChallenger,
+      messages: ["Um dos combatentes abandonou a arena."],
+      ...result,
+      challengerHp: snap.characterHp,
+      challengerMaxHp: snap.maxHp,
+      opponentHp: snap.monsterHp,
+      opponentMaxHp: snap.monsterMaxHp,
+    });
     return { state: "fled", message: "Você abandonou a arena." };
   }
 
+  // ============ Tick / fim de luta ============
   private tick(matchId: string): void {
     const entry = this.activeMatches.get(matchId);
     if (!entry) return;
@@ -256,25 +427,18 @@ export class PvpService {
       console.error(`[pvp] tick error (${matchId}):`, err);
       clearInterval(entry.tickInterval);
       this.activeMatches.delete(matchId);
-      if (this.onTickListener) {
-        this.onTickListener({
-          matchId,
-          state: "error",
-          challengerCharacterId: entry.challengerCharacterId,
-          opponentCharacterId: entry.opponentCharacterId,
-          messages: ["A luta travou por um erro interno."],
-        });
-      }
+      this.emitToBoth(entry, {
+        type: "ended",
+        state: "error",
+        messages: ["A luta travou por um erro interno."],
+      });
       return;
     }
 
     const snap = entry.battle.snapshot();
     const payload = {
+      type: "tick",
       matchId,
-      challengerCharacterId: entry.challengerCharacterId,
-      opponentCharacterId: entry.opponentCharacterId,
-      challengerName: entry.challengerName,
-      opponentName: entry.opponentName,
       challengerHp: snap.characterHp,
       challengerMaxHp: snap.maxHp,
       challengerMana: snap.characterMana,
@@ -285,6 +449,8 @@ export class PvpService {
       opponentMaxMana: entry.battle.monster.maxMana,
       challengerEffects: snap.playerEffects,
       opponentEffects: snap.monsterEffects,
+      challengerCooldowns: entry.battle.cooldownInfoFor("player"),
+      opponentCooldowns: entry.battle.cooldownInfoFor("monster"),
       messages: snap.messages,
       state: entry.battle.state === "active" ? "active" : entry.battle.state,
     };
@@ -297,16 +463,12 @@ export class PvpService {
       const winnerId = won ? entry.challengerCharacterId : entry.opponentCharacterId;
       const state = won ? "challenger_win" : "challenger_loss";
       this.endMatch(entry, state, winnerId, false).then((result) => {
-        if (this.onTickListener) {
-          this.onTickListener({ ...payload, ...result, state: won ? "won" : "lost" });
-        }
+        this.emitToBoth(entry, { ...payload, type: "ended", ...result, state: won ? "won" : "lost" });
       });
       return;
     }
 
-    if (this.onTickListener) {
-      this.onTickListener(payload);
-    }
+    this.emitToBoth(entry, payload);
   }
 
   private async endMatch(
@@ -384,14 +546,13 @@ export class PvpService {
     const stats = entry.battle.player.stats;
     return {
       matchId: entry.matchId,
-      challengerCharacterId: entry.challengerCharacterId,
-      opponentCharacterId: entry.opponentCharacterId,
       challengerName: entry.challengerName,
       opponentName: entry.opponentName,
       opponentLevel: entry.battle.monster.level,
       challengerRating: entry.challengerRating,
       opponentRating: entry.opponentRating,
-      skills: entry.challengerSkills.map((s) => serializeSkillForClient(s, entry.battle.getSkillModifiersFor(s.slug))),
+      challengerSkills: entry.challengerSkills.map((s) => serializeSkillForClient(s, entry.battle.getSkillModifiersFor(s.slug))),
+      opponentSkills: entry.opponentSkills.map((s) => serializeSkillForClient(s, entry.battle.getSkillModifiersFor(s.slug))),
       stats: {
         hp: stats.hp,
         mana: stats.mana,

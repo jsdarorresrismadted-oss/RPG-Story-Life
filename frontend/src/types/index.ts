@@ -301,6 +301,7 @@ export interface PvpMe {
 }
 
 export interface PvpMatchState {
+  type?: "started" | "tick" | "ended" | "skill";
   matchId: string;
   challengerCharacterId: string;
   opponentCharacterId: string;
@@ -317,12 +318,16 @@ export interface PvpMatchState {
   opponentLevel?: number;
   challengerRating?: number;
   opponentRating?: number;
-  skills?: any[];
+  challengerSkills?: any[];
+  opponentSkills?: any[];
+  challengerCooldowns?: Array<{ skillId: string; remaining: number }>;
+  opponentCooldowns?: Array<{ skillId: string; remaining: number }>;
   messages?: string[];
-  state: "active" | "won" | "lost" | "error";
+  state: "active" | "won" | "lost" | "error" | "fled";
   won?: boolean;
   ratingDelta?: number;
   goldReward?: number;
+  fled?: boolean;
 }
 
 export interface InventoryItem {
@@ -664,6 +669,8 @@ export interface Map {
   type?: string;
   raidResetHours?: number | null;
   maxRaidAttempts?: number | null;
+  raidWaves?: number | null;
+  raidDifficulty?: number | null;
   npcs?: { id: string; npc: { id: string; name: string; type?: string } }[];
   monsters?: {
     id: string;
@@ -678,6 +685,15 @@ export interface CombatEffect {
   kind: string;
   stacks: number;
   remainingMs: number;
+}
+
+export interface RaidProgress {
+  mapId: string;
+  mapName: string;
+  wave: number;
+  totalWaves: number;
+  boss: boolean;
+  cleared?: boolean;
 }
 
 export interface CombatSkill {
@@ -738,6 +754,7 @@ export interface CombatUpdate {
   messages?: string[];
   playerEffects?: CombatEffect[];
   monsterEffects?: CombatEffect[];
+  raid?: RaidProgress | null;
   rewards?: { xpGain?: number; goldGain?: number; levelUps?: number; classXpGain?: number; drops?: { name: string; quantity: number }[] } | null;
 }
 

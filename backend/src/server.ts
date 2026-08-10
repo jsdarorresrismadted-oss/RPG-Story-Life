@@ -15,6 +15,7 @@ import { errorHandler } from "./core/middleware/errorHandler";
 import { syncManifestFiles } from "./core/ai/itemGenerator";
 import { createAuthModule } from "./modules/auth/auth.module";
 import { createGateway } from "./gateway/gateway";
+import { RaidService } from "./modules/raid/raid.service";
 import { CombatService } from "./modules/combat/combat.service";
 import { CooldownManager } from "./modules/combat/cooldown.manager";
 import { PvpService } from "./modules/pvp/pvp.service";
@@ -73,7 +74,7 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: Date.now(), uptime: process.uptime() });
 });
 
-const combatService = new CombatService(prisma, redis);
+const combatService = new CombatService(prisma, redis, new RaidService(prisma));
 const cooldownManager = new CooldownManager(redis);
 const pvpService = new PvpService(prisma, combatService);
 

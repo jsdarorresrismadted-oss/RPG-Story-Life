@@ -361,6 +361,8 @@ export const crudConfigs: CrudConfig[] = [
       { name: "type", label: "Tipo de mapa", type: "select", required: true, defaultValue: "normal", options: ["normal", "raid"], hint: "raid = boss + tentativas + reset" },
       { name: "raidResetHours", label: "Raid reset (horas)", type: "number", defaultValue: 24, hint: "Só para mapas raid: tempo de reset das tentativas" },
       { name: "maxRaidAttempts", label: "Máx tentativas de raid", type: "number", defaultValue: 3, hint: "Só para mapas raid" },
+      { name: "raidWaves", label: "Ondas do raid", type: "number", defaultValue: 10, hint: "Só para mapas raid: nº de ondas (a última é o boss)" },
+      { name: "raidDifficulty", label: "Dificuldade do raid", type: "number", defaultValue: 2, hint: "Só para mapas raid: escala de HP/dano dos monstros (1-5)" },
       { name: "isPvPZone", label: "PvP Zone", type: "boolean", defaultValue: false },
       { name: "isActive", label: "Active", type: "boolean", defaultValue: true },
     ],

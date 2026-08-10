@@ -32,9 +32,9 @@ export function createGateway(
     io.to(`character:${payload.characterId}`).emit("combat:tick", sanitize(payload));
   });
 
-  pvpService.setOnTick((payload) => {
-    io.to(`character:${payload.challengerCharacterId}`).emit("pvp:tick", sanitize(payload));
-    io.to(`character:${payload.opponentCharacterId}`).emit("pvp:tick", sanitize(payload));
+  pvpService.setOnUpdate((payload) => {
+    io.to(`character:${payload.challengerCharacterId}`).emit("pvp:update", sanitize(payload));
+    io.to(`character:${payload.opponentCharacterId}`).emit("pvp:update", sanitize(payload));
   });
 
   io.use((socket: AuthenticatedSocket, next) => {
@@ -200,6 +200,69 @@ export function createGateway(
         socket.emit("combat:action", sanitize({ ...result, action: "item" }));
       } catch (err: any) {
         socket.emit("combat:error", { message: err.message });
+      }
+    });
+
+    // ============ PvP manual (arena com desafio + controle real) ============
+    const ensureCharacterId = async (): Promise<string | undefined> => {
+      if (socket.currentCharacterId) return socket.currentCharacterId;
+      const character = await prisma.character.findFirst({
+        where: { userId: socket.userId! },
+        orderBy: { createdAt: "asc" },
+      });
+      if (!character) return undefined;
+      socket.currentCharacterId = character.id;
+      socket.join(`character:${character.id}`);
+      return character.id;
+    };
+
+    socket.on("pvp:respondChallenge", async (data: { challengeId: string; accept: boolean }) => {
+      try {
+        const characterId = await ensureCharacterId();
+        if (!characterId) return socket.emit("pvp:error", { message: "Nenhum personagem selecionado." });
+        const result = await pvpService.respondChallenge(data.challengeId, characterId, !!data.accept);
+        socket.emit("pvp:challengeResult", sanitize(result));
+        if (!result.accepted) {
+          io.to(`character:${result.challengerCharacterId}`).emit("pvp:challengeDeclined", {
+            challengeId: data.challengeId,
+            targetName: result.targetName,
+          });
+        }
+      } catch (err: any) {
+        socket.emit("pvp:error", { message: err.message });
+      }
+    });
+
+    socket.on("pvp:useSkill", async (data: { matchId: string; skillId: string }) => {
+      try {
+        const characterId = await ensureCharacterId();
+        if (!characterId) return socket.emit("pvp:error", { message: "Nenhum personagem selecionado." });
+        const result = await pvpService.useSkill(characterId, data.matchId, data.skillId);
+        socket.emit("pvp:skillUsed", sanitize(result));
+      } catch (err: any) {
+        socket.emit("pvp:error", { message: err.message });
+      }
+    });
+
+    socket.on("pvp:useItem", async (data: { matchId: string; heal: number; mana: number }) => {
+      try {
+        const characterId = await ensureCharacterId();
+        if (!characterId) return socket.emit("pvp:error", { message: "Nenhum personagem selecionado." });
+        const result = await pvpService.useItem(characterId, data.matchId, data.heal || 0, data.mana || 0);
+        socket.emit("pvp:itemUsed", sanitize(result));
+      } catch (err: any) {
+        socket.emit("pvp:error", { message: err.message });
+      }
+    });
+
+    socket.on("pvp:flee", async (data: { matchId: string }) => {
+      try {
+        const characterId = await ensureCharacterId();
+        if (!characterId) return socket.emit("pvp:error", { message: "Nenhum personagem selecionado." });
+        const result = await pvpService.flee(characterId, data.matchId);
+        socket.emit("pvp:fled", sanitize(result));
+      } catch (err: any) {
+        socket.emit("pvp:error", { message: err.message });
       }
     });
 

@@ -160,5 +160,8 @@ export const pvpApi = {
   arena: () => api.get("/pvp/arena"),
   active: () => api.get("/pvp/arena/active"),
   challenge: (targetCharacterId: string) => api.post("/pvp/arena/challenge", { targetCharacterId }),
+  pending: () => api.get("/pvp/arena/pending"),
+  respond: (challengeId: string, accept: boolean) => api.post(`/pvp/arena/pending/${challengeId}/respond`, { accept }),
+  cancel: (challengeId: string) => api.post(`/pvp/arena/pending/${challengeId}/cancel`),
   flee: (matchId: string) => api.post(`/pvp/arena/${matchId}/flee`),
 };

@@ -255,6 +255,18 @@ export function computeMonsterStats(monster: any): DerivedStats {
   stats.critDamage = num(monster.criticalDamage, 150);
   stats.dodge = num(monster.dodge, 1);
   stats.attackSpeedMs = Math.max(800, num(monster.attackSpeed, 2000));
+  stats.hitChance = num(monster.hitChance, 85);
+  stats.penetration = num(monster.penetration, 0);
+  stats.damageResistance = num(monster.damageResistance, 0);
+  stats.physicalResistance = num(monster.physicalResistance, 0);
+  stats.magicalResistance = num(monster.magicalResistance, 0);
+  stats.dotPercent = num(monster.dotPercent, 0);
+  stats.healingPercent = num(monster.healingPercent, 0);
+  stats.overhealPercent = num(monster.overhealPercent, 0);
+  stats.manaCostReduction = num(monster.manaCostReduction, 0);
+  stats.cooldownReduction = num(monster.cooldownReduction, 0);
+  stats.manaRegenPerTick = num(monster.manaRegenPerTick, 5);
+  stats.healthRegenPerTick = num(monster.healthRegenPerTick, 0);
   stats.maxHp = stats.hp;
   stats.maxMana = stats.mana;
   return stats;

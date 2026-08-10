@@ -80,6 +80,7 @@ model Character {
   combatSessions  CombatSession[]  @relation()
   pvpAsChallenger PvpMatch[]       @relation("PvpChallenger")
   pvpAsOpponent   PvpMatch[]       @relation("PvpOpponent")
+  raidRuns        RaidRun[]
 
   @@index([userId])
   @@index([classId])
@@ -113,6 +114,23 @@ model CombatSession {
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@index([characterId])
+}
+
+// Run de raid com ondas: uma run ativa por personagem. A run avança de estágio
+// conforme as ondas são derrotadas (estágio 0..8 = ondas 1..9, 9 = onda 10 horda,
+// 10 = boss final). Somente o boss final concede recompensas.
+model RaidRun {
+  id          String    @id @default(uuid())
+  characterId String
+  mapId       String
+  stage       Int       @default(0)
+  state       String    @default("active") // active | won | lost | fled
+  startedAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  map         Map       @relation(fields: [mapId], references: [id])
+
+  @@index([characterId, state])
 }
 
 model SystemConfig {
@@ -571,6 +589,8 @@ model Map {
   type            String          @default("normal") // normal | raid
   raidResetHours  Int? // periodicidade do reset de tentativas (ex: 24)
   maxRaidAttempts Int? // tentativas por janela de reset
+  raidWaves       Int             @default(10) // nº de ondas do raid
+  raidDifficulty  Float           @default(2.0) // multiplicador de força dos monstros do raid
   isActive        Boolean         @default(true)
   sortOrder       Int             @default(0)
   createdAt       DateTime        @default(now())
@@ -580,6 +600,7 @@ model Map {
   connections     MapConnection[]
   connectedFrom   MapConnection[] @relation("MapConnectionTo")
   questGivers     Quest[]
+  raidRuns        RaidRun[]
 }
 
 model MapConnection {

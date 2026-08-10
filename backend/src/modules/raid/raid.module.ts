@@ -36,6 +36,8 @@ export function createRaidModule(app: Express): void {
             type: m.type,
             raidResetHours: m.raidResetHours,
             maxRaidAttempts: m.maxRaidAttempts,
+            raidWaves: m.raidWaves ?? 10,
+            raidDifficulty: m.raidDifficulty ?? 2,
             monsters: m.monsters.map((mm) => ({
               id: mm.monster.id,
               name: mm.monster.name,

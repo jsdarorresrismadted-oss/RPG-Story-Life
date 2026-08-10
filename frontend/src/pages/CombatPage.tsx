@@ -215,6 +215,7 @@ export function CombatPage() {
       if ((data.damage ?? 0) > 0) log.push(`Você causou ${data.damage} de dano`);
       if ((data.healed ?? 0) > 0) log.push(`Você curou ${data.healed} de vida`);
       if (data.appliedBuffs?.length) log.push(`Buff aplicado: ${data.appliedBuffs.join(", ")}`);
+      if (data.messages && data.messages.length > 0) log.push(...data.messages);
       if (data.state === "won" && data.rewards) {
         log.push(`Recompensas: +${data.rewards.xpGain ?? 0} XP, +${data.rewards.goldGain ?? 0} gold${data.rewards.levelUps ? `, LEVEL UP x${data.rewards.levelUps}!` : ""}`);
         if (data.rewards.drops && data.rewards.drops.length > 0) {
@@ -226,7 +227,8 @@ export function CombatPage() {
 
     socket.on("combat:tick", (data: CombatUpdate) => {
       const prev = combatRef.current;
-      if (prev && data.state === "active") {
+      const waveChanged = prev?.raid?.wave !== undefined && data.raid?.wave !== undefined && prev.raid.wave !== data.raid.wave;
+      if (prev && data.state === "active" && !waveChanged) {
         if (typeof data.monsterHp === "number" && typeof prev.monsterHp === "number") {
           const delta = prev.monsterHp - data.monsterHp;
           if (delta > 0) pushFloater("monster", `-${delta}`, "damage");
@@ -337,6 +339,7 @@ export function CombatPage() {
 
   const monsterName = combat?.monsterName || monsterInfo?.name || "Monstro";
   const monsterLevel = combat?.monsterLevel || monsterInfo?.level || 1;
+  const raid = combat?.raid ?? null;
 
   const playerHasBuff = (combat?.playerEffects ?? []).some((e) => e.kind === "buff" || e.kind === "hot" || e.kind === "shield");
   const monsterHasDebuff = (combat?.monsterEffects ?? []).some((e) => e.kind === "dot" || e.kind === "debuff");
@@ -351,6 +354,33 @@ export function CombatPage() {
         <Link to="/map" className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 mb-4">
           <ArrowLeft size={16} /> Voltar ao mapa
         </Link>
+      )}
+
+      {/* ===== BANNER DE RAID ===== */}
+      {raid && (
+        <div className="rounded-xl border border-red-500/40 bg-gradient-to-r from-red-950/60 to-purple-950/60 p-4 mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-bold text-red-300 flex items-center gap-2">
+                <Skull size={16} /> RAID: {raid.mapName}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {raid.boss ? "Chefe final do raid — derrote-o para concluir!" : `Onda ${raid.wave} de ${raid.totalWaves}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: raid.totalWaves }).map((_, i) => (
+                <span
+                  key={i}
+                  title={`Onda ${i + 1}`}
+                  className={`w-5 h-2 rounded-full ${
+                    i + 1 < raid.wave ? "bg-red-500/70" : i + 1 === raid.wave ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]" : "bg-dark-700"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ===== TOPO: vida e mana ===== */}
@@ -421,7 +451,7 @@ export function CombatPage() {
             </div>
             <div>
               <h2 className="font-display font-bold capitalize">{monsterName}</h2>
-              <p className="text-xs text-gray-400">Nível {monsterLevel} • Monstro</p>
+              <p className="text-xs text-gray-400">Nível {monsterLevel} • {combat?.raid?.boss ? "BOSS" : combat?.raid ? "Monstro" : "Monstro"}</p>
             </div>
             {combat && combat.state === "active" && (
               <span className="ml-auto flex items-center gap-2 text-sm text-red-400">
@@ -456,7 +486,12 @@ export function CombatPage() {
 
           {combat && combat.state === "won" && (
             <div className="mt-4 text-center py-3 space-y-2">
-              <p className="text-green-400 font-bold text-lg">Vitória!</p>
+              <p className="text-green-400 font-bold text-lg">
+                {combat.raid?.cleared ? "RAID CONCLUÍDO!" : combat.raid ? `Onda ${combat.raid.wave} vencida!` : "Vitória!"}
+              </p>
+              {combat.raid?.cleared && (
+                <p className="text-xs text-red-300">Você derrotou todas as ondas e o chefe final do raid.</p>
+              )}
               {combat.rewards && (
                 <p className="text-sm text-gray-300 flex items-center justify-center gap-3">
                   <span className="flex items-center gap-1"><Sparkles size={14} className="text-purple-400" /> +{combat.rewards.xpGain ?? 0} XP</span>

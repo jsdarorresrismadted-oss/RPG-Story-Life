@@ -11,6 +11,7 @@ import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStat
 import { grantPassXp } from "../seasons/seasons.module";
 import { isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "../../core/progression";
 import { getEquippedBoosterBonuses } from "../../core/boosters";
+import { RaidService } from "../raid/raid.service";
 
 function parseJson(value: any, fallback: any = null): any {
   if (value === null || value === undefined) return fallback;
@@ -144,6 +145,8 @@ interface ActiveCombat {
   monsterHp: number;
   startTime: number;
   tickInterval: NodeJS.Timeout;
+    raid?: { mapId: string; mapName: string; stage: number; wave: number; totalWaves: number; isBoss: boolean; boss?: boolean; monstersTotal: number; perMonsterHp: number; cleared?: boolean };
+  raidRunId?: string;
 }
 
 const SESSION_TTL_MS = 15 * 60 * 1000; // sessão de combate expira após 15 min sem atualizações
@@ -154,7 +157,8 @@ export class CombatService {
 
   constructor(
     private prisma: PrismaClient,
-    private redis: Redis
+    private redis: Redis,
+    private raidService?: RaidService
   ) {}
 
   setOnTick(listener: (payload: any) => void): void {
@@ -253,17 +257,24 @@ export class CombatService {
     return { character, gameClass, rank, skills, passives, effects, coreStats, boosterBonuses, statsInput };
   }
 
-  private async loadCombatContext(characterId: string, monsterId: string): Promise<any> {
+  private parseMonsterSkills(monster: any): SkillDef[] {
+    return (asActionArray(monster.skills) || []).slice(0, 4).map(parseSkill);
+  }
+
+  // Monta o battle a partir de um objeto de monstro (normal do banco OU monstro
+  // agregado de raid com stats escaladas). Reutilizado em PvE, raids e resume.
+  private async createBattle(characterId: string, monster: any): Promise<{
+    character: any;
+    gameClass: any;
+    monster: any;
+    rank: number;
+    skills: SkillDef[];
+    monsterSkills: SkillDef[];
+    battle: Battle;
+  }> {
     const { character, gameClass, rank, skills, passives, effects, statsInput } = await this.buildPlayerContext(characterId);
 
-    const monster = await this.prisma.monster.findUnique({
-      where: { id: monsterId },
-    });
-    if (!monster) throw new Error("Monstro não encontrado");
-
-    const monsterSkills: SkillDef[] = (parseJson(monster.skills, []) || [])
-      .slice(0, 4)
-      .map(parseSkill);
+    const monsterSkills: SkillDef[] = this.parseMonsterSkills(monster);
 
     const battle = new Battle({
       characterId: character.id,
@@ -289,6 +300,40 @@ export class CombatService {
     return { character, gameClass, monster, rank, skills, monsterSkills, battle };
   }
 
+  private raidContextFromMonster(monster: any): ActiveCombat["raid"] {
+      const r = monster?.raid;
+      if (!r) return undefined;
+      return {
+        mapId: String(r.mapId || ""),
+        mapName: String(r.mapName || ""),
+        stage: Number(r.stage) || 0,
+        wave: Number(r.wave) || 1,
+        totalWaves: Number(r.totalWaves) || 10,
+        isBoss: !!r.isBoss,
+        boss: !!r.isBoss,
+        monstersTotal: Number(r.monstersTotal) || 1,
+        perMonsterHp: Number(r.perMonsterHp) || 1,
+      };
+    }
+
+  private async loadCombatContext(characterId: string, monsterId: string): Promise<any> {
+    // Raid: monstro sintético raid:{mapId}:{stage} — montado com escala de onda.
+    const raidStage = this.raidService?.parseMonsterId(monsterId);
+    if (raidStage) {
+      const monster = await this.raidService!.buildMonster(raidStage.mapId, raidStage.stage);
+      const ctx = await this.createBattle(characterId, monster);
+      return { ...ctx, raid: this.raidContextFromMonster(monster), raidRunId: undefined };
+    }
+
+    const monster = await this.prisma.monster.findUnique({
+      where: { id: monsterId },
+    });
+    if (!monster) throw new Error("Monstro não encontrado");
+
+    const ctx = await this.createBattle(characterId, monster);
+    return { ...ctx, raid: undefined, raidRunId: undefined };
+  }
+
   private buildEntry(battle: Battle, character: any, monster: any, skills: SkillDef[], monsterSkills: SkillDef[]): ActiveCombat {
     return {
       battle,
@@ -308,7 +353,7 @@ export class CombatService {
     };
   }
 
-  private buildStartedPayload(battle: Battle, entry: ActiveCombat, skills: SkillDef[], character: any, resumed = false): any {
+  private buildStartedPayload(battle: Battle, entry: ActiveCombat, skills: SkillDef[], character: any, resumed = false, waveCleared = false): any {
     const snap = battle.snapshot();
     const stats = battle.player.stats;
 
@@ -322,6 +367,8 @@ export class CombatService {
       monsterLevel: entry.monster.level ?? 1,
       monsterMaxHp: entry.monster.hp,
       resumed,
+      waveCleared,
+      raid: entry.raid || null,
       skills: skills.map((s) => serializeSkillForClient(s, battle.getSkillModifiersFor(s.slug))),
       monsterSkills: entry.monsterSkills.map((s) => serializeSkillForClient(s, null)),
       stats: {
@@ -397,50 +444,26 @@ export class CombatService {
       }
     }
 
-    // Raid: valida tentativas e consome uma (mapas tipo raid com boss)
-    const raidInfo = await this.consumeRaidAttempt(characterId, monsterId);
+    // Raid: inicia (ou retoma) a run e monta a onda atual do estágio.
+    const raidInfo = await this.raidService?.resolveRaidFromMonster(monsterId);
+    if (raidInfo) {
+      const { run } = await this.raidService!.beginRun(characterId, raidInfo.mapId);
+      const monster = await this.raidService!.buildMonster(raidInfo.mapId, run.stage);
+      const ctx = await this.createBattle(characterId, monster);
+      const entry = this.buildEntry(ctx.battle, ctx.character, ctx.monster, ctx.skills, ctx.monsterSkills);
+      entry.raid = this.raidContextFromMonster(monster);
+      entry.raidRunId = run.id;
+      this.activeCombats.set(ctx.battle.id, entry);
+      this.persistSession(entry).catch(() => {});
+      return this.buildStartedPayload(ctx.battle, entry, ctx.skills, ctx.character);
+    }
 
     const { character, monster, skills, monsterSkills, battle } = await this.loadCombatContext(characterId, monsterId);
     const entry = this.buildEntry(battle, character, monster, skills, monsterSkills);
-    if (raidInfo) (entry as any).raidMapId = raidInfo.mapId;
     this.activeCombats.set(battle.id, entry);
     this.persistSession(entry).catch(() => {});
 
     return this.buildStartedPayload(battle, entry, skills, character);
-  }
-
-  // Valida limite de tentativas de raid. Retorna { mapId } quando o monstro pertence a um mapa raid.
-  private async consumeRaidAttempt(characterId: string, monsterId: string): Promise<{ mapId: string } | null> {
-    const link = await this.prisma.mapMonster.findFirst({
-      where: { monsterId, map: { type: "raid", isActive: true } },
-      include: { map: true },
-    });
-    if (!link) return null;
-
-    const map = link.map;
-    const character = await this.prisma.character.findUnique({ where: { id: characterId } });
-    if (!character) throw new Error("Personagem não encontrado");
-
-    const resetMs = (map.raidResetHours || 24) * 60 * 60 * 1000;
-    const lastReset = character.lastRaidResetAt ? new Date(character.lastRaidResetAt).getTime() : 0;
-    const elapsed = Date.now() - lastReset;
-    const expired = elapsed > resetMs;
-    const attemptsUsed = expired ? 0 : (character.raidAttempts ?? 0);
-    const maxAttempts = map.maxRaidAttempts ?? 3;
-
-    if (attemptsUsed >= maxAttempts) {
-      const hoursLeft = Math.ceil((resetMs - elapsed) / (60 * 60 * 1000));
-      throw new Error(`Tentativas de raid esgotadas! Novas tentativas em ${hoursLeft}h.`);
-    }
-
-    await this.prisma.character.update({
-      where: { id: characterId },
-      data: {
-        raidAttempts: attemptsUsed + 1,
-        lastRaidResetAt: expired ? new Date() : character.lastRaidResetAt ?? new Date(),
-      },
-    });
-    return { mapId: map.id };
   }
 
   // Retoma uma batalha salva (após refresh/reconexão). Retorna null se não houver.
@@ -466,9 +489,18 @@ export class CombatService {
       return null;
     }
 
-    const { character, monster, skills, monsterSkills, battle } = context;
+    const { character, monster, skills, monsterSkills, battle, raid } = context;
     battle.restoreState(session.battleState as any);
     const entry = this.buildEntry(battle, character, monster, skills, monsterSkills);
+    entry.raid = raid;
+    if (raid && this.raidService) {
+      // Garante a run ativa no banco (retoma sem consumir tentativa extra).
+      const raidStage = this.raidService.parseMonsterId(session.monsterId);
+      if (raidStage) {
+        const run = await this.raidService.ensureRun(characterId, raidStage.mapId, raidStage.stage);
+        entry.raidRunId = run.id;
+      }
+    }
     this.activeCombats.set(battle.id, entry);
     this.persistSession(entry).catch(() => {});
 
@@ -544,18 +576,37 @@ export class CombatService {
     const ended = entry.state !== "active";
     if (ended) {
       clearInterval(entry.tickInterval);
+      entry.battle.finish().catch(() => {});
+
+      if (entry.state === "won" && entry.raid && entry.raidRunId && this.raidService) {
+        this.handleRaidStageWon(entry).then((res) => {
+          if (res.type === "wave" && res.entry) {
+            this.activeCombats.delete(combatId);
+            this.clearSession(combatId).catch(() => {});
+            this.activeCombats.set(res.entry.battle.id, res.entry);
+            this.persistSession(res.entry).catch(() => {});
+          } else {
+            this.activeCombats.delete(combatId);
+            this.clearSession(combatId).catch(() => {});
+          }
+          if (this.onTickListener) this.onTickListener(res.payload);
+        });
+        return;
+      }
+
       this.activeCombats.delete(combatId);
       this.clearSession(combatId).catch(() => {});
       if (entry.state === "won") {
-        entry.battle.finish().catch(() => {});
         this.grantRewards(entry.characterId, entry.monster, entry.battle.player.maxHp, entry.battle.player.maxMana).then((rewards) => {
           payload.rewards = rewards;
           if (this.onTickListener) this.onTickListener(payload);
         });
         return;
       }
+      if (entry.raid && entry.raidRunId && this.raidService) {
+        this.raidService.failRun(entry.raidRunId).catch(() => {});
+      }
       if (entry.state === "lost") {
-        entry.battle.finish().catch(() => {});
         this.prisma.character
           .update({ where: { id: entry.characterId }, data: { currentHp: 0 } })
           .catch(() => {});
@@ -569,6 +620,53 @@ export class CombatService {
     if (!ended) {
       this.persistSession(entry).catch(() => {});
     }
+  }
+
+  // Resolve a vitória de um estágio de raid: avança para a próxima onda ou, se o
+  // boss caiu, encerra a run com as recompensas finais.
+  private async handleRaidStageWon(entry: ActiveCombat): Promise<{
+    type: "wave" | "done";
+    payload: any;
+    entry?: ActiveCombat;
+  }> {
+    const adv = await this.raidService!.advanceRun(entry.raidRunId!);
+
+    if (adv.done) {
+      await this.raidService!.completeRun(entry.raidRunId!);
+      this.prisma.character
+        .update({ where: { id: entry.characterId }, data: { raidClears: { increment: 1 } } })
+        .catch(() => {});
+      const rewards = await this.grantRewards(entry.characterId, entry.monster, entry.battle.player.maxHp, entry.battle.player.maxMana);
+      const snap = entry.battle.snapshot();
+      const payload: any = {
+        combatId: entry.battle.id,
+        characterId: entry.characterId,
+        characterName: entry.characterName,
+        state: "won",
+        raid: { ...(entry.raid || {}), cleared: true },
+        characterHp: snap.characterHp,
+        characterMana: snap.characterMana,
+        maxHp: snap.maxHp,
+        maxMana: snap.maxMana,
+        monsterHp: 0,
+        monsterName: entry.monster.name,
+        monsterMaxHp: snap.monsterMaxHp,
+        messages: ["RAID CONCLUÍDO! Você derrotou todas as ondas e o boss final."],
+        rewards,
+      };
+      return { type: "done", payload };
+    }
+
+    const next = await this.createBattle(entry.characterId, adv.monster);
+    const newEntry = this.buildEntry(next.battle, next.character, adv.monster, next.skills, next.monsterSkills);
+    newEntry.raid = this.raidContextFromMonster(adv.monster);
+    newEntry.raidRunId = adv.run.id;
+    const payload = this.buildStartedPayload(next.battle, newEntry, next.skills, next.character, false, true);
+    payload.messages = [
+      `Onda ${(entry.raid!.wave)} concluída!`,
+      ...(payload.messages || []),
+    ];
+    return { type: "wave", entry: newEntry, payload };
   }
 
   async useSkill(characterId: string, combatId: string, skillId: string): Promise<any> {
@@ -625,9 +723,22 @@ export class CombatService {
     if (entry.battle.state === "won") {
       entry.state = "won";
       clearInterval(entry.tickInterval);
+      entry.battle.finish().catch(() => {});
+      if (entry.raid && entry.raidRunId && this.raidService) {
+        const res = await this.handleRaidStageWon(entry);
+        if (res.type === "wave" && res.entry) {
+          this.activeCombats.delete(combatId);
+          this.clearSession(combatId).catch(() => {});
+          this.activeCombats.set(res.entry.battle.id, res.entry);
+          this.persistSession(res.entry).catch(() => {});
+        } else {
+          this.activeCombats.delete(combatId);
+          this.clearSession(combatId).catch(() => {});
+        }
+        return res.payload;
+      }
       this.activeCombats.delete(combatId);
       this.clearSession(combatId).catch(() => {});
-      entry.battle.finish().catch(() => {});
       payload.rewards = await this.grantRewards(entry.characterId, entry.monster, entry.battle.player.maxHp, entry.battle.player.maxMana);
       payload.state = "won";
     } else {
@@ -671,6 +782,9 @@ export class CombatService {
       this.activeCombats.delete(combatId);
       this.clearSession(combatId).catch(() => {});
       entry.battle.finish().catch(() => {});
+      if (entry.raid && entry.raidRunId && this.raidService) {
+        this.raidService.failRun(entry.raidRunId).catch(() => {});
+      }
       this.prisma.character
         .update({
           where: { id: characterId },
