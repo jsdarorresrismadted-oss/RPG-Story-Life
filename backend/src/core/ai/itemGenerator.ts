@@ -2,12 +2,11 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 import { AppError } from "../middleware/errorHandler";
-import { renderSprite as renderSpriteRaw } from "./imageRenderer";
+import { renderItemIcon } from "./pixelArt";
 
-// ===== Gerador de equipamentos (icones pixel art 64x64) via IA =====
-// - Groq (llama-3.3-70b) PLANEJA: nome, descricao, prompt de arte, atributos e precos.
-// - Gemini 2.5 Flash Image (se GEMINI_API_KEY) ou Pollinations.ai RENDERIZA o PNG.
-// - sharp pos-processa: resize 64x64 (nearest) + chroma-key (magenta -> transparente).
+// ===== Gerador de equipamentos (icones pixel art 64x64) =====
+// - Groq (llama-3.3-70b) PLANEJA: nome, descricao, atributos e precos.
+// - pixelArt.ts RENDERIZA o PNG de forma procedural e deterministica (sem IA de imagem).
 // - Icone salvo em Icons/64x64/<categoria>/ e espelhado em frontend/public/icons
 //   + manifest.json atualizado (picker de icones do admin e do jogo).
 
@@ -168,11 +167,6 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     buyPrice: Math.max(0, Math.round(Number(raw.buyPrice) || 0)),
     sellPrice: Math.max(0, Math.round(Number(raw.sellPrice) || 0)),
   };
-}
-
-// ===== 2) Renderizacao via IA (Gemini com fallback Pollinations.ai) =====
-async function renderSprite(artPrompt: string, seed: number): Promise<Buffer> {
-  return (await renderSpriteRaw(artPrompt, seed)).buf;
 }
 
 // ===== 3) Pos-processamento de alta qualidade =====
@@ -375,34 +369,6 @@ async function processSprite(buf: Buffer): Promise<ProcessedSprite> {
   return { png, removedPct, coverage };
 }
 
-// Gera N candidatos e escolhe o melhor (fundo bem removido + item de bom tamanho).
-async function renderBestSprite(artPrompt: string, seed: number, attempts: number): Promise<{ png: Buffer; removedPct: number; coverage: number; tried: number }> {
-  const seeds = Array.from({ length: attempts }, (_, i) => seed + i);
-  const results = await Promise.allSettled(seeds.map((s) => renderSprite(artPrompt, s).then(processSprite)));
-  let best: ProcessedSprite | null = null;
-  let bestScore = -Infinity;
-  let tried = 0;
-  for (const res of results) {
-    if (res.status !== "fulfilled") continue;
-    tried++;
-    const s = res.value;
-    let score = -1;
-    if (s.removedPct >= 20 && s.removedPct <= 85) {
-      score = 1 - Math.abs(s.coverage - 50) / 100;
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      best = s;
-    }
-  }
-  if (!best) {
-    const buf = await renderSprite(artPrompt, seed);
-    const { png } = await processSprite(buf);
-    return { png, removedPct: 0, coverage: 0, tried };
-  }
-  return { png: best.png, removedPct: best.removedPct, coverage: best.coverage, tried };
-}
-
 // ===== 4) Pos-processamento publico (mantido para compatibilidade) =====
 export async function postProcess(buf: Buffer): Promise<{ png: Buffer; removedPct: number }> {
   const { png, removedPct } = await processSprite(buf);
@@ -472,14 +438,19 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
   const level = Math.max(1, Math.min(100, Number(input.level) || 1));
   const plan = await planItem({ type, theme: input.theme, material: input.material, color: input.color, rarity, level });
   const seed = Math.floor(Number(input.seed) || Date.now() % 1000000);
-  const attempts = Math.max(1, Math.min(3, Number(input.variants) || 3));
-  const { png: processed, removedPct, tried } = await renderBestSprite(plan.artPrompt, seed, attempts);
-  const filename = "ai-" + Date.now() + "-" + seed + ".png";
-  const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, processed);
-  log.push("Groq (plano) + " + (process.env.GEMINI_API_KEY ? "Gemini" : "Pollinations") + " (imagem) - " + tried + " candidato(s)");
-  if (removedPct < 15) {
-    log.push("Aviso: fundo pode nao ter sido removido (" + Math.round(removedPct) + "% da imagem) - gere de novo se quiser");
-  }
+  const png = await renderItemIcon({
+    type,
+    subtype: plan.subtype,
+    name: plan.name,
+    rarity,
+    theme: input.theme,
+    material: input.material,
+    color: input.color,
+    seed,
+  });
+  const filename = "px-" + Date.now() + "-" + seed + ".png";
+  const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, png);
+  log.push("Groq (plano) + pixel art procedural (pixelArt.ts)");
   return { icon, plan };
 }
 
@@ -498,22 +469,18 @@ export async function generateItemIcon(input: IconSeedInput, log?: string[]): Pr
   const type = input.type;
   if (!CATEGORY_BY_TYPE[type]) throw new AppError(400, "Tipo invalido: " + type);
   const rarity = VALID_RARITIES.includes(String(input.rarity || "")) ? String(input.rarity) : "common";
-  const slotRule = SLOT_RULES[type] || "";
-  const artPrompt =
-    `A pixel art icon for an RPG ${TYPE_PT[type]} equipment item named "${input.name}" (rarity: ${RARITY_PT[rarity]}). ` +
-    `${slotRule} ` +
-    (input.description ? `Item description: ${input.description}. ` : "") +
-    "pixel art icon, 64x64 game asset, solid flat bright magenta (#FF00FF) background, uniform single color, no gradient, no scene, no floor, no clouds, nothing behind the item, single item centered and filling most of the frame (80-90% of the canvas), no character, no text, no UI, no logo, no frame, no external shadow, no aura, no glow, no magic particles, no sparks, no light rays, no fire or energy coming out of the item, item at rest, consistent style with the game other equipment (same detail level, same lighting, same outline, same pixel density)";
   const seed = Math.floor(Number(input.seed) || (Date.now() % 1000000));
-  const attempts = 3;
-  const { png: processed, removedPct, tried } = await renderBestSprite(artPrompt, seed, attempts);
-  const filename = "ai-" + Date.now() + "-" + seed + ".png";
-  const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, processed);
+  const png = await renderItemIcon({
+    type,
+    name: input.name,
+    rarity,
+    description: input.description,
+    seed,
+  });
+  const filename = "px-" + Date.now() + "-" + seed + ".png";
+  const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, png);
   if (log) {
-    log.push((process.env.GEMINI_API_KEY ? "Gemini" : "Pollinations") + " (imagem) - " + tried + " candidato(s)");
-    if (removedPct < 15) {
-      log.push("Aviso: fundo pode nao ter sido removido (" + Math.round(removedPct) + "% da imagem) - gere de novo se quiser");
-    }
+    log.push("pixel art procedural (pixelArt.ts)");
   }
-  return { icon, removedPct };
+  return { icon, removedPct: 0 };
 }

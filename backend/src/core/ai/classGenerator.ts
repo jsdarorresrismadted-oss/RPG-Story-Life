@@ -1,6 +1,8 @@
 import { prisma } from "../database";
 import { AppError } from "../middleware/errorHandler";
 import { computeStats } from "../classEngine/stat-calculator";
+import { renderSkillIcon, hashSeed } from "./pixelArt";
+import { saveGeneratedIcon } from "./itemGenerator";
 
 // ===== Gerador de classes via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
 // Chaves: GEMINI_API_KEY e GROQ_API_KEY (variáveis de ambiente).
@@ -541,13 +543,22 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
   });
 
   // 4) Skills + passivas
+  const clsElement = String(gen.cls.element || "arcane");
+  const clsRarity = String(gen.cls.rarity || "uncommon");
   for (const s of gen.skills) {
+    let icon: string | null = s.icon || null;
+    try {
+      const png = await renderSkillIcon({ kind: s.kind, name: s.name, element: clsElement, rarity: clsRarity, seed: hashSeed(s.slug || s.name) });
+      icon = await saveGeneratedIcon("Skills", `${gameClass.slug}-${s.slug}.png`, png);
+    } catch {
+      icon = s.icon || null;
+    }
     await prisma.skill.create({
       data: {
         name: s.name,
         slug: s.slug,
         description: s.description || "",
-        icon: s.icon || null,
+        icon,
         kind: s.kind,
         trigger: s.trigger,
         target: s.target,
@@ -568,11 +579,19 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
     });
   }
   for (const p of gen.passives) {
+    let icon: string | null = null;
+    try {
+      const png = await renderSkillIcon({ kind: "passive", name: p.name, element: clsElement, rarity: clsRarity, seed: hashSeed(p.slug || p.name) });
+      icon = await saveGeneratedIcon("Skills", `${gameClass.slug}-${p.slug}.png`, png);
+    } catch {
+      icon = null;
+    }
     await prisma.passive.create({
       data: {
         name: p.name,
         slug: p.slug,
         description: p.description || "",
+        icon,
         rankRequired: p.rankRequired,
         sortOrder: p.sortOrder,
         statModifiers: p.statModifiers,
