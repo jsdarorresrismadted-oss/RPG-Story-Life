@@ -1022,8 +1022,20 @@ function itemBackdrop(p: Palette, rng: () => number, input: ItemIconInput): (x: 
   return dungeonBackdrop(p, rng);
 }
 
-async function encode(buf: Buffer): Promise<Buffer> {
-  return sharp(buf, { raw: { width: SIZE, height: SIZE, channels: 4 } }).png().toBuffer();
+async function encode(buf: Buffer, colors: number): Promise<Buffer> {
+  return sharp(buf, { raw: { width: SIZE, height: SIZE, channels: 4 } })
+    .png({ palette: true, colours: colors, dither: 0 })
+    .toBuffer();
+}
+
+// Paleta máxima por raridade: itens melhores ganham mais cores, mantendo a leitura de pixel art.
+function paletteLimit(rarity?: string): number {
+  const key = String(rarity || "").toLowerCase();
+  if (key === "mythic") return 24;
+  if (key === "legendary") return 18;
+  if (key === "epic") return 14;
+  if (key === "rare") return 11;
+  return 9;
 }
 
 export async function renderItemIcon(input: ItemIconInput): Promise<Buffer> {
@@ -1036,7 +1048,7 @@ export async function renderItemIcon(input: ItemIconInput): Promise<Buffer> {
   canvas.applyOutline(pal.outline);
   canvas.paintBackground(itemBackdrop(pal, rng, input));
   drawMagicDust(canvas, input.rarity, rng);
-  return encode(canvas.buf);
+  return encode(canvas.buf, paletteLimit(input.rarity));
 }
 
 export async function renderSkillIcon(input: SkillIconInput): Promise<Buffer> {
@@ -1049,5 +1061,5 @@ export async function renderSkillIcon(input: SkillIconInput): Promise<Buffer> {
   canvas.applyOutline(pal.outline);
   canvas.paintBackground(dungeonBackdrop(pal, rng));
   canvas.sparkle(sparkleCount(input.rarity), lighten(pal.gem, 0.4), rng);
-  return encode(canvas.buf);
+  return encode(canvas.buf, paletteLimit(input.rarity));
 }
