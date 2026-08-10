@@ -628,7 +628,7 @@ export interface User {
 export interface Character {
   id: string;
   name: string;
-  gender?: "male" | "female";
+  gender?: "male" | "female" | "other";
   level: number;
   classId?: string | null;
   className?: string;

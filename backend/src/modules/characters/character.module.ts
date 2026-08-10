@@ -91,8 +91,8 @@ export function createCharacterModule(app: Express): void {
       const { name, classId, gender } = req.body;
       const characterName = (name ?? "").trim();
       if (!classId) throw new AppError(400, "Class required");
-      if (gender !== undefined && !["male", "female"].includes(gender)) {
-        throw new AppError(400, "Gender must be 'male' or 'female'");
+      if (gender !== undefined && !["male", "female", "other"].includes(gender)) {
+        throw new AppError(400, "Gender must be 'male', 'female' or 'other'");
       }
 
       const existing = await prisma.character.findFirst({ where: { userId: req.user!.userId } });

@@ -9,8 +9,6 @@ import { DEFAULT_GAME_LIMITS, invalidateGameLimits } from "../../core/gameLimits
 import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../../core/ai/classGenerator";
 import { generateItemSprite } from "../../core/ai/itemGenerator";
 import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
-import { generateRaid, persistGeneratedRaid } from "../../core/ai/raidGenerator";
-import { generatePvpConfig, persistGeneratedPvp } from "../../core/ai/pvpGenerator";
 import {
   withEnchantmentStats,
   enchantmentProgression,
@@ -903,27 +901,15 @@ export function createAdminModule(app: Express): void {
     } catch (err) { next(err); }
   });
 
-  app.post("/api/admin/raids/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/raids/generate", requireAdmin, async (_req: Request, _res: Response, next: NextFunction) => {
     try {
-      const idea = String((req.body || {}).prompt || "").trim();
-      if (!idea) throw new AppError(400, "Descreva o raid que a IA deve criar (ex.: 'raid de 10 ondas de cultistas do abismo com boss dracolich')");
-      requireAi();
-      const providerLog: string[] = [];
-      const gen = await generateRaid(idea, providerLog);
-      const saved = await persistGeneratedRaid(gen);
-      res.status(201).json({ data: saved, providers: providerLog });
+      throw new AppError(400, "Geração de raid por IA desativada — configure os raids manualmente no painel de Maps.");
     } catch (err) { next(err); }
   });
 
-  app.post("/api/admin/pvp/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/pvp/generate", requireAdmin, async (_req: Request, _res: Response, next: NextFunction) => {
     try {
-      const idea = String((req.body || {}).prompt || "").trim();
-      if (!idea) throw new AppError(400, "Descreva a temporada/config da arena (ex.: 'temporada 2 da arena — recompensas generosas por win streak')");
-      requireAi();
-      const providerLog: string[] = [];
-      const gen = await generatePvpConfig(idea, providerLog);
-      const saved = await persistGeneratedPvp(gen);
-      res.status(201).json({ data: saved, providers: providerLog });
+      throw new AppError(400, "Geração de PvP por IA desativada — configure a arena manualmente.");
     } catch (err) { next(err); }
   });
 

@@ -7,24 +7,16 @@ const inputClass =
 
 const labelClass = "block text-[11px] text-gray-500 mb-1";
 
-type Kind = "monster" | "raid" | "pvp";
-
-const DEFAULTS: Record<Kind, string> = {
+const DEFAULTS = {
   monster: "lobo ancião de gelo da floresta, nível 12, que usa mordida congelante",
-  raid: "raid de 10 ondas de cultistas do abismo em um templo corrompido, com boss dracolich",
-  pvp: "temporada 2 da arena — recompensas generosas por win streak de 3, 5 e 10 vitórias",
 };
 
-const TITLES: Record<Kind, string> = {
+const TITLES = {
   monster: "Gerar Monstro",
-  raid: "Gerar Raid",
-  pvp: "Gerar Config de PvP (Arena)",
 };
 
-const DESCRIPTIONS: Record<Kind, string> = {
+const DESCRIPTIONS = {
   monster: "Cria um monstro completo: stats, skills e drops (com taxa de drop) via Gemini/Groq.",
-  raid: "Cria um mapa de raid completo: config (ondas, dificuldade, tentativas) + monstros das ondas + boss com drops.",
-  pvp: "Gera a configuração da arena (recompensas, cooldown, matchmaking, regras de fuga) e salva em SystemConfig.",
 };
 
 interface Result {
@@ -33,26 +25,17 @@ interface Result {
 }
 
 export default function AiGeneratorPage() {
-  const [kind, setKind] = useState<Kind>("monster");
+  const [kind, setKind] = useState<"monster">("monster");
   const [prompt, setPrompt] = useState(DEFAULTS.monster);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
-
-  const switchKind = (k: Kind) => {
-    setKind(k);
-    setPrompt(DEFAULTS[k]);
-    setResult(null);
-  };
 
   const generate = async () => {
     if (!prompt.trim()) return toast.error("Descreva o que a IA deve criar");
     setBusy(true);
     setResult(null);
     try {
-      let res;
-      if (kind === "monster") res = await adminApi.ai.generateMonster(prompt.trim());
-      else if (kind === "raid") res = await adminApi.ai.generateRaid(prompt.trim());
-      else res = await adminApi.ai.generatePvp(prompt.trim());
+      const res = await adminApi.ai.generateMonster(prompt.trim());
       setResult({ provider: (res.data.providers || []).join(", "), data: res.data.data });
       toast.success("Gerado e salvo no banco!");
     } catch (err: any) {
@@ -69,25 +52,11 @@ export default function AiGeneratorPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Gerador de Conteúdo por IA</h1>
+          <h1 className="text-2xl font-bold">Gerador de Monstros por IA</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Gemini (primeiro) com fallback Groq. Gera e já salva no banco.
+            Gemini (primeiro) com fallback Groq. Gera e já salva no banco. Raids e PvP são configurados manualmente.
           </p>
         </div>
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        {(Object.keys(TITLES) as Kind[]).map((k) => (
-          <button
-            key={k}
-            onClick={() => switchKind(k)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              kind === k ? "bg-accent-600 text-white" : "bg-dark-700 text-gray-300 hover:bg-dark-600"
-            }`}
-          >
-            {TITLES[k]}
-          </button>
-        ))}
       </div>
 
       <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 space-y-3">
@@ -102,12 +71,12 @@ export default function AiGeneratorPage() {
             onChange={(e) => setPrompt(e.target.value)}
             rows={3}
             className={inputClass}
-            placeholder="Descreva o que a IA deve criar..."
+            placeholder="Descreva o monstro que a IA deve criar..."
           />
         </div>
         <div className="flex justify-end gap-2">
           <button
-            onClick={() => setPrompt(DEFAULTS[kind])}
+            onClick={() => setPrompt(DEFAULTS.monster)}
             className="px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
           >
             Exemplo

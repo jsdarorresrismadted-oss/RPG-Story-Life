@@ -19,6 +19,7 @@ interface Item {
   name: string;
   icon?: string | null;
   rarity?: string;
+  isActive?: boolean;
 }
 
 interface DropRow {
@@ -229,7 +230,7 @@ export default function MonsterDropsPage() {
                 <label className={labelClass}>Item *</label>
                 <select value={form.itemId ?? ""} onChange={(e) => setForm({ ...form, itemId: e.target.value })} className={inputClass}>
                   <option value="">Selecionar item...</option>
-                  {items.map((i) => (
+                  {items.filter((i) => i.isActive !== false).map((i) => (
                     <option key={i.id} value={i.id}>{i.name} ({i.rarity ?? "?"})</option>
                   ))}
                 </select>

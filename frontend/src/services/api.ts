@@ -35,7 +35,7 @@ export const authApi = {
 
 export const charactersApi = {
   index: () => api.get("/characters/index"),
-  create: (data: { name: string; classId: string; gender?: "male" | "female" }) =>
+  create: (data: { name: string; classId: string; gender?: "male" | "female" | "other" }) =>
     api.post("/characters", data),
   my: () => api.get("/characters/my"),
   rankUp: () => api.post("/characters/rank-up"),
