@@ -18,8 +18,6 @@ export const CATEGORY_BY_TYPE: Record<string, string> = {
   helm: "Elmo",
   armor: "Armaduras",
   cape: "Capas",
-  ring: "Aneis",
-  necklace: "Colares",
 };
 
 const TYPE_PT: Record<string, string> = {
@@ -27,8 +25,6 @@ const TYPE_PT: Record<string, string> = {
   helm: "elmo",
   armor: "armadura",
   cape: "capa",
-  ring: "anel",
-  necklace: "colar",
 };
 
 const SLOT_RULES: Record<string, string> = {
@@ -36,8 +32,6 @@ const SLOT_RULES: Record<string, string> = {
   helm: "Apenas o elmo. Feito para encaixar em um avatar humano 64x64 (o avatar nao aparece).",
   armor: "A armadura deve cobrir tronco, ombros e bracos. Feita para ser usada SOBRE um avatar humano 64x64 (o avatar nao aparece).",
   cape: "Apenas a capa, vista de frente, feita para ficar atras do personagem.",
-  ring: "Anel visto de frente, icone altamente detalhado.",
-  necklace: "Colar visto de frente, icone altamente detalhado.",
 };
 
 const RARITY_PT: Record<string, string> = {

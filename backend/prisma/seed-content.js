@@ -177,14 +177,6 @@ const items = [
   { name: "Capa Esfarrapada", description: "Uma capa velha que esconde bem seu dono.", type: "cape", rarity: "common", level: 1, rank: 1, buyPrice: 35, sellPrice: 7, wisdom: 2, luck: 1, icon: "/icons/64x64/Capas/fc1823.png" },
   { name: "Manto de Veludo", description: "Um manto elegante dos nobres da vila.", type: "cape", rarity: "uncommon", level: 3, rank: 2, buyPrice: 130, sellPrice: 26, wisdom: 6, luck: 3, icon: "/icons/64x64/Capas/fc1824.png" },
   { name: "Capa do Vento", description: "Flutua como o vento e melhora os reflexos.", type: "cape", rarity: "rare", level: 6, rank: 3, buyPrice: 340, sellPrice: 68, dexterity: 8, luck: 4, icon: "/icons/64x64/Capas/fc1825.png" },
-  // ===== Rings (LUK/STR ou INT) =====
-  { name: "Anel de Bronze", description: "Um anel simples, dizem que traz sorte.", type: "ring", rarity: "common", level: 1, rank: 1, buyPrice: 45, sellPrice: 9, icon: "/icons/64x64/Aneis/fc1843.png" },
-  { name: "Anel de Prata", description: "Anel prateado de um artesão habilidoso.", type: "ring", rarity: "uncommon", level: 3, rank: 2, buyPrice: 145, sellPrice: 29, icon: "/icons/64x64/Aneis/fc1844.png" },
-  { name: "Anel do Fogo", description: "Pulsa com energia ardente.", type: "ring", rarity: "rare", level: 6, rank: 3, buyPrice: 390, sellPrice: 78, icon: "/icons/64x64/Aneis/fc1845.png" },
-  // ===== Necklaces (WIS/LUK) =====
-  { name: "Colar de Contas", description: "Contas de madeira entalhadas à mão.", type: "necklace", rarity: "common", level: 1, rank: 1, buyPrice: 40, sellPrice: 8, icon: "/icons/64x64/Colares/fc1849.png" },
-  { name: "Amuleto da Sorte", description: "Um amuleto que afasta o azar.", type: "necklace", rarity: "uncommon", level: 3, rank: 2, buyPrice: 140, sellPrice: 28, icon: "/icons/64x64/Colares/fc1850.png" },
-  { name: "Colar Arcano", description: "Um colar banhado em energia mística.", type: "necklace", rarity: "rare", level: 6, rank: 3, buyPrice: 370, sellPrice: 74, icon: "/icons/64x64/Colares/fc1851.png" },
   // ===== Consumables =====
   { name: "Poção de Vida", description: "Restaura 50 de vida.", type: "consumable", subtype: "potion", rarity: "common", level: 1, isStackable: true, maxStack: 99, buyPrice: 20, sellPrice: 4, effects: '{"heal": 50}', icon: "/icons/64x64/Potion/Vida.png" },
   { name: "Poção de Mana", description: "Restaura 40 de mana.", type: "consumable", subtype: "potion", rarity: "common", level: 1, isStackable: true, maxStack: 99, buyPrice: 25, sellPrice: 5, effects: '{"manaRestore": 40}', icon: "/icons/64x64/Potion/Mana.png" },
@@ -200,7 +192,7 @@ const items = [
 // ===== Encantamentos (independentes dos itens, comprados na loja) =====
 // Só equipamentos de combate aceitam enchant: Arma, Armadura, Elmo e Capa.
 // O MESMO encantamento pode ser aplicado em arma/armadura/elmo/capa (full build).
-// Anéis e Colares NUNCA recebem encantamento.
+// Anéis e Colares são exclusivos do gacha (Boosters) e nunca recebem encantamento.
 // Progressão LINEAR por nível: no Nv.1 o principal vale +4 e os demais +2;
 // a partir daí cada atributo cresce +2 por nível (Nv.2 = +4/+6, Nv.3 = +6/+8...).
 // Matriz completa: 6 categorias x 100 níveis = 600 encantamentos.
@@ -296,10 +288,10 @@ for (const rarity of ["common", "uncommon", "rare", "epic", "legendary", "mythic
 
 const monsters = [
   { name: "Dummy de Treino", description: "Um boneco de madeira usado para treinar golpes na vila. Não revida.", level: 1, hp: 300, mana: 0, attack: 0, defense: 5, magic: 0, magicDefense: 5, speed: 1, xpReward: 0, goldReward: 0, attackSpeed: 99999 },
-  { name: "Rato da Floresta", description: "Um roedor feroz que invade acampamentos.", level: 1, hp: 30, mana: 0, attack: 6, defense: 2, magic: 0, magicDefense: 2, speed: 10, xpReward: 20, goldReward: 8, attackSpeed: 2000, drops: [{ item: "Poção de Vida", chance: 30, min: 1, max: 2 }, { item: "Anel de Bronze", chance: 45, min: 1, max: 2 }] },
+  { name: "Rato da Floresta", description: "Um roedor feroz que invade acampamentos.", level: 1, hp: 30, mana: 0, attack: 6, defense: 2, magic: 0, magicDefense: 2, speed: 10, xpReward: 20, goldReward: 8, attackSpeed: 2000, drops: [{ item: "Poção de Vida", chance: 30, min: 1, max: 2 }] },
   { name: "Slime Verde", description: "Gosma gelatinosa comum nas florestas.", level: 1, hp: 25, mana: 0, attack: 5, defense: 3, magic: 0, magicDefense: 2, speed: 5, xpReward: 15, goldReward: 5, attackSpeed: 2500, drops: [{ item: "Poção de Mana", chance: 25, min: 1, max: 1 }, { item: "Capa Esfarrapada", chance: 40, min: 1, max: 2 }] },
-  { name: "Lobo Cinzento", description: "Um predador veloz que caça em matilha.", level: 2, hp: 45, mana: 0, attack: 9, defense: 4, magic: 0, magicDefense: 3, speed: 14, xpReward: 35, goldReward: 15, attackSpeed: 1800, skills: JSON.stringify([{ name: "Mordida Feroz", slug: "mordida-feroz", description: "Uma mordida poderosa que causa dano extra.", kind: "attack", trigger: "active", target: "enemy", cooldown: 5000, manaCost: 0, rankRequired: 1, actions: [{ action: "damage", amount: 12, scaling: [{ stat: "attack", factor: 1.2 }], damageType: "physical" }] }]), drops: [{ item: "Poção de Vida", chance: 40, min: 1, max: 2 }, { item: "Espada de Ferro", chance: 8, min: 1, max: 1 }, { item: "Colar de Contas", chance: 35, min: 1, max: 1 }] },
-  { name: "Goblin Saqueador", description: "Pequeno, covarde e perigoso com sua adaga.", level: 3, hp: 60, mana: 10, attack: 12, defense: 5, magic: 2, magicDefense: 3, speed: 12, xpReward: 60, goldReward: 25, attackSpeed: 1600, skills: JSON.stringify([{ name: "Adaga Envenenada", slug: "adaga-envenenada", description: "Ataca com uma adaga coberta de veneno corrosivo.", kind: "attack", trigger: "active", target: "enemy", cooldown: 6000, manaCost: 5, rankRequired: 1, actions: [{ action: "damage", amount: 10, scaling: [{ stat: "attack", factor: 1 }], damageType: "physical" }, { action: "applyEffect", effect: "veneno-corrosivo", target: "enemy", stacks: 1 }] }]), drops: [{ item: "Poção de Vida", chance: 30, min: 1, max: 1 }, { item: "Adaga Serrilhada", chance: 10, min: 1, max: 1 }, { item: "Anel de Prata", chance: 20, min: 1, max: 1 }] },
+  { name: "Lobo Cinzento", description: "Um predador veloz que caça em matilha.", level: 2, hp: 45, mana: 0, attack: 9, defense: 4, magic: 0, magicDefense: 3, speed: 14, xpReward: 35, goldReward: 15, attackSpeed: 1800, skills: JSON.stringify([{ name: "Mordida Feroz", slug: "mordida-feroz", description: "Uma mordida poderosa que causa dano extra.", kind: "attack", trigger: "active", target: "enemy", cooldown: 5000, manaCost: 0, rankRequired: 1, actions: [{ action: "damage", amount: 12, scaling: [{ stat: "attack", factor: 1.2 }], damageType: "physical" }] }]), drops: [{ item: "Poção de Vida", chance: 40, min: 1, max: 2 }, { item: "Espada de Ferro", chance: 8, min: 1, max: 1 }] },
+  { name: "Goblin Saqueador", description: "Pequeno, covarde e perigoso com sua adaga.", level: 3, hp: 60, mana: 10, attack: 12, defense: 5, magic: 2, magicDefense: 3, speed: 12, xpReward: 60, goldReward: 25, attackSpeed: 1600, skills: JSON.stringify([{ name: "Adaga Envenenada", slug: "adaga-envenenada", description: "Ataca com uma adaga coberta de veneno corrosivo.", kind: "attack", trigger: "active", target: "enemy", cooldown: 6000, manaCost: 5, rankRequired: 1, actions: [{ action: "damage", amount: 10, scaling: [{ stat: "attack", factor: 1 }], damageType: "physical" }, { action: "applyEffect", effect: "veneno-corrosivo", target: "enemy", stacks: 1 }] }]), drops: [{ item: "Poção de Vida", chance: 30, min: 1, max: 1 }, { item: "Adaga Serrilhada", chance: 10, min: 1, max: 1 }] },
   { name: "Goblin Bruxo", description: "O chefe goblin que comanda a floresta com magia negra. Derrotá-lo concede recompensas em dobro.", level: 4, hp: 130, mana: 30, attack: 16, defense: 7, magic: 9, magicDefense: 6, speed: 10, xpReward: 200, goldReward: 80, attackSpeed: 1500, isBoss: true, skills: JSON.stringify([
     { name: "Bola de Fogo", slug: "bola-de-fogo-goblin", description: "Lança uma esfera de fogo que queima o alvo.", kind: "attack", trigger: "active", target: "enemy", cooldown: 6000, manaCost: 10, rankRequired: 1, actions: [{ action: "damage", amount: 14, scaling: [{ stat: "magic", factor: 1.1 }], damageType: "magic" }, { action: "applyEffect", effect: "chama-arcana", target: "enemy", stacks: 1 }] },
     { name: "Fúria Goblin", slug: "furia-goblin", description: "O goblin entra em fúria, aumentando seu ataque.", kind: "buff", trigger: "active", target: "self", cooldown: 12000, manaCost: 10, rankRequired: 1, actions: [{ action: "applyEffect", effect: "furia-do-guerreiro", target: "self", stacks: 1 }] },
@@ -307,13 +299,13 @@ const monsters = [
   { name: "Golem de Pedra", description: "Uma criatura colossal de rocha que guarda a entrada da Caverna do Dragão. Sua pele é quase impenetrável.", level: 8, hp: 400, mana: 20, attack: 28, defense: 18, magic: 4, magicDefense: 12, speed: 6, xpReward: 800, goldReward: 300, attackSpeed: 2000, isElite: true, skills: JSON.stringify([
     { name: "Esmagamento", slug: "esmagamento", description: "O golem ergue os punhos e esmaga o chão, causando grande dano físico.", kind: "attack", trigger: "active", target: "enemy", cooldown: 7000, manaCost: 0, rankRequired: 1, actions: [{ action: "damage", amount: 30, scaling: [{ stat: "attack", factor: 1.3 }], damageType: "physical" }] },
     { name: "Pele de Rocha", slug: "pele-de-rocha", description: "O golem endurece a pele, aumentando sua defesa.", kind: "buff", trigger: "active", target: "self", cooldown: 15000, manaCost: 0, rankRequired: 1, actions: [{ action: "applyEffect", effect: "armadura-arcana", target: "self", stacks: 2 }] },
-  ]), drops: [{ item: "Cota de Malha", chance: 20, min: 1, max: 1 }, { item: "Poção de Vida", chance: 60, min: 2, max: 4 }, { item: "Anel de Prata", chance: 100, min: 2, max: 4, guaranteed: true }, { item: "Manto de Veludo", chance: 100, min: 1, max: 2, guaranteed: true }] },
+  ]), drops: [{ item: "Cota de Malha", chance: 20, min: 1, max: 1 }, { item: "Poção de Vida", chance: 60, min: 2, max: 4 }, { item: "Manto de Veludo", chance: 100, min: 1, max: 2, guaranteed: true }] },
   { name: "Dragão Sombrio", description: "O temido Dragão Sombrio, senhor da Caverna do Dragão. Derrotá-lo é a maior honra de um aventureiro.", level: 12, hp: 1500, mana: 100, attack: 45, defense: 25, magic: 30, magicDefense: 22, speed: 12, xpReward: 5000, goldReward: 2000, attackSpeed: 1400, isBoss: true, skills: JSON.stringify([
     { name: "Sopro de Fogo", slug: "sopro-de-fogo", description: "O dragão cospe fogo, causando dano mágico massivo e queimando o alvo.", kind: "attack", trigger: "active", target: "enemy", cooldown: 8000, manaCost: 20, rankRequired: 1, actions: [{ action: "damage", amount: 40, scaling: [{ stat: "magic", factor: 1.2 }], damageType: "magic" }, { action: "applyEffect", effect: "chama-arcana", target: "enemy", stacks: 2 }] },
     { name: "Garra Sombria", slug: "garra-sombria", description: "Um corte com garras afiadas que faz o alvo sangrar.", kind: "attack", trigger: "active", target: "enemy", cooldown: 5000, manaCost: 10, rankRequired: 1, actions: [{ action: "damage", amount: 30, scaling: [{ stat: "attack", factor: 1.2 }], damageType: "physical" }, { action: "applyEffect", effect: "sangramento", target: "enemy", stacks: 2 }] },
     { name: "Escamas de Ferro", slug: "escamas-de-ferro", description: "O dragão endurece as escamas, aumentando muito sua defesa.", kind: "buff", trigger: "active", target: "self", cooldown: 18000, manaCost: 15, rankRequired: 1, actions: [{ action: "applyEffect", effect: "armadura-arcana", target: "self", stacks: 3 }] },
     { name: "Fúria do Dragão", slug: "furia-do-dragao", description: "O dragão se enfurece, aumentando seu ataque.", kind: "buff", trigger: "active", target: "self", cooldown: 25000, manaCost: 20, rankRequired: 1, actions: [{ action: "applyEffect", effect: "furia-do-guerreiro", target: "self", stacks: 3 }] },
-  ]), drops: [{ item: "Machado de Batalha", chance: 30, min: 1, max: 1 }, { item: "Cajado Arcano", chance: 30, min: 1, max: 1 }, { item: "Poção de Vida", chance: 100, min: 3, max: 5 }, { item: "Anel de Prata", chance: 100, min: 5, max: 8, guaranteed: true }, { item: "Manto de Veludo", chance: 100, min: 4, max: 6, guaranteed: true }, { item: "Colar de Contas", chance: 100, min: 3, max: 5, guaranteed: true }] },
+  ]), drops: [{ item: "Machado de Batalha", chance: 30, min: 1, max: 1 }, { item: "Cajado Arcano", chance: 30, min: 1, max: 1 }, { item: "Poção de Vida", chance: 100, min: 3, max: 5 }, { item: "Manto de Veludo", chance: 100, min: 4, max: 6, guaranteed: true }] },
 ];
 
 const maps = [
@@ -368,11 +360,8 @@ const shopOffers = [
   { npc: "Capitão Valdir", class: "assassino", price: 1500 },
   { npc: "Capitão Valdir", class: "suporte", price: 1500 },
   { npc: "Capitão Valdir", class: "senhor-das-sombras", price: 10000, requiredVip: true },
-  { npc: "Aurelia", item: "Anel de Bronze", price: 10 },
-  { npc: "Aurelia", item: "Anel de Prata", price: 35 },
   { npc: "Aurelia", item: "Capa Esfarrapada", price: 15 },
   { npc: "Aurelia", item: "Manto de Veludo", price: 45 },
-  { npc: "Aurelia", item: "Colar de Contas", price: 25 },
 ];
 
 const craftRecipes = [
@@ -382,7 +371,7 @@ const craftRecipes = [
     resultItem: "Espada de Ferro",
     resultQuantity: 1,
     requiredLevel: 2,
-    ingredients: [{ itemName: "Anel de Bronze", quantity: 2 }],
+    ingredients: [{ itemName: "Espada de Iniciante", quantity: 2 }],
   },
   {
     name: "Poção de Vida Reforçada",
@@ -398,7 +387,7 @@ const craftRecipes = [
     resultItem: "Poção de Mana",
     resultQuantity: 3,
     requiredLevel: 1,
-    ingredients: [{ itemName: "Colar de Contas", quantity: 1 }],
+    ingredients: [{ itemName: "Capa Esfarrapada", quantity: 1 }],
   },
   {
     name: "Cajado Arcano Aprimorado",
@@ -406,7 +395,7 @@ const craftRecipes = [
     resultItem: "Cajado Arcano",
     resultQuantity: 1,
     requiredLevel: 3,
-    ingredients: [{ itemName: "Anel de Prata", quantity: 3 }],
+    ingredients: [{ itemName: "Cajado do Aprendiz", quantity: 3 }],
   },
   {
     name: "Armadura de Couro Reforçada",
@@ -1045,6 +1034,21 @@ async function seedWorld() {
     const created = await upsertItem(item);
     itemMap[item.name] = created;
     console.log("  item:", item.name);
+  }
+
+  // Limpeza: anéis/colares são exclusivos do gacha (Booster). Desativa qualquer
+  // Item do tipo ring/necklace que não esteja mais no seed e remove suas
+  // referências de loja/drop (monstros são re-semeados logo abaixo).
+  {
+    const seedNames = new Set(items.map((i) => i.name));
+    const stale = await prisma.item.findMany({ where: { type: { in: ["ring", "necklace"] } } });
+    const staleIds = stale.filter((i) => !seedNames.has(i.name)).map((i) => i.id);
+    if (staleIds.length > 0) {
+      await prisma.shopItem.deleteMany({ where: { itemId: { in: staleIds } } });
+      await prisma.dropItem.deleteMany({ where: { itemId: { in: staleIds } } });
+      await prisma.item.updateMany({ where: { id: { in: staleIds } }, data: { isActive: false } });
+      console.log("  disabled stale ring/necklace items:", staleIds.length);
+    }
   }
 
   console.log("Seeding monsters...");

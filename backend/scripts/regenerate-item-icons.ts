@@ -12,7 +12,7 @@ import { PrismaClient } from "@prisma/client";
 import { generateItemIcon } from "../src/core/ai/itemGenerator";
 import seedContent from "../prisma/seed-content";
 
-const EQUIP_TYPES = ["weapon", "helm", "armor", "cape", "ring", "necklace"];
+const EQUIP_TYPES = ["weapon", "helm", "armor", "cape"];
 const OVERRIDE_FILE = path.resolve(__dirname, "../prisma/generated-icons.json");
 
 function slugHash(s: string): number {

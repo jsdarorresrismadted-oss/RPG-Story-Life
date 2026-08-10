@@ -222,7 +222,7 @@ export const crudConfigs: CrudConfig[] = [
         type: "select",
         required: true,
         defaultValue: "weapon",
-        options: ["weapon", "helm", "armor", "cape", "ring", "necklace", "consumable", "material"],
+        options: ["weapon", "helm", "armor", "cape", "consumable", "material"],
       },
       {
         name: "subtype",
@@ -235,8 +235,6 @@ export const crudConfigs: CrudConfig[] = [
             helm: ["cap", "helmet", "crown", "hood"],
             armor: ["light", "heavy", "robe"],
             cape: [],
-            ring: [],
-            necklace: [],
             consumable: ["potion", "scroll", "food", "material"],
             material: ["ore", "dust", "bone", "essence"],
           },
@@ -278,7 +276,7 @@ export const crudConfigs: CrudConfig[] = [
         name: "type",
         label: "Tipo (categoria)",
         type: "select",
-        options: ["weapon", "helm", "armor", "cape", "ring", "necklace", "consumable", "material"],
+        options: ["weapon", "helm", "armor", "cape", "consumable", "material"],
       },
       {
         name: "subtype",
@@ -568,7 +566,7 @@ export const crudConfigs: CrudConfig[] = [
         label: "Ingredientes",
         type: "json",
         jsonSchema: { mode: "object-array", addLabel: "Adicionar material", fields: [
-            { name: "itemName", label: "Nome do material", type: "text", placeholder: "ex: Anel de Bronze" },
+            { name: "itemName", label: "Nome do material", type: "text", placeholder: "ex: Espada de Iniciante" },
             { name: "quantity", label: "Quantidade", type: "number" },
           ] },
       },

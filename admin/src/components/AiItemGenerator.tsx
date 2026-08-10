@@ -23,8 +23,6 @@ const TYPE_OPTIONS = [
   { value: "helm", label: "Elmo" },
   { value: "armor", label: "Armadura" },
   { value: "cape", label: "Capa" },
-  { value: "ring", label: "Anel" },
-  { value: "necklace", label: "Colar" },
 ];
 
 const RARITY_OPTIONS = [
