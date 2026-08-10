@@ -6,8 +6,10 @@ import { useGameStore } from "../store/gameStore";
 import type { CharacterIndex, GameClass } from "../types";
 import { Shield, Swords, UserPlus } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 export function CreateCharacterPage() {
+  const { t } = useTranslation("character");
   const navigate = useNavigate();
   const setUser = useAuthStore((s) => s.setUser);
   const user = useAuthStore((s) => s.user);
@@ -23,7 +25,7 @@ export function CreateCharacterPage() {
     charactersApi
       .index()
       .then(({ data }) => setIndex(data))
-      .catch(() => toast.error("Failed to load character options"))
+      .catch(() => toast.error(t("failed_load")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -40,10 +42,10 @@ export function CreateCharacterPage() {
       const updatedUser = { ...user, characters: [...(user.characters || []), data] };
       setUser(updatedUser);
       setCharacter(data);
-      toast.success(`Character ${data.name} created!`);
+      toast.success(t("created", { name: data.name }));
       navigate("/dashboard");
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to create character");
+      toast.error(err.response?.data?.error || t("failed_create"));
     } finally {
       setCreating(false);
     }
@@ -64,20 +66,20 @@ export function CreateCharacterPage() {
       <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
         <div className="text-center">
           <h1 className="text-3xl font-display font-bold glow-text flex items-center justify-center gap-3">
-            <Swords size={28} /> Create Your Character
+            <Swords size={28} /> {t("title")}
           </h1>
           <p className="text-gray-400 mt-2">
-            Seu personagem usará o mesmo nick da sua conta: <span className="text-purple-300 font-bold">{user?.username}</span>. Escolha sua classe para começar.
+            {t("subtitle", { username: user?.username })}
           </p>
         </div>
 
         <form onSubmit={handleCreate} className="space-y-6">
           <section className="panel p-4">
             <h2 className="text-lg font-display font-semibold mb-3 flex items-center gap-2">
-              <Swords size={18} className="text-purple-400" /> Escolha sua classe
+              <Swords size={18} className="text-purple-400" /> {t("choose_class")}
             </h2>
             {classCards.length === 0 && (
-              <p className="text-sm text-gray-500">No starter classes available yet.</p>
+              <p className="text-sm text-gray-500">{t("no_starter_classes")}</p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {classCards.map((cls: GameClass) => (
@@ -104,13 +106,13 @@ export function CreateCharacterPage() {
 
           <section className="panel p-4">
             <h2 className="text-lg font-display font-semibold mb-3 flex items-center gap-2">
-              <UserPlus size={18} className="text-purple-400" /> Escolha o sexo
+              <UserPlus size={18} className="text-purple-400" /> {t("choose_gender")}
             </h2>
             <div className="grid grid-cols-3 gap-3 max-w-md">
               {([
-                { value: "male", symbol: "♂", label: "Masculino" },
-                { value: "female", symbol: "♀", label: "Feminino" },
-                { value: "other", symbol: "⚧", label: "Outros" },
+                { value: "male", symbol: "♂", label: t("male") },
+                { value: "female", symbol: "♀", label: t("female") },
+                { value: "other", symbol: "⚧", label: t("other") },
               ] as const).map((g) => (
                 <button
                   key={g.value}
@@ -135,13 +137,13 @@ export function CreateCharacterPage() {
           <section className="panel p-4 flex flex-col md:flex-row gap-3 items-end">
             <div className="flex-1">
               <p className="text-sm text-gray-400 mb-1 flex items-center gap-2">
-                <Shield size={14} className="text-purple-400" /> Nick do personagem
+                <Shield size={14} className="text-purple-400" /> {t("nick")}
               </p>
               <div className="input-rpg w-full flex items-center gap-2 opacity-70">
                 <UserPlus size={16} className="text-gray-500 shrink-0" />
                 <span className="text-white">{user?.username || "-"}</span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1">O personagem usa o mesmo nick da conta — não é possível escolher outro.</p>
+              <p className="text-[11px] text-gray-500 mt-1">{t("nick_hint")}</p>
             </div>
             <button
               type="submit"
@@ -149,13 +151,13 @@ export function CreateCharacterPage() {
               className="btn-primary flex items-center gap-2 px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <UserPlus size={18} />
-              {creating ? "Criando..." : "Criar Personagem"}
+              {creating ? t("creating") : t("create")}
             </button>
           </section>
 
           {!classId && (
             <p className="text-xs text-gray-500 flex items-center gap-1">
-              <Shield size={12} /> Escolha uma classe acima para criar seu personagem.
+              <Shield size={12} /> {t("need_class")}
             </p>
           )}
         </form>

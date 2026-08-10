@@ -6,6 +6,7 @@
   "choose_gender": "Choose gender",
   "male": "Male",
   "female": "Female",
+  "other": "Other",
   "nick": "Character nickname",
   "nick_hint": "The character uses the same nickname as your account — it cannot be changed.",
   "create": "Create Character",

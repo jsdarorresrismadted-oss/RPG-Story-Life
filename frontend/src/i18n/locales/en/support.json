@@ -1,0 +1,18 @@
+{
+  "title": "Support",
+  "faq": "Frequently asked questions",
+  "faq_create_character_q": "How do I create my character?",
+  "faq_create_character_a": "After creating your account, you are taken to the character creation screen. Choose your class, roll race and trait (3 tickets each) and set the name.",
+  "faq_guild_q": "How do I create a guild?",
+  "faq_guild_a": "Go to the Guild page and click Create Guild. Level, gold and diamonds requirements are shown there — adjustable from the admin panel.",
+  "faq_tickets_q": "I lost my roll tickets, what now?",
+  "faq_tickets_a": "Tickets are per account, limited to 3 for race and 3 for trait. New tickets can be granted by support/admin.",
+  "faq_bug_q": "Where do I report a bug?",
+  "faq_bug_a": "Use the form below or reach out on the community Discord.",
+  "contact": "Contact",
+  "subject": "Subject",
+  "message_placeholder": "Describe your issue or question...",
+  "send_message": "Send message",
+  "message_sent": "Message sent! Our team will get back to you soon.",
+  "info_hint": "Your account information is attached automatically to speed up support."
+}

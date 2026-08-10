@@ -1,8 +1,10 @@
 {
   "placeholder": "Escribe un mensaje...",
-  "global": "Global",
-  "local": "Local",
-  "guild": "Cofradía",
-  "party": "Grupo",
-  "trade": "Comercio"
+  "channels": {
+    "global": "Global",
+    "local": "Local",
+    "guild": "Cofradía",
+    "party": "Grupo",
+    "trade": "Comercio"
+  }
 }

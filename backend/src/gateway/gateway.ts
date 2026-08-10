@@ -20,6 +20,48 @@ interface AuthenticatedSocket extends Socket {
   currentMapId?: string;
   partyId?: string;
   currentChatChannel?: string;
+  chatProfile?: {
+    isVip: boolean;
+    guildTag: string | null;
+    guildName: string | null;
+    guildRole: string | null;
+    level: number;
+    characterName: string | null;
+  };
+}
+
+// Carrega o perfil do usuário usado nas tags do chat ([Staff], [VIP], [GuildTag]).
+async function loadChatProfile(socket: AuthenticatedSocket): Promise<{
+  isVip: boolean;
+  guildTag: string | null;
+  guildName: string | null;
+  guildRole: string | null;
+  level: number;
+  characterName: string | null;
+}> {
+  const [user, membership, character] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: socket.userId },
+      select: { vipUntil: true, role: true },
+    }),
+    prisma.guildMember.findFirst({
+      where: { userId: socket.userId },
+      select: { role: true, guild: { select: { tag: true, name: true } } },
+    }),
+    prisma.character.findFirst({
+      where: { userId: socket.userId },
+      orderBy: [{ level: "desc" }, { updatedAt: "desc" }],
+      select: { level: true, name: true },
+    }),
+  ]);
+  return {
+    isVip: !!(user?.vipUntil && new Date(user.vipUntil).getTime() > Date.now()),
+    guildTag: membership?.guild?.tag ?? null,
+    guildName: membership?.guild?.name ?? null,
+    guildRole: membership?.role ?? null,
+    level: character?.level ?? 0,
+    characterName: character?.name ?? null,
+  };
 }
 
 export function createGateway(
@@ -103,9 +145,20 @@ export function createGateway(
       const channel = data.channel || "global";
       const message = data.message.trim();
 
+      if (!socket.chatProfile) {
+        socket.chatProfile = await loadChatProfile(socket);
+      }
+
       const chatPayload = {
         userId: socket.userId,
         username: socket.username,
+        role: socket.role ?? "player",
+        isVip: socket.chatProfile.isVip,
+        guildTag: socket.chatProfile.guildTag,
+        guildName: socket.chatProfile.guildName,
+        guildRole: socket.chatProfile.guildRole,
+        level: socket.chatProfile.level,
+        characterName: socket.chatProfile.characterName,
         channel,
         message,
         timestamp: Date.now(),
@@ -132,6 +185,12 @@ export function createGateway(
       const room = `chat:${channel}`;
       socket.join(room);
       io.to(room).emit("chat:message", chatPayload);
+    });
+
+    // Atualiza as tags do chat quando o usuário entra/sai de guilda ou troca de personagem.
+    socket.on("chat:refresh", async () => {
+      socket.chatProfile = await loadChatProfile(socket);
+      socket.emit("chat:profile", socket.chatProfile);
     });
 
     socket.on("combat:start", async (data: { monsterId: string }) => {

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { contentApi, leaderboardApi } from "../services/api";
 import { ScrollText, Sword, Trophy, Zap, TrendingUp, Skull, Crown, Medal } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface PatchNote {
   id: string;
@@ -42,6 +43,7 @@ function PositionBadge({ position }: { position: number }) {
 }
 
 export function DashboardPage() {
+  const { t } = useTranslation("dashboard");
   const { user } = useAuthStore();
   const [notes, setNotes] = useState<PatchNote[]>([]);
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null);
@@ -63,10 +65,10 @@ export function DashboardPage() {
   const level = character?.level ?? user?.level ?? 1;
 
   const rankCards = [
-    { label: "Nível", value: level.toLocaleString(), icon: Trophy, color: "from-purple-500 to-purple-600" },
-    { label: "Ouro", value: gold.toLocaleString(), icon: TrendingUp, color: "from-yellow-500 to-yellow-600" },
-    { label: "Diamantes", value: diamonds.toLocaleString(), icon: Zap, color: "from-cyan-500 to-cyan-600" },
-    { label: "Kills PvP", value: pvpKills.toLocaleString(), icon: Skull, color: "from-red-500 to-orange-500" },
+    { label: t("rank_level"), value: level.toLocaleString(), icon: Trophy, color: "from-purple-500 to-purple-600" },
+    { label: t("rank_gold"), value: gold.toLocaleString(), icon: TrendingUp, color: "from-yellow-500 to-yellow-600" },
+    { label: t("rank_diamonds"), value: diamonds.toLocaleString(), icon: Zap, color: "from-cyan-500 to-cyan-600" },
+    { label: t("rank_pvp"), value: pvpKills.toLocaleString(), icon: Skull, color: "from-red-500 to-orange-500" },
   ];
 
   return (
@@ -74,12 +76,12 @@ export function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold">
-            Welcome back, <span className="glow-text">{user?.displayName}</span>
+            {t("welcome_back", { name: user?.displayName })}
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Your adventure continues...</p>
+          <p className="text-gray-400 text-sm mt-1">{t("adventure_continues")}</p>
         </div>
         <Link to={hasCharacter ? (classSlug ? `/class/${classSlug}` : "/classes") : "/character/create"} className="btn-primary flex items-center gap-2">
-          <Sword size={16} /> Classes
+          <Sword size={16} /> {t("classes")}
         </Link>
       </div>
 
@@ -90,12 +92,12 @@ export function DashboardPage() {
               <Sword size={24} className="text-white" />
             </div>
             <div className="flex-1">
-              <h2 className="font-display font-bold text-lg">Crie seu personagem</h2>
+              <h2 className="font-display font-bold text-lg">{t("create_character")}</h2>
               <p className="text-sm text-gray-400">
-                Escolha uma das classes iniciais e comece a jornada!
+                {t("create_character_hint")}
               </p>
             </div>
-            <span className="btn-primary text-sm">Criar agora</span>
+            <span className="btn-primary text-sm">{t("create_now")}</span>
           </div>
         </Link>
       )}
@@ -105,23 +107,23 @@ export function DashboardPage() {
           <div className="flex items-center gap-3">
             <Sword size={20} className="text-cyan-400" />
             <div className="flex-1">
-              <p className="text-sm text-gray-400">Personagem selecionado</p>
+              <p className="text-sm text-gray-400">{t("selected_character")}</p>
               <p className="font-display font-bold">
                 {character.name}{" "}
                 <span className="text-sm text-purple-400 font-mono">Lv.{character.level}</span>
               </p>
               <p className="text-xs text-gray-400 mt-0.5">
-                {character.class?.name || "Sem classe"}
+                {character.class?.name || t("no_class")}
               </p>
               {(character.experience !== undefined || character.experienceToNext) &&
                 (character.atMaxLevel ? (
                   <div className="mt-2 max-w-xs">
-                    <p className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">Nível máximo alcançado</p>
+                    <p className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">{t("max_level")}</p>
                   </div>
                 ) : (
                   <div className="mt-2 max-w-xs">
                     <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                      <span>XP para o próximo level</span>
+                      <span>{t("xp_to_next")}</span>
                       <span className="font-mono">{character.experience ?? 0} / {character.experienceToNext ?? 150}</span>
                     </div>
                     <div className="stat-bar h-1.5">
@@ -133,7 +135,7 @@ export function DashboardPage() {
                   </div>
                 ))}
             </div>
-            <span className="text-sm text-gray-400">Level {character.level}</span>
+            <span className="text-sm text-gray-400">{t("level", { value: character.level })}</span>
           </div>
         </div>
       )}
@@ -155,11 +157,11 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
           <h2 className="text-lg font-display font-semibold mb-3 flex items-center gap-2">
-            <ScrollText size={18} className="text-cyan-400" /> Patch Notes
+            <ScrollText size={18} className="text-cyan-400" /> {t("patch_notes")}
           </h2>
           {notes.length === 0 ? (
             <div className="panel p-6 text-center">
-              <p className="text-sm text-gray-500">Sem atualizações por enquanto.</p>
+              <p className="text-sm text-gray-500">{t("no_updates")}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -184,21 +186,21 @@ export function DashboardPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-display font-semibold flex items-center gap-2">
-              <Trophy size={18} className="text-purple-400" /> Ranking Global
+              <Trophy size={18} className="text-purple-400" /> {t("global_ranking")}
             </h2>
             {leaderboard && leaderboard.myRank !== null && (
               <span className="text-xs px-2 py-1 rounded-md bg-purple-500/15 text-purple-300">
-                Sua posição: #{leaderboard.myRank}
+                {t("your_position", { rank: leaderboard.myRank })}
               </span>
             )}
           </div>
           {!leaderboard ? (
             <div className="panel p-6 text-center">
-              <p className="text-sm text-gray-500">Carregando ranking...</p>
+              <p className="text-sm text-gray-500">{t("loading_ranking")}</p>
             </div>
           ) : leaderboard.entries.length === 0 ? (
             <div className="panel p-6 text-center">
-              <p className="text-sm text-gray-500">Nenhum jogador rankeado ainda.</p>
+              <p className="text-sm text-gray-500">{t("no_ranked")}</p>
             </div>
           ) : (
             <div className="panel overflow-hidden">
@@ -219,7 +221,7 @@ export function DashboardPage() {
                           {entry.characterName}
                           {isMe && (
                             <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 align-middle">
-                              Você
+                              {t("you")}
                             </span>
                           )}
                         </p>

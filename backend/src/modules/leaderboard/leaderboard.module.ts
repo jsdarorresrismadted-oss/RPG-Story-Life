@@ -1,8 +1,11 @@
 import { Express, Request, Response, NextFunction } from "express";
 import { prisma } from "../../core/database";
 import { authenticate } from "../../core/middleware/auth";
+import { computeForce } from "../../core/force";
 
 const LIMIT = 50;
+
+const EQUIP_SLOTS = ["weapon", "classItem", "helm", "armor", "cape", "ring", "necklace"] as const;
 
 export function createLeaderboardModule(app: Express): void {
   // Ranking global de jogadores pelo melhor personagem de cada usuário
@@ -12,7 +15,18 @@ export function createLeaderboardModule(app: Express): void {
         orderBy: [{ level: "desc" }, { experience: "desc" }],
         include: {
           user: { select: { id: true, username: true, displayName: true, gold: true, diamonds: true, vipUntil: true } },
-          class: { select: { name: true, slug: true, icon: true } },
+          class: { select: { name: true, slug: true, icon: true, statModel: true } },
+          equipment: {
+            include: {
+              weapon: true,
+              classItem: true,
+              helm: true,
+              armor: true,
+              cape: true,
+              ring: true,
+              necklace: true,
+            },
+          },
         },
       });
 
@@ -33,6 +47,22 @@ export function createLeaderboardModule(app: Express): void {
         level: c.level,
         experience: Number(c.experience),
         pvpKills: c.pvpKills,
+        force: computeForce({
+          level: c.level,
+          classCoreStats: parseJson(c.class?.statModel?.coreStats, {}),
+          equipment: EQUIP_SLOTS.map((slot) => (c.equipment as any)?.[slot]).map((item: any) =>
+            item
+              ? {
+                  strength: item.strength ?? 0,
+                  intellect: item.intellect ?? 0,
+                  endurance: item.endurance ?? 0,
+                  dexterity: item.dexterity ?? 0,
+                  wisdom: item.wisdom ?? 0,
+                  luck: item.luck ?? 0,
+                }
+              : null
+          ),
+        }),
         gold: Number(c.user.gold),
         diamonds: c.user.diamonds,
         isVip: !!(c.user.vipUntil && new Date(c.user.vipUntil).getTime() > Date.now()),
@@ -48,4 +78,13 @@ export function createLeaderboardModule(app: Express): void {
       next(err);
     }
   });
+}
+
+function parseJson(v: any, fallback: any): any {
+  if (!v) return fallback;
+  try {
+    return typeof v === "string" ? JSON.parse(v) : v;
+  } catch {
+    return fallback;
+  }
 }

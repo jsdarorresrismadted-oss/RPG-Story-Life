@@ -1,0 +1,8 @@
+{
+  "title": "Codex",
+  "classes_tab": "Clases",
+  "items_tab": "Objetos",
+  "no_classes": "Aún no hay clases registradas.",
+  "no_items": "Aún no hay objetos registrados.",
+  "type": "Tipo: {{type}}"
+}

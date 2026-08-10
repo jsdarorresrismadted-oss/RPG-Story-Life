@@ -6,6 +6,7 @@
   "choose_gender": "Escolha o sexo",
   "male": "Masculino",
   "female": "Feminino",
+  "other": "Outros",
   "nick": "Nick do personagem",
   "nick_hint": "O personagem usa o mesmo nick da conta — não é possível escolher outro.",
   "create": "Criar Personagem",

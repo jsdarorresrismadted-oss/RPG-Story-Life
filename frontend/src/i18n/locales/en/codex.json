@@ -1,0 +1,8 @@
+{
+  "title": "Codex",
+  "classes_tab": "Classes",
+  "items_tab": "Items",
+  "no_classes": "No classes registered yet.",
+  "no_items": "No items registered yet.",
+  "type": "Type: {{type}}"
+}

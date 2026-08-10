@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Map, Sword, Backpack, ScrollText,
-  Settings, Shield, MessageCircle, BookOpen, Trophy, ShoppingBag, Lock, Swords,
+  Settings, Shield, MessageCircle, BookOpen, Trophy, ShoppingBag, Lock, Swords, Users, BarChart3,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { questsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useGameStore } from "../../store/gameStore";
@@ -16,6 +17,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen }: SidebarProps) {
   const { user } = useAuthStore();
   const inCombat = useGameStore((s) => s.inCombat);
+  const { t } = useTranslation("sidebar");
   const [hasActiveQuest, setHasActiveQuest] = useState(false);
 
   const checkQuests = () => {
@@ -46,13 +48,15 @@ export function Sidebar({ isOpen }: SidebarProps) {
   };
 
   const navItems = [
-    { to: "/map", icon: Map, label: "Mapa" },
-    { to: "/classes", icon: Sword, label: "Classes" },
-    { to: "/inventory", icon: Backpack, label: "Inventário" },
-    { to: "/season", icon: Trophy, label: "Temporada" },
-    { to: "/shop", icon: ShoppingBag, label: "Loja" },
-    { to: "/arena", icon: Swords, label: "Arena PvP" },
-    ...(hasActiveQuest ? [{ to: "/quests", icon: ScrollText, label: "Quests" }] : []),
+    { to: "/map", icon: Map, label: t("map") },
+    { to: "/classes", icon: Sword, label: t("classes") },
+    { to: "/inventory", icon: Backpack, label: t("inventory") },
+    { to: "/guild", icon: Users, label: t("guild") },
+    { to: "/ranking", icon: BarChart3, label: t("ranking") },
+    { to: "/season", icon: Trophy, label: t("season") },
+    { to: "/shop", icon: ShoppingBag, label: t("shop") },
+    { to: "/arena", icon: Swords, label: t("arena") },
+    ...(hasActiveQuest ? [{ to: "/quests", icon: ScrollText, label: t("quests") }] : []),
   ];
 
   return (
@@ -91,7 +95,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
           }
         >
           <LayoutDashboard size={18} />
-          <span>Dashboard</span>
+          <span>{t("dashboard")}</span>
         </NavLink>
         {navItems.map((item) => (
           <NavLink
@@ -126,7 +130,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
             }
           >
             <Settings size={18} />
-            <span>Configurações</span>
+            <span>{t("settings")}</span>
           </NavLink>
           <NavLink
             to="/codex"
@@ -138,7 +142,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
             }
           >
             <BookOpen size={18} />
-            <span>Codex</span>
+            <span>{t("codex")}</span>
           </NavLink>
           <NavLink
             to="/support"
@@ -150,7 +154,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
             }
           >
             <MessageCircle size={18} />
-            <span>Support</span>
+            <span>{t("support")}</span>
           </NavLink>
         </div>
       </div>

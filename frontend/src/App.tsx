@@ -17,6 +17,7 @@ import { CodexPage } from './pages/CodexPage';
 import { SupportPage } from './pages/SupportPage';
 import { SeasonPage } from './pages/SeasonPage';
 import { ShopPage } from './pages/ShopPage';
+import { RankingPage } from './pages/RankingPage';
 import CharPage from './pages/CharPage';
 import { ArenaPage } from './pages/ArenaPage';
 
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="season" element={<CharacterGate><SeasonPage /></CharacterGate>} />
         <Route path="shop" element={<CharacterGate><ShopPage /></CharacterGate>} />
         <Route path="arena" element={<CharacterGate><ArenaPage /></CharacterGate>} />
+        <Route path="ranking" element={<CharacterGate><RankingPage /></CharacterGate>} />
         <Route path="player/:username" element={<CharacterGate><CharPage /></CharacterGate>} />
       </Route>
     </Routes>

@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { contentApi } from "../services/api";
 import { BookOpen, Sword, Package } from "lucide-react";
 import type { GameClass, Item } from "../types";
+import { useTranslation } from "react-i18next";
 
 type CodexTab = "classes" | "items";
 
 export function CodexPage() {
+  const { t } = useTranslation("codex");
   const [tab, setTab] = useState<CodexTab>("classes");
   const [classes, setClasses] = useState<GameClass[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -31,14 +33,14 @@ export function CodexPage() {
   }
 
   const tabs: { id: CodexTab; label: string; icon: any }[] = [
-    { id: "classes", label: "Classes", icon: Sword },
-    { id: "items", label: "Itens", icon: Package },
+    { id: "classes", label: t("classes_tab"), icon: Sword },
+    { id: "items", label: t("items_tab"), icon: Package },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-        <BookOpen size={24} className="text-amber-400" /> Codex
+        <BookOpen size={24} className="text-amber-400" /> {t("title")}
       </h1>
 
       <div className="flex gap-2">
@@ -79,7 +81,7 @@ export function CodexPage() {
               </div>
             </div>
           ))}
-          {classes.length === 0 && <p className="text-gray-500 text-sm">Nenhuma classe cadastrada ainda.</p>}
+          {classes.length === 0 && <p className="text-gray-500 text-sm">{t("no_classes")}</p>}
         </div>
       )}
 
@@ -92,10 +94,10 @@ export function CodexPage() {
                 <span className={`chip-rarity chip-rarity-${item.rarity}`}>{item.rarity}</span>
               </div>
               <p className="text-xs text-gray-400 line-clamp-3">{item.description}</p>
-              <div className="text-xs text-gray-500 mt-2">Tipo: {item.type}</div>
+              <div className="text-xs text-gray-500 mt-2">{t("type", { type: item.type })}</div>
             </div>
           ))}
-          {items.length === 0 && <p className="text-gray-500 text-sm">Nenhum item cadastrado ainda.</p>}
+          {items.length === 0 && <p className="text-gray-500 text-sm">{t("no_items")}</p>}
         </div>
       )}
     </div>

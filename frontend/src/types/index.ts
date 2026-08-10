@@ -518,9 +518,11 @@ export interface Guild {
   name: string;
   tag: string;
   level: number;
+  experience?: number;
   xp?: number;
   xpToNext?: number;
   description: string;
+  icon?: string | null;
   logo?: string;
   leaderId?: string;
   leaderName?: string;
@@ -528,8 +530,44 @@ export interface Guild {
   maxMembers?: number;
   members?: GuildMember[];
   bank?: GuildBank;
+  shop?: GuildShopItem[];
   settings?: GuildSettings;
   createdAt?: number;
+}
+
+export interface GuildShopItem {
+  id: string;
+  guildId: string;
+  itemId: string;
+  price: number;
+  isActive: boolean;
+  sortOrder: number;
+  item?: {
+    id: string;
+    name: string;
+    icon: string | null;
+    rarity: string;
+    type: string;
+    description: string;
+    level: number;
+  } | null;
+}
+
+export interface LeaderboardEntry {
+  position: number;
+  username: string;
+  displayName: string;
+  characterName: string;
+  className: string | null;
+  classSlug: string | null;
+  classIcon: string | null;
+  level: number;
+  experience: number;
+  pvpKills: number;
+  force: number;
+  gold: number;
+  diamonds: number;
+  isVip: boolean;
 }
 
 export interface GuildMember {
@@ -542,9 +580,11 @@ export interface GuildMember {
   joinedAt: number;
   lastOnline: number;
   isOnline: boolean;
+  role?: string;
+  guildRank?: number;
 }
 
-export type GuildRank = 'leader' | 'officer' | 'veteran' | 'member' | 'recruit';
+export type GuildRank = 'leader' | 'officer' | 'member';
 
 export interface GuildBank {
   gold: number;
@@ -597,6 +637,13 @@ export interface MarketListing {
 export interface ChatMessage {
   userId: string;
   username: string;
+  role?: string;
+  isVip?: boolean;
+  guildTag?: string | null;
+  guildName?: string | null;
+  guildRole?: string | null;
+  level?: number;
+  characterName?: string | null;
   channel: ChatChannel;
   message: string;
   timestamp: number;

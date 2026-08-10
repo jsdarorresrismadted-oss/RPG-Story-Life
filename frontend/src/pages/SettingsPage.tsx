@@ -3,8 +3,11 @@ import { useAuthStore } from "../store/authStore";
 import { authApi, redeemApi, adminApi } from "../services/api";
 import { Settings, User as UserIcon, Mail, Crown, Star, TrendingUp, Zap, Calendar, Ticket, Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
+import { LanguageSwitcher } from "../i18n/LanguageSwitcher";
 
 export function SettingsPage() {
+  const { t } = useTranslation("settings");
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const [displayName, setDisplayName] = useState(user?.displayName || "");
@@ -26,9 +29,9 @@ export function SettingsPage() {
       a.download = `content-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Backup exportado!");
+      toast.success(t("backup_exported"));
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Falha ao exportar");
+      toast.error(err.response?.data?.error || t("export_failed"));
     } finally {
       setAdminBusy(false);
     }
@@ -42,9 +45,9 @@ export function SettingsPage() {
       const payload = JSON.parse(await file.text());
       const { data } = await adminApi.importContent(payload);
       const total = Object.values(data.counts || {}).reduce((a: number, b: any) => a + b, 0);
-      toast.success(`Importado: ${total} registros!`);
+      toast.success(t("imported", { total }));
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Arquivo inválido");
+      toast.error(err.response?.data?.error || t("invalid_file"));
     } finally {
       setAdminBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -58,9 +61,9 @@ export function SettingsPage() {
     try {
       const { data } = await authApi.updateMe({ displayName: displayName.trim() });
       setUser(data);
-      toast.success("Configurações salvas!");
+      toast.success(t("saved"));
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Falha ao salvar configurações");
+      toast.error(err.response?.data?.error || t("save_failed"));
     } finally {
       setSaving(false);
     }
@@ -76,38 +79,38 @@ export function SettingsPage() {
         setUser({ ...user, gold: data.gold, diamonds: data.diamonds });
       }
       const classesGranted = Array.isArray(data.classes) && data.classes.length > 0
-        ? ` Classe(s) desbloqueada(s): ${data.classes.join(", ")}`
+        ? t("classes_unlocked", { classes: data.classes.join(", ") })
         : "";
       const warnings = Array.isArray(data.warnings) && data.warnings.length > 0
-        ? ` | Avisos: ${data.warnings.join(" | ")}`
+        ? t("warnings", { warnings: data.warnings.join(" | ") })
         : "";
-      toast.success(`Código resgatado! +${Number(data.gold).toLocaleString()} gold, +${data.diamonds} diamantes, +${Number(data.experience).toLocaleString()} XP${classesGranted}${warnings}`);
+      toast.success(t("code_redeemed", { gold: Number(data.gold).toLocaleString(), diamonds: data.diamonds, xp: Number(data.experience).toLocaleString(), extra: `${classesGranted}${warnings}` }));
       setCode("");
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Código inválido");
+      toast.error(err.response?.data?.error || t("invalid_code"));
     } finally {
       setRedeeming(false);
     }
   };
 
   const rows = [
-    { icon: UserIcon, label: "Nome de usuário", value: user?.username },
-    { icon: Mail, label: "Email", value: user?.email || "-" },
-    { icon: Crown, label: "Cargo", value: user?.role },
-    { icon: Star, label: "Nível", value: user?.level || 1 },
-    { icon: TrendingUp, label: "Ouro", value: (user?.gold ?? 0).toLocaleString() },
-    { icon: Zap, label: "Diamantes", value: user?.diamonds || 0 },
-    { icon: Calendar, label: "Membro desde", value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-" },
+    { icon: UserIcon, label: t("username"), value: user?.username },
+    { icon: Mail, label: t("email"), value: user?.email || "-" },
+    { icon: Crown, label: t("role"), value: user?.role },
+    { icon: Star, label: t("level"), value: user?.level || 1 },
+    { icon: TrendingUp, label: t("gold"), value: (user?.gold ?? 0).toLocaleString() },
+    { icon: Zap, label: t("diamonds"), value: user?.diamonds || 0 },
+    { icon: Calendar, label: t("member_since"), value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-" },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-        <Settings size={24} className="text-purple-400" /> Configurações
+        <Settings size={24} className="text-purple-400" /> {t("title")}
       </h1>
 
       <div className="panel p-4 space-y-4">
-        <h2 className="font-display font-semibold">Conta</h2>
+        <h2 className="font-display font-semibold">{t("account")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {rows.map((row) => (
             <div key={row.label} className="flex items-center gap-3 bg-dark-800 border border-dark-600 rounded-lg px-3 py-2.5">
@@ -122,7 +125,7 @@ export function SettingsPage() {
       </div>
 
       <form onSubmit={handleSave} className="panel p-4 space-y-3">
-        <h2 className="font-display font-semibold">Nome de exibição</h2>
+        <h2 className="font-display font-semibold">{t("display_name")}</h2>
         <div className="flex gap-3">
           <input
             value={displayName}
@@ -132,46 +135,51 @@ export function SettingsPage() {
             required
           />
           <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? "Salvando..." : "Salvar"}
+            {saving ? t("saving") : t("save")}
           </button>
         </div>
-        <p className="text-xs text-gray-500">O nome mostrado no jogo. Máximo de 30 caracteres.</p>
+        <p className="text-xs text-gray-500">{t("display_name_hint")}</p>
       </form>
+
+      <div className="panel p-4 space-y-3">
+        <h2 className="font-display font-semibold">{t("language")}</h2>
+        <LanguageSwitcher />
+      </div>
 
       <form onSubmit={handleRedeem} className="panel p-4 space-y-3">
         <h2 className="font-display font-semibold flex items-center gap-2">
-          <Ticket size={16} className="text-yellow-400" /> Resgatar código
+          <Ticket size={16} className="text-yellow-400" /> {t("redeem_code")}
         </h2>
         <div className="flex gap-3">
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             className="input-rpg flex-1 font-mono uppercase"
-            placeholder="EX: BEMVINDO"
+            placeholder={t("redeem_placeholder")}
             maxLength={30}
             required
           />
           <button type="submit" disabled={redeeming} className="btn-primary">
-            {redeeming ? "Resgatando..." : "Resgatar"}
+            {redeeming ? t("redeeming") : t("redeem")}
           </button>
         </div>
-        <p className="text-xs text-gray-500">Códigos dão gold, diamantes, XP e itens. Cada código pode ser usado uma vez.</p>
+        <p className="text-xs text-gray-500">{t("redeem_hint")}</p>
       </form>
 
       {isAdmin && (
         <div className="panel p-4 space-y-3">
           <h2 className="font-display font-semibold flex items-center gap-2">
-            <Crown size={16} className="text-yellow-400" /> Admin — backup de conteúdo
+            <Crown size={16} className="text-yellow-400" /> {t("admin_backup")}
           </h2>
           <p className="text-xs text-gray-500">
-            Exporta ou restaura todas as tabelas de conteúdo (classes, itens, monstros, mapas, quests, skills, efeitos, NPCs e drops).
+            {t("admin_backup_hint")}
           </p>
           <div className="flex gap-3 flex-wrap">
             <button onClick={handleExport} disabled={adminBusy} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
-              <Download size={14} /> {adminBusy ? "Processando..." : "Exportar backup"}
+              <Download size={14} /> {adminBusy ? t("processing", { ns: "common" }) : t("export_backup")}
             </button>
             <button onClick={() => fileRef.current?.click()} disabled={adminBusy} className="btn-secondary flex items-center gap-1.5 disabled:opacity-50">
-              <Upload size={14} /> Importar backup
+              <Upload size={14} /> {t("import_backup")}
             </button>
             <input ref={fileRef} type="file" accept="application/json" onChange={handleImportFile} className="hidden" />
           </div>

@@ -440,6 +440,7 @@ model Item {
   equippedAsRing      Equipment?      @relation("EquippedRing")
   equippedAsNecklace  Equipment?      @relation("EquippedNecklace")
   shopProducts        ShopProduct[]
+  guildShop           GuildShopItem[]
 
   @@index([type])
   @@index([rarity])
@@ -805,6 +806,7 @@ model Guild {
   perks       GuildPerk[]
   quests      GuildQuest[]
   rank        GuildRanking?
+  shop        GuildShopItem[]
 
   @@index([name])
   @@index([tag])
@@ -815,9 +817,10 @@ model GuildMember {
   id           String   @id @default(uuid())
   guildId      String
   userId       String
-  role         String   @default("member")
+  role         String   @default("member") // leader | officer | member
+  rank         Int      @default(1) // nível do membro dentro da guilda
+  contribution BigInt   @default(0) // pontos de contribuição (usados no shop da guilda)
   joinedAt     DateTime @default(now())
-  contribution BigInt   @default(0)
   guild        Guild    @relation(fields: [guildId], references: [id])
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -833,6 +836,20 @@ model GuildBank {
   items     String?
   updatedAt DateTime @updatedAt
   guild     Guild    @relation(fields: [guildId], references: [id])
+
+  @@index([guildId])
+}
+
+model GuildShopItem {
+  id        String   @id @default(uuid())
+  guildId   String
+  itemId    String
+  price     BigInt   @default(0) // custo em pontos de contribuição
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id])
+  item      Item     @relation(fields: [itemId], references: [id])
 
   @@index([guildId])
 }

@@ -95,12 +95,23 @@ export const questsApi = {
 
 export const guildApi = {
   list: () => api.get("/guilds"),
+  rankings: () => api.get("/guilds/rankings"),
   requirements: () => api.get("/guilds/requirements"),
+  get: (id: string) => api.get(`/guilds/${id}`),
   create: (data: { name: string; tag: string; description: string }) =>
     api.post("/guilds", data),
   join: (id: string) => api.post(`/guilds/${id}/join`),
   leave: (id: string) => api.delete(`/guilds/${id}/leave`),
   mine: () => api.get("/user/guild"),
+  promote: (id: string, userId: string) => api.post(`/guilds/${id}/promote`, { userId }),
+  demote: (id: string, userId: string) => api.post(`/guilds/${id}/demote`, { userId }),
+  kick: (id: string, userId: string) => api.delete(`/guilds/${id}/members/${userId}`),
+  deposit: (id: string, amount: number) => api.post(`/guilds/${id}/deposit`, { amount }),
+  rankUpMember: (id: string, userId: string) => api.post(`/guilds/${id}/members/${userId}/rank-up`),
+  shop: (id: string) => api.get(`/guilds/${id}/shop`),
+  addShopItem: (id: string, data: { itemId: string; price: number }) => api.post(`/guilds/${id}/shop`, data),
+  removeShopItem: (id: string, shopItemId: string) => api.delete(`/guilds/${id}/shop/${shopItemId}`),
+  buyShopItem: (id: string, shopItemId: string) => api.post(`/guilds/${id}/shop/${shopItemId}/buy`),
 };
 
 export const marketApi = {
