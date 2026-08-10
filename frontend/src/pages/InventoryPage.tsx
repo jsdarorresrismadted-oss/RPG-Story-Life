@@ -361,7 +361,7 @@ export function InventoryPage() {
                 "from-dark-600 to-dark-500"
               } flex items-center justify-center`}>
                 {inv.item.icon ? (
-                  <img src={inv.item.icon} alt="" className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
+                  <EntityIcon src={inv.item.icon} className="text-white/80" imgClassName="w-full h-full object-contain" />
                 ) : (
                   <Star size={22} className="text-white/80" />
                 )}
@@ -413,7 +413,7 @@ export function InventoryPage() {
                 "from-dark-600 to-dark-500"
               } flex items-center justify-center`}>
                 {selectedItem.item.icon ? (
-                  <img src={selectedItem.item.icon} alt="" className="w-full h-full object-contain p-0.5" style={{ imageRendering: "pixelated" }} />
+                  <EntityIcon src={selectedItem.item.icon} className="text-white/80" imgClassName="w-full h-full object-contain p-0.5" />
                 ) : (
                   <Star size={32} className="text-white/80" />
                 )}

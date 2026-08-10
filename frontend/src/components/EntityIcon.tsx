@@ -13,18 +13,22 @@ function isImagePath(value: string): boolean {
   return value.startsWith("/") || value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:");
 }
 
+import { useState } from "react";
+
 export function EntityIcon({ src, size = 16, className, imgClassName, alt }: EntityIconProps) {
-  if (src && isImagePath(src)) {
+  const [failed, setFailed] = useState(false);
+  if (src && isImagePath(src) && !failed) {
     return (
       <img
         src={src}
         alt={alt || ""}
         className={imgClassName}
         style={{ imageRendering: "pixelated" }}
+        onError={() => setFailed(true)}
       />
     );
   }
-  const Icon = (src && (LucideIcons as Record<string, any>)[src]) || HelpCircle;
+  const Icon = (src && !failed && (LucideIcons as Record<string, any>)[src]) || HelpCircle;
   const Comp = Icon as any;
   return <Comp size={size} className={className} />;
 }

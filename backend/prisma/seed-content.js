@@ -1427,5 +1427,7 @@ if (require.main === module) {
     craftRecipes,
     generatedIcons,
     iconForItem,
+    classSkills,
+    effects,
   };
 }

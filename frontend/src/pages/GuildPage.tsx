@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { guildApi, itemsApi } from "../services/api";
 import { Guild, GuildShopItem, Item } from "../types";
 import { Users, Shield, Plus, LogOut, Trophy, Star, Coins, Crown, ChevronUp, ChevronDown, Trash2, ShoppingCart, Gem } from "lucide-react";
+import { EntityIcon } from "../components/EntityIcon";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
 import { getSocket } from "../services/socket";
@@ -390,7 +391,7 @@ export function GuildPage() {
             {guild.shop?.map((s) => (
               <div key={s.id} className="card p-3 flex flex-col gap-2">
                 <div className="flex items-start gap-2">
-                  <div className="w-10 h-10 bg-dark-800 rounded-lg flex items-center justify-center text-xl">{s.item?.icon ? <img src={s.item.icon} alt="" className="w-8 h-8 object-contain" /> : "🎁"}</div>
+                  <div className="w-10 h-10 bg-dark-800 rounded-lg flex items-center justify-center text-xl">{s.item?.icon ? <EntityIcon src={s.item.icon} className="text-white" imgClassName="w-8 h-8 object-contain" /> : "🎁"}</div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{s.item?.name}</p>
                     <p className="text-xs text-gray-500">Nível {s.item?.level} • {s.item?.type}</p>

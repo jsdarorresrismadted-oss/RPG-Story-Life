@@ -1,4 +1,5 @@
 import { Sword, Crown, HardHat, Shield, Wind, Gem, Link2 } from "lucide-react";
+import { EntityIcon } from "./EntityIcon";
 
 interface PreviewItem {
   item: { name: string; icon?: string | null; rarity?: string; type?: string };
@@ -69,7 +70,7 @@ export default function CharacterPreview<T extends PreviewItem>({
           inv ? "bg-gradient-to-br from-purple-600 to-blue-600" : "bg-dark-800/60"
         }`}>
           {inv?.item?.icon ? (
-            <img src={inv.item.icon} alt="" className="w-full h-full object-contain p-0.5" style={{ imageRendering: "pixelated" }} />
+            <EntityIcon src={inv.item.icon} className="text-white" imgClassName="w-full h-full object-contain p-0.5" />
           ) : (
             <Icon size={16} className={inv ? "text-white" : SLOT_ICON_COLOR[slot] ?? "text-gray-600"} />
           )}

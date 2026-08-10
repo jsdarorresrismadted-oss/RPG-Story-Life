@@ -1,8 +1,6 @@
 node_modules/
 dist/
 .env
-Icons/
-frontend/public/icons/
 *.log
 .DS_Store
 .vscode/
