@@ -192,6 +192,12 @@ export const adminApi = {
     update: (id: string, data: any) => api.put(`/admin/boosters/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/boosters/${id}`, { params }),
   },
+  craftRecipes: {
+    list: () => api.get("/admin/craft-recipes"),
+    create: (data: any) => api.post("/admin/craft-recipes", data),
+    update: (id: string, data: any) => api.put(`/admin/craft-recipes/${id}`, data),
+    delete: (id: string, params?: any) => api.delete(`/admin/craft-recipes/${id}`, { params }),
+  },
   gachaConfig: {
     get: () => api.get("/admin/gacha-config"),
     update: (data: any) => api.put("/admin/gacha-config", data),
