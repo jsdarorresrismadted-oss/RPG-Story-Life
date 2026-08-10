@@ -129,6 +129,31 @@ class Canvas {
     this.fillPolygon([[cx, cy - ry], [cx + rx, cy], [cx, cy + ry], [cx - rx, cy]], c);
   }
 
+  fillPolygonDithered(pts: [number, number][], a: RGB, b: RGB, rng: () => number): void {
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const minX = Math.floor(Math.min(...xs));
+    const maxX = Math.ceil(Math.max(...xs));
+    const minY = Math.floor(Math.min(...ys));
+    const maxY = Math.ceil(Math.max(...ys));
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (!pointInPolygon(x, y, pts)) continue;
+        this.setPx(x, y, rng() < 0.5 ? a : b);
+      }
+    }
+  }
+
+  fillFacetedGem(cx: number, cy: number, rx: number, ry: number, col: RGB): void {
+    const bright = lighten(col, 0.5);
+    const dark = darken(col, 0.4);
+    this.fillDiamond(cx, cy, rx, ry, col);
+    this.fillPolygon([[cx, cy - ry], [cx + rx * 0.6, cy - ry * 0.25], [cx, cy], [cx - rx * 0.6, cy - ry * 0.25]], bright);
+    this.fillPolygon([[cx, cy], [cx + rx * 0.5, cy], [cx + rx * 0.2, cy + ry * 0.6], [cx - rx * 0.15, cy + ry * 0.75]], dark);
+    this.setPx(cx - rx * 0.2, cy - ry * 0.5, lighten(col, 0.85));
+    this.setPx(cx, cy - ry * 0.7, lighten(col, 0.7));
+  }
+
   fillTriangle(a: [number, number], b: [number, number], cc: [number, number], c: RGB): void {
     this.fillPolygon([a, b, cc], c);
   }
@@ -426,19 +451,25 @@ function drawSword(c: Canvas, p: Palette, rng: () => number, input?: ItemIconInp
   if (v < 0.4) {
     c.fillGradientPolygon([[24, 8], [34, 18], [30, 44], [24, 44]], gradient, [24, 8], [30, 44]);
     c.fillGradientPolygon([[24, 8], [34, 18], [32, 20], [26, 10]], gradient, [24, 8], [30, 44]);
+    c.fillPolygon([[25, 12], [28, 15], [26, 18], [24, 15]], p.light);
   } else {
     c.fillGradientPolygon([[26, 8], [36, 20], [31, 44], [25, 44]], gradient, [26, 8], [31, 44]);
     c.fillGradientPolygon([[26, 8], [36, 20], [34, 22], [28, 10]], gradient, [26, 8], [31, 44]);
+    c.fillPolygon([[27, 12], [30, 15], [28, 18], [26, 15]], p.light);
   }
-  c.fillPolygon([[18, 34], [44, 30], [44, 34], [18, 38]], p.metal);
-  c.fillPolygon([[22, 30], [26, 29], [24, 35], [20, 36]], p.metal);
-  c.fillPolygon([[40, 29], [44, 28], [44, 34], [40, 33]], p.metal);
-  c.fillPolygon([[24, 38], [28, 37], [27, 46], [23, 47]], p.dark);
+  const guard = darken(p.metal, 0.35);
+  c.fillPolygon([[18, 34], [44, 30], [44, 34], [18, 38]], guard);
+  c.fillPolygon([[22, 30], [26, 29], [24, 35], [20, 36]], guard);
+  c.fillPolygon([[40, 29], [44, 28], [44, 34], [40, 33]], guard);
+  c.fillCircle(20, 36, 1, p.light);
+  c.fillCircle(42, 31, 1, p.light);
+  c.fillPolygon([[24, 38], [28, 37], [27, 46], [23, 47]], p.wood);
+  c.line(23, 40, 27, 40, 1, GOLD);
+  c.line(24, 44, 27, 44, 1, GOLD);
   c.fillPolygon([[23, 47], [27, 46], [28, 53], [22, 54]], p.dark);
-  c.fillCircle(25, 55, 2.6, p.gem);
-  c.fillCircle(24, 54, 1.2, p.light);
-  c.fillCircle(20, 36, 2, p.gem);
-  c.fillCircle(42, 31, 2, p.gem);
+  c.fillFacetedGem(25, 55, 2.6, 2.6, p.gem);
+  c.fillFacetedGem(20, 36, 1.6, 1.6, p.gem);
+  c.fillFacetedGem(42, 31, 1.6, 1.6, p.gem);
   c.fillDiamond(26, 18, 1.6, 2.4, p.light);
 }
 
@@ -463,18 +494,25 @@ function drawDagger(c: Canvas, p: Palette, rng: () => number): void {
 
 function drawStaff(c: Canvas, p: Palette, rng: () => number): void {
   const v = rng();
+  const wood = p.wood;
+  const woodDark = darken(wood, 0.3);
   if (v < 0.5) {
-    c.fillCircle(32, 11, 5.5, p.gem);
-    c.fillCircle(31, 10, 2.5, p.light);
+    c.fillFacetedGem(32, 11, 5.5, 5.5, p.gem);
+    c.fillCircle(30, 9, 1.8, lighten(p.gem, 0.75));
     c.fillPolygon([[27, 19], [37, 19], [37, 26], [27, 26]], p.metal);
-    c.fillPolygon([[30, 24], [34, 24], [34, 56], [30, 56]], p.wood);
+    c.fillPolygon([[30, 24], [34, 24], [34, 56], [30, 56]], wood);
+    c.line(32, 26, 32, 55, 1, woodDark);
+    c.fillPolygon([[28, 40], [36, 40], [36, 44], [28, 44]], p.metal);
+    c.fillPolygon([[28, 44], [36, 44], [36, 47], [28, 47]], woodDark);
     c.fillPolygon([[30, 56], [34, 56], [32, 61]], p.metal);
     c.fillPolygon([[28, 19], [32, 19], [30, 23], [26, 23]], p.light);
   } else {
-    c.fillDiamond(32, 12, 5, 7, p.gem);
-    c.fillDiamond(31, 11, 2.5, 3.5, p.light);
-    c.fillPolygon([[30, 21], [34, 21], [34, 56], [30, 56]], p.wood);
+    c.fillFacetedGem(32, 12, 5, 7, p.gem);
+    c.fillDiamond(29, 9, 2, 2.5, lighten(p.gem, 0.75));
+    c.fillPolygon([[30, 21], [34, 21], [34, 56], [30, 56]], wood);
+    c.line(32, 23, 32, 54, 1, woodDark);
     c.fillCircle(32, 24, 2, p.metal);
+    c.fillPolygon([[28, 36], [36, 36], [36, 40], [28, 40]], p.metal);
     c.fillCircle(32, 52, 2, p.metal);
     c.fillPolygon([[30, 56], [34, 56], [32, 61]], p.metal);
   }
@@ -482,36 +520,65 @@ function drawStaff(c: Canvas, p: Palette, rng: () => number): void {
 
 function drawAxe(c: Canvas, p: Palette, rng: () => number): void {
   const v = rng();
+  const wood = p.wood;
+  const woodDark = darken(wood, 0.3);
   if (v < 0.5) {
-    c.line(18, 58, 44, 22, 4, p.wood);
+    c.line(18, 58, 44, 22, 4, wood);
     c.line(19, 57, 43, 23, 1.6, p.light);
+    c.line(25, 51, 36, 40, 1, woodDark);
     c.fillPolygon([[28, 8], [50, 18], [54, 28], [46, 32], [38, 30], [32, 24], [30, 14]], p.metal);
     c.fillPolygon([[30, 14], [32, 24], [38, 30], [40, 26], [36, 18]], p.light);
-    c.fillCircle(46, 10, 2.4, p.gem);
+    c.fillPolygon([[46, 10], [52, 18], [50, 14]], p.light);
+    c.fillFacetedGem(46, 10, 2.4, 2.4, p.gem);
+    c.fillCircle(38, 20, 1, p.dark);
   } else {
-    c.line(24, 58, 40, 18, 4, p.wood);
+    c.line(24, 58, 40, 18, 4, wood);
+    c.line(30, 50, 35, 30, 1, woodDark);
     c.fillPolygon([[20, 12], [36, 8], [52, 16], [54, 24], [46, 28], [38, 24], [32, 18]], p.metal);
     c.fillPolygon([[22, 12], [28, 10], [34, 16], [38, 22], [32, 18], [26, 16]], p.light);
-    c.fillCircle(28, 16, 2.4, p.gem);
+    c.fillFacetedGem(28, 16, 2.4, 2.4, p.gem);
+    c.fillCircle(38, 16, 1, p.dark);
   }
 }
 
+function drawHammer(c: Canvas, p: Palette, rng: () => number): void {
+  const wood = p.wood;
+  const woodDark = darken(wood, 0.3);
+  c.line(27, 58, 34, 22, 4, wood);
+  c.line(28, 52, 33, 28, 1, woodDark);
+  c.fillPolygon([[18, 6], [34, 4], [46, 8], [50, 16], [44, 20], [38, 16], [36, 14], [34, 18], [20, 16], [14, 12]], p.metal);
+  c.fillPolygon([[20, 6], [30, 5], [32, 12], [24, 13]], p.light);
+  c.fillPolygon([[38, 16], [44, 20], [42, 14]], p.light);
+  c.fillCircle(34, 11, 2.4, p.gem);
+  c.fillCircle(18, 14, 1.4, p.dark);
+  c.fillCircle(47, 12, 1.4, p.dark);
+}
+
 function drawTome(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillPolygon([[15, 9], [49, 9], [49, 36], [15, 36]], p.base);
-  c.fillPolygon([[28, 9], [36, 9], [36, 36], [28, 36]], p.dark);
-  c.fillPolygon([[16, 11], [26, 11], [26, 34], [16, 34]], p.light);
-  c.fillPolygon([[38, 11], [48, 11], [48, 34], [38, 34]], p.light);
-  c.fillPolygon([[13, 36], [51, 36], [51, 43], [13, 43]], p.dark);
-  c.fillPolygon([[28, 36], [36, 36], [32, 46]], p.accent);
-  if (rng() < 0.5) c.fillDiamond(32, 22, 3, 4, p.gem);
-  else c.fillCircle(32, 22, 3, p.gem);
+  const page = lighten(p.base, 0.65);
+  const pageDark = darken(page, 0.25);
+  c.fillPolygon([[13, 8], [51, 8], [51, 37], [13, 37]], p.base);
+  c.fillPolygon([[15, 10], [26, 10], [26, 35], [15, 35]], page);
+  c.fillPolygon([[38, 10], [49, 10], [49, 35], [38, 35]], page);
+  c.line(17, 14, 24, 14, 1, pageDark);
+  c.line(17, 18, 24, 18, 1, pageDark);
+  c.line(17, 22, 24, 22, 1, pageDark);
+  c.line(40, 14, 47, 14, 1, pageDark);
+  c.line(40, 18, 47, 18, 1, pageDark);
+  c.line(40, 22, 47, 22, 1, pageDark);
+  c.fillPolygon([[28, 8], [36, 8], [36, 37], [28, 37]], p.dark);
+  c.fillPolygon([[28, 8], [36, 8], [32, 37]], darken(p.base, 0.2));
+  c.fillPolygon([[13, 37], [51, 37], [51, 44], [13, 44]], p.dark);
+  c.fillPolygon([[28, 37], [36, 37], [32, 46]], p.accent);
+  c.fillFacetedGem(32, 23, 3, 3.5, p.gem);
 }
 
 function drawBow(c: Canvas, p: Palette, rng: () => number): void {
   c.arc(32, 34, 20, 20, 200, 340, 5, p.wood);
   c.arc(32, 34, 20, 20, 205, 335, 1.6, p.light);
+  c.arc(32, 34, 20, 20, 210, 330, 1, darken(p.wood, 0.3));
   c.line(15, 28, 49, 28, 1.2, p.light);
-  if (rng() < 0.6) c.fillCircle(32, 28, 1.6, p.gem);
+  if (rng() < 0.6) c.fillFacetedGem(32, 28, 1.8, 1.8, p.gem);
 }
 
 function drawCap(c: Canvas, p: Palette, rng: () => number): void {
@@ -526,22 +593,36 @@ function drawHelmet(c: Canvas, p: Palette, rng: () => number): void {
   c.fillEllipse(32, 32, 19, 20, p.base);
   c.fillEllipse(27, 24, 9, 8, p.light);
   c.fillPolygon([[24, 36], [40, 36], [38, 47], [26, 47]], p.outline);
-  c.fillPolygon([[26, 38], [38, 38], [37, 44], [27, 44]], p.dark);
+  c.fillPolygon([[26, 38], [38, 38], [37, 44], [27, 44]], darken(p.dark, 0.5));
+  c.fillCircle(31, 41, 0.8, p.light);
   c.fillCircle(15, 40, 2, p.metal);
   c.fillCircle(49, 40, 2, p.metal);
+  c.fillCircle(15, 40, 0.8, p.light);
+  c.fillCircle(49, 40, 0.8, p.light);
+  c.fillPolygon([[32, 13], [36, 20], [34, 26], [30, 26], [28, 20]], p.light);
   if (rng() < 0.5) c.fillPolygon([[30, 11], [34, 11], [36, 22], [30, 22]], p.accent);
+  else c.fillDiamond(32, 18, 2, 3, p.gem);
 }
 
 function drawCrown(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillTriangle([32, 6], [25, 20], [39, 20], p.base);
-  c.fillTriangle([14, 10], [9, 20], [21, 20], p.base);
-  c.fillTriangle([50, 10], [43, 20], [55, 20], p.base);
-  c.fillPolygon([[9, 20], [55, 20], [55, 33], [9, 33]], p.base);
-  c.fillPolygon([[9, 20], [55, 20], [55, 24], [9, 24]], p.dark);
-  c.fillCircle(32, 9, 2.2, p.gem);
-  c.fillCircle(14, 13, 1.8, p.gem);
-  c.fillCircle(50, 13, 1.8, p.gem);
+  const gold = p.base;
+  const goldLight = lighten(gold, 0.4);
+  const goldDark = darken(gold, 0.35);
+  c.fillTriangle([32, 6], [25, 20], [39, 20], gold);
+  c.fillTriangle([14, 10], [9, 20], [21, 20], gold);
+  c.fillTriangle([50, 10], [43, 20], [55, 20], gold);
+  c.fillTriangle([32, 6], [25, 20], [30, 20], goldLight);
+  c.fillTriangle([14, 10], [9, 20], [12, 20], goldLight);
+  c.fillTriangle([50, 10], [43, 20], [52, 20], goldLight);
+  c.fillPolygon([[9, 20], [55, 20], [55, 33], [9, 33]], gold);
+  c.fillPolygon([[9, 20], [55, 20], [55, 24], [9, 24]], goldDark);
+  c.fillPolygon([[9, 28], [12, 28], [12, 33], [9, 33]], goldDark);
+  c.fillPolygon([[52, 28], [55, 28], [55, 33], [52, 33]], goldDark);
+  c.fillFacetedGem(32, 9, 2.2, 2.2, p.gem);
+  c.fillFacetedGem(14, 13, 1.8, 1.8, p.gem);
+  c.fillFacetedGem(50, 13, 1.8, 1.8, p.gem);
   c.fillCircle(32, 27, 2.6, p.accent);
+  c.fillCircle(31, 26, 1, p.light);
 }
 
 function drawHood(c: Canvas, p: Palette, rng: () => number): void {
@@ -552,31 +633,41 @@ function drawHood(c: Canvas, p: Palette, rng: () => number): void {
 }
 
 function drawLightArmor(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillPolygon([[20, 20], [44, 20], [48, 44], [40, 58], [24, 58], [16, 44]], p.base);
+  const base = p.base;
+  const alt = mix(base, p.dark, 0.45);
+  c.fillPolygonDithered([[20, 20], [44, 20], [48, 44], [40, 58], [24, 58], [16, 44]], base, alt, rng);
   c.fillPolygon([[14, 20], [26, 20], [24, 32], [12, 30]], p.dark);
   c.fillPolygon([[38, 20], [50, 20], [52, 30], [40, 32]], p.dark);
   c.fillPolygon([[26, 22], [38, 22], [36, 27], [28, 27]], p.light);
   c.fillPolygon([[22, 46], [42, 46], [42, 52], [22, 52]], p.accent);
+  c.line(22, 34, 42, 34, 1, darken(base, 0.3));
   if (rng() < 0.5) c.fillDiamond(32, 49, 3, 3, p.metal);
-  else c.fillCircle(32, 49, 2.6, p.gem);
+  else c.fillFacetedGem(32, 49, 2.6, 2.6, p.gem);
 }
 
 function drawHeavyArmor(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillPolygon([[20, 18], [44, 18], [50, 46], [40, 60], [24, 60], [14, 46]], p.base);
+  const base = p.base;
+  c.fillPolygon([[20, 18], [44, 18], [50, 46], [40, 60], [24, 60], [14, 46]], base);
+  c.fillPolygon([[24, 22], [40, 22], [40, 28], [24, 28]], p.light);
+  c.fillPolygon([[20, 42], [44, 42], [44, 48], [20, 48]], p.dark);
   c.fillCircle(16, 22, 8, p.dark);
   c.fillCircle(48, 22, 8, p.dark);
   c.fillCircle(16, 22, 5, p.metal);
   c.fillCircle(48, 22, 5, p.metal);
+  c.fillCircle(15, 21, 1.5, p.light);
+  c.fillCircle(47, 21, 1.5, p.light);
   c.fillPolygon([[28, 22], [36, 22], [36, 28], [28, 28]], p.light);
-  if (rng() < 0.5) c.fillDiamond(32, 36, 6, 7, p.gem);
-  else c.fillCircle(32, 36, 4, p.gem);
+  if (rng() < 0.5) c.fillFacetedGem(32, 36, 6, 7, p.gem);
+  else c.fillFacetedGem(32, 36, 4, 4, p.gem);
   c.fillCircle(26, 24, 1.5, p.metal);
   c.fillCircle(38, 24, 1.5, p.metal);
   c.fillPolygon([[20, 48], [44, 48], [44, 54], [20, 54]], p.accent);
 }
 
 function drawRobe(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillPolygon([[22, 16], [42, 16], [52, 30], [48, 60], [16, 60], [12, 30]], p.base);
+  const base = p.base;
+  const alt = mix(base, p.dark, 0.5);
+  c.fillPolygonDithered([[22, 16], [42, 16], [52, 30], [48, 60], [16, 60], [12, 30]], base, alt, rng);
   c.fillPolygon([[24, 18], [40, 18], [32, 30]], p.outline);
   c.fillPolygon([[26, 20], [38, 20], [32, 28]], p.dark);
   c.fillPolygon([[24, 20], [42, 20], [40, 26], [26, 26]], p.light);
@@ -586,18 +677,20 @@ function drawRobe(c: Canvas, p: Palette, rng: () => number): void {
 }
 
 function drawCape(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillPolygon([[26, 10], [38, 10], [44, 22], [52, 34], [56, 54], [44, 60], [20, 60], [8, 54], [12, 34], [20, 22]], p.base);
-  c.fillPolygon([[28, 14], [36, 14], [30, 32], [34, 48], [30, 58], [26, 58], [22, 46], [26, 30]], p.dark);
+  const base = p.base;
+  const alt = mix(base, p.dark, 0.5);
+  c.fillPolygonDithered([[26, 10], [38, 10], [44, 22], [52, 34], [56, 54], [44, 60], [20, 60], [8, 54], [12, 34], [20, 22]], base, alt, rng);
+  c.fillPolygon([[28, 14], [36, 14], [30, 32], [34, 48], [30, 58], [26, 58], [22, 46], [26, 30]], darken(base, 0.3));
   c.fillPolygon([[27, 12], [37, 12], [37, 15], [27, 15]], p.light);
+  c.fillPolygon([[24, 52], [30, 52], [28, 56], [22, 56]], darken(base, 0.2));
+  c.fillPolygon([[34, 50], [40, 50], [38, 56], [32, 56]], darken(base, 0.2));
   if (rng() < 0.5) c.fillCircle(32, 12, 3, p.metal);
-  else c.fillCircle(32, 12, 2.4, p.gem);
+  else c.fillFacetedGem(32, 12, 2.4, 2.4, p.gem);
 }
 
 function drawGenericGem(c: Canvas, p: Palette): void {
-  c.fillPolygon([[32, 10], [52, 32], [32, 54], [12, 32]], p.base);
-  c.fillPolygon([[32, 10], [52, 32], [32, 32], [32, 10]], p.light);
-  c.fillPolygon([[32, 32], [52, 32], [32, 54]], p.dark);
-  c.fillDiamond(32, 32, 3, 3, p.gem);
+  c.fillFacetedGem(32, 32, 20, 22, p.base);
+  c.fillFacetedGem(32, 32, 3, 3, p.gem);
 }
 
 function detectElement(input: ItemIconInput): string | null {
@@ -678,9 +771,10 @@ function drawItem(c: Canvas, input: ItemIconInput, p: Palette, rng: () => number
     else if (subtype === "axe" || subtype === "machado") drawAxe(c, p, rng);
     else if (subtype === "tome" || subtype === "grimorio") drawTome(c, p, rng);
     else if (subtype === "bow" || subtype === "arco") drawBow(c, p, rng);
+    else if (subtype === "hammer" || subtype === "martelo" || subtype === "mace" || subtype === "maca") drawHammer(c, p, rng);
     else if (swordLike) drawSword(c, p, rng, input);
     else {
-      const shapes: ((c: Canvas, p: Palette, rng: () => number) => void)[] = [drawAxe, drawStaff, drawTome, drawDagger];
+      const shapes: ((c: Canvas, p: Palette, rng: () => number) => void)[] = [drawAxe, drawStaff, drawTome, drawDagger, drawHammer];
       shapes[Math.floor(rng() * shapes.length)](c, p, rng);
     }
     applyElement(c, p, input, rng);
@@ -885,6 +979,49 @@ function dungeonBackdrop(p: Palette, rng: () => number): (x: number, y: number) 
   };
 }
 
+// Fundo temático: madeira/pergaminho envelhecido para armas, pedra rústica para armaduras.
+function woodenBackdrop(p: Palette, rng: () => number): (x: number, y: number) => RGB | null {
+  const frame = 4;
+  const plankBase: RGB = [74, 58, 44];
+  const plankLight = lighten(plankBase, 0.14);
+  const plankDark = darken(plankBase, 0.25);
+  const grain: RGB = darken(plankBase, 0.35);
+  const mortar: RGB = [30, 26, 30];
+
+  const runeSpots: [number, number, number][] = [];
+  const runeCount = 3 + Math.floor(rng() * 3);
+  for (let i = 0; i < runeCount; i++) {
+    runeSpots.push([frame + Math.floor(rng() * (SIZE - frame * 2)), frame + Math.floor(rng() * (SIZE - frame * 2)), Math.floor(rng() * 2)]);
+  }
+  const isFrame = (x: number, y: number): boolean => x < frame || y < frame || x >= SIZE - frame || y >= SIZE - frame;
+  return (x: number, y: number): RGB | null => {
+    if (isFrame(x, y)) {
+      const onCorner = (x < 2 || x >= SIZE - 2) && (y < 2 || y >= SIZE - 2);
+      if (onCorner) return plankDark;
+      const nearOuter = x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1;
+      return nearOuter ? darken(plankDark, 0.3) : plankBase;
+    }
+    for (const [rx, ry, kind] of runeSpots) {
+      if (kind === 0 && Math.abs(x - rx) <= 1 && Math.abs(y - ry) <= 1) return p.gem;
+      if (kind === 1 && Math.abs(x - rx) <= 2 && y === ry) return p.gem;
+    }
+    const plank = Math.floor(y / 9);
+    const offset = plank % 2 === 0 ? 0 : 5;
+    const edge = (x - offset) % 14 === 0;
+    if (edge) return mortar;
+    const vein = (x + plank * 3) % 11 < 2;
+    return vein ? grain : plankBase;
+  };
+}
+
+function itemBackdrop(p: Palette, rng: () => number, input: ItemIconInput): (x: number, y: number) => RGB | null {
+  const type = String(input.type || "").toLowerCase();
+  const subtype = String(input.subtype || "").toLowerCase();
+  const weaponLike = type === "weapon" || subtype === "weapon" || ["sword", "espada", "axe", "machado", "staff", "cajado", "bow", "arco", "tome", "grimorio", "dagger", "adaga", "hammer", "martelo", "mace", "maca"].includes(subtype);
+  if (weaponLike) return woodenBackdrop(p, rng);
+  return dungeonBackdrop(p, rng);
+}
+
 async function encode(buf: Buffer): Promise<Buffer> {
   return sharp(buf, { raw: { width: SIZE, height: SIZE, channels: 4 } }).png().toBuffer();
 }
@@ -897,7 +1034,7 @@ export async function renderItemIcon(input: ItemIconInput): Promise<Buffer> {
   drawItem(canvas, input, pal, rng);
   canvas.applyShading(pal.light, pal.dark);
   canvas.applyOutline(pal.outline);
-  canvas.paintBackground(dungeonBackdrop(pal, rng));
+  canvas.paintBackground(itemBackdrop(pal, rng, input));
   drawMagicDust(canvas, input.rarity, rng);
   return encode(canvas.buf);
 }
