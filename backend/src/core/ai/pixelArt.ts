@@ -204,6 +204,18 @@ class Canvas {
       this.setPx(rng() * SIZE, rng() * SIZE, c);
     }
   }
+
+  paintBackground(fn: (x: number, y: number) => RGB | null): void {
+    const src = Buffer.from(this.buf);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const i = (y * SIZE + x) * 4;
+        if (src[i + 3] > 0) continue;
+        const col = fn(x, y);
+        if (col) this.setPx(x, y, col);
+      }
+    }
+  }
 }
 
 interface Palette {
@@ -761,6 +773,52 @@ function sparkleCount(rarity?: string): number {
   return 0;
 }
 
+// Fundo de masmorra: pedras escuras + moldura rústica com runas e brilho da raridade.
+function dungeonBackdrop(p: Palette, rng: () => number): (x: number, y: number) => RGB | null {
+  const frame = 4;
+  const stoneBase: RGB = [52, 48, 62];
+  const stoneLight = lighten(stoneBase, 0.12);
+  const stoneDark = darken(stoneBase, 0.22);
+  const stoneMid: RGB = [68, 62, 80];
+  const mortar: RGB = [28, 26, 34];
+
+  const brickWidth = 10;
+  const brickHeight = 8;
+  const bricks: number[] = [];
+  const cols = Math.ceil(SIZE / brickWidth);
+  const rows = Math.ceil(SIZE / brickHeight);
+  for (let r = 0; r < rows; r++) {
+    for (let col = 0; col < cols; col++) {
+      bricks.push(rng() < 0.35 ? 1 : 0);
+    }
+  }
+
+  const runeSpots: [number, number, number][] = [];
+  const runeCount = 3 + Math.floor(rng() * 3);
+  for (let i = 0; i < runeCount; i++) {
+    const spot: [number, number, number] = [frame + Math.floor(rng() * (SIZE - frame * 2)), frame + Math.floor(rng() * (SIZE - frame * 2)), Math.floor(rng() * 2)];
+    runeSpots.push(spot);
+  }
+  const isFrame = (x: number, y: number): boolean => x < frame || y < frame || x >= SIZE - frame || y >= SIZE - frame;
+
+  return (x: number, y: number): RGB | null => {
+    if (isFrame(x, y)) {
+      const onCorner = (x < 2 || x >= SIZE - 2) && (y < 2 || y >= SIZE - 2);
+      if (onCorner) return stoneMid;
+      const nearOuter = x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1;
+      return nearOuter ? stoneDark : stoneBase;
+    }
+    for (const [rx, ry, kind] of runeSpots) {
+      if (kind === 0 && Math.abs(x - rx) <= 1 && Math.abs(y - ry) <= 1) return p.gem;
+      if (kind === 1 && Math.abs(x - rx) <= 2 && y === ry) return p.gem;
+    }
+    const col = Math.floor(x / brickWidth);
+    const row = Math.floor(y / brickHeight);
+    const b = bricks[row * cols + col] ?? 0;
+    return b === 1 ? stoneLight : stoneMid;
+  };
+}
+
 async function encode(buf: Buffer): Promise<Buffer> {
   return sharp(buf, { raw: { width: SIZE, height: SIZE, channels: 4 } }).png().toBuffer();
 }
@@ -785,6 +843,7 @@ export async function renderSkillIcon(input: SkillIconInput): Promise<Buffer> {
   drawSkill(canvas, input, pal, rng);
   canvas.applyShading(pal.light, pal.dark);
   canvas.applyOutline(pal.outline);
+  canvas.paintBackground(dungeonBackdrop(pal, rng));
   canvas.sparkle(sparkleCount(input.rarity), lighten(pal.gem, 0.4), rng);
   return encode(canvas.buf);
 }
