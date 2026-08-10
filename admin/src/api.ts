@@ -64,11 +64,23 @@ export const adminApi = {
     delete: (id: string, params?: any) => api.delete(`/admin/items/${id}`, { params }),
     generate: (data: any) => api.post("/admin/items/generate", data),
   },
+  ai: {
+    config: () => api.get("/admin/ai/config"),
+    generateMonster: (prompt: string) => api.post("/admin/monsters/generate", { prompt }),
+    generateRaid: (prompt: string) => api.post("/admin/raids/generate", { prompt }),
+    generatePvp: (prompt: string) => api.post("/admin/pvp/generate", { prompt }),
+  },
   monsters: {
     list: () => api.get("/admin/monsters"),
     create: (data: any) => api.post("/admin/monsters", data),
     update: (id: string, data: any) => api.put(`/admin/monsters/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/monsters/${id}`, { params }),
+    drops: {
+      list: (monsterId: string) => api.get(`/admin/monsters/${monsterId}/drops`),
+      create: (monsterId: string, data: any) => api.post(`/admin/monsters/${monsterId}/drops`, data),
+      update: (dropId: string, data: any) => api.put(`/admin/monsters/drops/${dropId}`, data),
+      delete: (dropId: string) => api.delete(`/admin/monsters/drops/${dropId}`),
+    },
   },
   maps: {
     list: () => api.get("/admin/maps"),

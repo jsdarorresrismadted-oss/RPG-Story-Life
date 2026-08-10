@@ -2,10 +2,11 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 import { AppError } from "../middleware/errorHandler";
+import { renderSprite as renderSpriteRaw } from "./imageRenderer";
 
 // ===== Gerador de equipamentos (icones pixel art 64x64) via IA =====
 // - Groq (llama-3.3-70b) PLANEJA: nome, descricao, prompt de arte, atributos e precos.
-// - Pollinations.ai (gratis, sem key) RENDERIZA o PNG 512x512.
+// - Gemini 2.5 Flash Image (se GEMINI_API_KEY) ou Pollinations.ai RENDERIZA o PNG.
 // - sharp pos-processa: resize 64x64 (nearest) + chroma-key (magenta -> transparente).
 // - Icone salvo em Icons/64x64/<categoria>/ e espelhado em frontend/public/icons
 //   + manifest.json atualizado (picker de icones do admin e do jogo).
@@ -175,20 +176,9 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
   };
 }
 
-// ===== 2) Renderizacao via Pollinations.ai (flux, gratis) =====
+// ===== 2) Renderizacao via IA (Gemini com fallback Pollinations.ai) =====
 async function renderSprite(artPrompt: string, seed: number): Promise<Buffer> {
-  const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(artPrompt) + "?width=512&height=512&seed=" + seed + "&model=flux&nologo=true";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 120000);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error("Pollinations HTTP " + res.status);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length < 100) throw new Error("Resposta de imagem vazia");
-    return buf;
-  } finally {
-    clearTimeout(timer);
-  }
+  return (await renderSpriteRaw(artPrompt, seed)).buf;
 }
 
 // ===== 3) Pos-processamento de alta qualidade =====
@@ -492,7 +482,7 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
   const { png: processed, removedPct, tried } = await renderBestSprite(plan.artPrompt, seed, attempts);
   const filename = "ai-" + Date.now() + "-" + seed + ".png";
   const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, processed);
-  log.push("Groq (plano) + Pollinations (imagem) - " + tried + " candidato(s)");
+  log.push("Groq (plano) + " + (process.env.GEMINI_API_KEY ? "Gemini" : "Pollinations") + " (imagem) - " + tried + " candidato(s)");
   if (removedPct < 15) {
     log.push("Aviso: fundo pode nao ter sido removido (" + Math.round(removedPct) + "% da imagem) - gere de novo se quiser");
   }
@@ -526,7 +516,7 @@ export async function generateItemIcon(input: IconSeedInput, log?: string[]): Pr
   const filename = "ai-" + Date.now() + "-" + seed + ".png";
   const icon = await saveGeneratedIcon(CATEGORY_BY_TYPE[type], filename, processed);
   if (log) {
-    log.push("Pollinations (imagem) - " + tried + " candidato(s)");
+    log.push((process.env.GEMINI_API_KEY ? "Gemini" : "Pollinations") + " (imagem) - " + tried + " candidato(s)");
     if (removedPct < 15) {
       log.push("Aviso: fundo pode nao ter sido removido (" + Math.round(removedPct) + "% da imagem) - gere de novo se quiser");
     }

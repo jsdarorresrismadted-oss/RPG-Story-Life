@@ -7,6 +7,7 @@ import { CombatService, serializeSkillForClient } from "../combat/combat.service
 
 const COOLDOWN_MS = 30 * 1000; // cooldown entre desafios na arena
 const CHALLENGE_TTL_MS = 30 * 1000; // tempo para o desafiado aceitar/recusar
+const SESSION_TTL_MS = 15 * 60 * 1000; // sessão PvE órfã expira após 15 min sem atualizações
 const K_FACTOR = 32;
 
 function parseJson(value: any, fallback: any = null): any {
@@ -175,7 +176,18 @@ export class PvpService {
     const session = await this.prisma.combatSession.findFirst({
       where: { characterId, state: "active" },
     });
-    if (session) throw new Error("Esse personagem está em combate PvE.");
+    if (!session) return;
+    // Sessão órfã (raid/PvE abandonado, crash do servidor, etc): não bloqueia
+    // indefinidamente — expira e é limpa.
+    const stale = Date.now() - new Date(session.lastTickAt).getTime() > SESSION_TTL_MS;
+    if (stale) {
+      await this.prisma.combatSession.update({
+        where: { id: session.id },
+        data: { state: "lost", endedAt: new Date() },
+      });
+      return;
+    }
+    throw new Error("Esse personagem está em combate PvE.");
   }
 
   // ============ Desafio (pendente até o alvo aceitar) ============

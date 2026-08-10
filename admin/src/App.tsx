@@ -11,6 +11,8 @@ import EffectsPage from "./pages/EffectsPage";
 import ShopsPage from "./pages/ShopsPage";
 import EnchantmentsPage from "./pages/EnchantmentsPage";
 import MapMonstersPage from "./pages/MapMonstersPage";
+import MonsterDropsPage from "./pages/MonsterDropsPage";
+import AiGeneratorPage from "./pages/AiGeneratorPage";
 import GachaPage from "./pages/GachaPage";
 import CrudPage from "./pages/CrudPage";
 import { crudConfigs } from "./crudConfigs";
@@ -32,6 +34,8 @@ export default function App() {
         <Route path="/effects" element={<EffectsPage />} />
         <Route path="/shops" element={<ShopsPage />} />
         <Route path="/map-monsters" element={<MapMonstersPage />} />
+        <Route path="/monster-drops" element={<MonsterDropsPage />} />
+        <Route path="/ai-generator" element={<AiGeneratorPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/codes" element={<CodesPage />} />
         <Route path="/guild-settings" element={<GuildSettingsPage />} />

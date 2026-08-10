@@ -255,6 +255,11 @@ export function CombatPage() {
         if (r?.drops && r.drops.length > 0) line += ` • Drops: ${r.drops.map((d) => `${d.quantity}x ${d.name}`).join(", ")}`;
         setCombatLog(prev => [...prev.slice(-19), line]);
         refreshUser();
+      } else if (data.state === "lost") {
+        setInCombat(false);
+        setLoading(false);
+        toast.error("Derrota!");
+        setCombatLog(prev => [...prev.slice(-19), "Você foi derrotado..."]);
       } else if (data.state === "error") {
         setInCombat(false);
         setLoading(false);
@@ -299,6 +304,9 @@ export function CombatPage() {
       socket.off("combat:tick");
       socket.off("combat:error");
       socket.off("combat:action");
+      // Nunca deixar o bloqueio de navegação preso: ao sair da página de
+      // combate (back, URL manual, morte por tick etc) o estado é limpo.
+      setInCombat(false);
     };
   }, [socket]);
 

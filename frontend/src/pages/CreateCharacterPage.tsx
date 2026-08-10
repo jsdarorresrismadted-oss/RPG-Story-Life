@@ -16,6 +16,7 @@ export function CreateCharacterPage() {
   const [index, setIndex] = useState<CharacterIndex | null>(null);
   const [loading, setLoading] = useState(true);
   const [classId, setClassId] = useState<string | null>(null);
+  const [gender, setGender] = useState<"male" | "female">("male");
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function CreateCharacterPage() {
       const { data } = await charactersApi.create({
         name: user.username.trim(),
         classId,
+        gender,
       });
       const updatedUser = { ...user, characters: [...(user.characters || []), data] };
       setUser(updatedUser);
@@ -95,6 +97,35 @@ export function CreateCharacterPage() {
                   <div className="text-xs text-gray-500 mt-2">
                     HP {cls.stats?.hp ?? "-"} • Mana {cls.stats?.mana ?? "-"} • ATK {cls.stats?.attack ?? "-"} • DEF {cls.stats?.defense ?? "-"}
                   </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel p-4">
+            <h2 className="text-lg font-display font-semibold mb-3 flex items-center gap-2">
+              <UserPlus size={18} className="text-purple-400" /> Escolha o sexo
+            </h2>
+            <div className="grid grid-cols-2 gap-3 max-w-md">
+              {(["male", "female"] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setGender(g)}
+                  className={`card text-center p-4 transition-all ${
+                    gender === g ? "border-purple-500/60 bg-purple-500/10 ring-1 ring-purple-500/40" : "hover:border-purple-500/30"
+                  }`}
+                >
+                  <img
+                    src={`/sprites/${g}.png`}
+                    alt={g}
+                    className="w-16 h-16 mx-auto mb-2 object-contain"
+                    style={{ imageRendering: "pixelated" }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  <span className="font-display font-bold capitalize">{g === "male" ? "Masculino" : "Feminino"}</span>
                 </button>
               ))}
             </div>

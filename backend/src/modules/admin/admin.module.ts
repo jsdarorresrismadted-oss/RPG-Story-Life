@@ -8,6 +8,9 @@ import { AppError } from "../../core/middleware/errorHandler";
 import { DEFAULT_GAME_LIMITS, invalidateGameLimits } from "../../core/gameLimits";
 import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../../core/ai/classGenerator";
 import { generateItemSprite } from "../../core/ai/itemGenerator";
+import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
+import { generateRaid, persistGeneratedRaid } from "../../core/ai/raidGenerator";
+import { generatePvpConfig, persistGeneratedPvp } from "../../core/ai/pvpGenerator";
 import {
   withEnchantmentStats,
   enchantmentProgression,
@@ -721,7 +724,7 @@ export function createAdminModule(app: Express): void {
     try { const r = await deleteWithSoftFallback(prisma.statModel, req, "statmodel"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
-  // IA: gerar item (ícone pixel art + dados) — Groq planeja, Pollinations renderiza
+  // IA: gerar item (ícone pixel art + dados) — Groq planeja, Gemini/Pollinations renderiza
   app.post("/api/admin/items/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!process.env.GROQ_API_KEY) {
@@ -808,6 +811,120 @@ export function createAdminModule(app: Express): void {
 
   app.delete("/api/admin/monsters/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try { const r = await deleteWithSoftFallback(prisma.monster, req, "monster"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+  });
+
+  // ===== Drops de monstro (itens + taxa de drop) =====
+  const clampDrop = (v: any, min: number, max: number, def: number) => {
+    const n = Number(v);
+    if (Number.isNaN(n)) return def;
+    return Math.min(max, Math.max(min, n));
+  };
+  const dropInclude = {
+    item: { select: { id: true, name: true, icon: true, rarity: true } },
+  } as const;
+
+  app.get("/api/admin/monsters/:id/drops", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await prisma.dropItem.findMany({
+        where: { monsterId: req.params.id },
+        include: dropInclude,
+        orderBy: { createdAt: "asc" },
+      }));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/monsters/:id/drops", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { itemId, dropChance, minQuantity, maxQuantity, minLevel, maxLevel, isGuaranteed } = req.body;
+      if (!itemId) return res.status(400).json({ error: "Item é obrigatório." });
+      const item = await prisma.item.findUnique({ where: { id: itemId } });
+      if (!item) return res.status(404).json({ error: "Item não encontrado." });
+      const minQ = Math.max(1, Number(minQuantity) || 1);
+      const maxQ = Math.max(minQ, Number(maxQuantity) || 1);
+      const drop = await prisma.dropItem.create({
+        data: {
+          monsterId: req.params.id,
+          itemId,
+          dropChance: clampDrop(dropChance, 0, 100, 1),
+          minQuantity: minQ,
+          maxQuantity: maxQ,
+          minLevel: clampDrop(minLevel, 1, 99, 1),
+          maxLevel: clampDrop(maxLevel, 1, 99, 99),
+          isGuaranteed: !!isGuaranteed,
+        },
+        include: dropInclude,
+      });
+      res.status(201).json(drop);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/admin/monsters/drops/:dropId", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data: any = {};
+      if (req.body.itemId) data.itemId = req.body.itemId;
+      if (req.body.dropChance !== undefined) data.dropChance = clampDrop(req.body.dropChance, 0, 100, 1);
+      if (req.body.minQuantity !== undefined) data.minQuantity = Math.max(1, Number(req.body.minQuantity) || 1);
+      if (req.body.maxQuantity !== undefined) data.maxQuantity = Math.max(1, Number(req.body.maxQuantity) || 1);
+      if (req.body.minLevel !== undefined) data.minLevel = clampDrop(req.body.minLevel, 1, 99, 1);
+      if (req.body.maxLevel !== undefined) data.maxLevel = clampDrop(req.body.maxLevel, 1, 99, 99);
+      if (req.body.isGuaranteed !== undefined) data.isGuaranteed = !!req.body.isGuaranteed;
+      const drop = await prisma.dropItem.update({
+        where: { id: req.params.dropId },
+        data,
+        include: dropInclude,
+      });
+      res.json(drop);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/admin/monsters/drops/:dropId", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await prisma.dropItem.delete({ where: { id: req.params.dropId } });
+      res.json({ message: "Deleted" });
+    } catch (err) { next(err); }
+  });
+
+  // ===== IA: gerar monstro / raid / config de PvP =====
+  const requireAi = () => {
+    if (!aiProvidersAvailable().gemini && !aiProvidersAvailable().groq) {
+      throw new AppError(503, "Gerador de IA desativado: defina GEMINI_API_KEY ou GROQ_API_KEY nas variáveis do Railway");
+    }
+  };
+
+  app.post("/api/admin/monsters/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      if (!idea) throw new AppError(400, "Descreva o monstro que a IA deve criar (ex.: 'lobo ancião de gelo da floresta nível 12')");
+      requireAi();
+      const providerLog: string[] = [];
+      const gen = await generateMonster(idea, providerLog);
+      const saved = await persistGeneratedMonster(gen);
+      res.status(201).json({ data: saved, providers: providerLog });
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/raids/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      if (!idea) throw new AppError(400, "Descreva o raid que a IA deve criar (ex.: 'raid de 10 ondas de cultistas do abismo com boss dracolich')");
+      requireAi();
+      const providerLog: string[] = [];
+      const gen = await generateRaid(idea, providerLog);
+      const saved = await persistGeneratedRaid(gen);
+      res.status(201).json({ data: saved, providers: providerLog });
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/pvp/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      if (!idea) throw new AppError(400, "Descreva a temporada/config da arena (ex.: 'temporada 2 da arena — recompensas generosas por win streak')");
+      requireAi();
+      const providerLog: string[] = [];
+      const gen = await generatePvpConfig(idea, providerLog);
+      const saved = await persistGeneratedPvp(gen);
+      res.status(201).json({ data: saved, providers: providerLog });
+    } catch (err) { next(err); }
   });
 
   // Maps CRUD
