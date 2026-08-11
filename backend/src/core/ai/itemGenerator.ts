@@ -784,6 +784,7 @@ export interface IconSeedInput {
   name: string;
   type: string;
   rarity?: string;
+  subtype?: string;
   description?: string;
   seed?: number;
 }
@@ -793,8 +794,12 @@ export async function generateItemIcon(input: IconSeedInput, log?: string[]): Pr
   if (!CATEGORY_BY_TYPE[type]) throw new AppError(400, "Tipo invalido: " + type);
   const rarity = VALID_RARITIES.includes(String(input.rarity || "")) ? String(input.rarity) : "common";
   const seed = Math.floor(Number(input.seed) || (Date.now() % 1000000));
+  // Deriva um subtype estável por tipo (armas/elmos/armaduras/capas).
+  const subtypes = SUBTYPES[type];
+  const subtype = input.subtype || (subtypes ? pick(subtypes, `${type}|${rarity}|${input.name}`, seed) : "");
   const png = await renderItemIcon({
     type,
+    subtype,
     name: input.name,
     rarity,
     description: input.description,

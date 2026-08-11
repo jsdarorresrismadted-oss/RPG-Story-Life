@@ -115,6 +115,12 @@ class Canvas16 {
     this.pixels[y * this.width + x] = [...color] as RGB;
   }
 
+  isOccupied(x: number, y: number): boolean {
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return false;
+    const p = this.pixels[y * this.width + x];
+    return p[0] > 0 || p[1] > 0 || p[2] > 0;
+  }
+
   toBuffer64(): Buffer {
     const out = Buffer.alloc(FINAL_SIZE * FINAL_SIZE * 4);
     for (let y = 0; y < FINAL_SIZE; y++) {
@@ -286,13 +292,165 @@ function drawBow(c: Canvas16, pal: RGB[]): void {
   c.set(4, 1, O); c.set(11, 14, O);
 }
 
+// ===== EQUIPAMENTOS — ELMOS =====
+
+// ==================================================================
+// CAP — boné de aventureiro, aba frontal
+// ==================================================================
+function drawCap(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Copa (y=3-5)
+  c.set(5, 3, O); c.set(6, 3, B); c.set(7, 3, L); c.set(8, 3, L); c.set(9, 3, B); c.set(10, 3, O);
+  c.set(4, 4, O); c.set(5, 4, B); c.set(6, 4, L); c.set(7, 4, H); c.set(8, 4, H); c.set(9, 4, L); c.set(10, 4, B); c.set(11, 4, O);
+  c.set(4, 5, O); c.set(5, 5, S); c.set(6, 5, B); c.set(7, 5, L); c.set(8, 5, L); c.set(9, 5, B); c.set(10, 5, S); c.set(11, 5, O);
+  // Aba (y=6) — estende para frente (direita)
+  c.set(3, 6, O); c.set(4, 6, SD); c.set(5, 6, B); c.set(6, 6, L); c.set(7, 6, H); c.set(8, 6, H); c.set(9, 6, L); c.set(10, 6, B); c.set(11, 6, SD); c.set(12, 6, O);
+  c.set(4, 7, O); c.set(5, 7, SD); c.set(6, 7, S); c.set(7, 7, B); c.set(8, 7, B); c.set(9, 7, S); c.set(10, 7, SD); c.set(11, 7, O);
+}
+
+// ==================================================================
+// HELMET — elmo completo com crista e fenda de olhos
+// ==================================================================
+function drawHelmet(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Crista (y=1-2)
+  c.set(7, 1, O); c.set(8, 1, L); c.set(9, 1, O);
+  c.set(6, 2, O); c.set(7, 2, B); c.set(8, 2, H); c.set(9, 2, B); c.set(10, 2, O);
+  // Copa (y=3-4)
+  c.set(4, 3, O); c.set(5, 3, B); c.set(6, 3, L); c.set(7, 3, H); c.set(8, 3, H); c.set(9, 3, L); c.set(10, 3, B); c.set(11, 3, O);
+  c.set(3, 4, O); c.set(4, 4, S); c.set(5, 4, B); c.set(6, 4, L); c.set(7, 4, H); c.set(8, 4, H); c.set(9, 4, L); c.set(10, 4, B); c.set(11, 4, S); c.set(12, 4, O);
+  // Fenda dos olhos (y=5)
+  c.set(3, 5, O); c.set(4, 5, SD); c.set(5, 5, SD); c.set(6, 5, S); c.set(7, 5, SD); c.set(8, 5, SD); c.set(9, 5, S); c.set(10, 5, SD); c.set(11, 5, SD); c.set(12, 5, O);
+  // Bochechas (y=6)
+  c.set(4, 6, O); c.set(5, 6, B); c.set(6, 6, L); c.set(7, 6, H); c.set(8, 6, L); c.set(9, 6, B); c.set(10, 6, S); c.set(11, 6, O);
+  // Maxilar (y=7)
+  c.set(4, 7, O); c.set(5, 7, S); c.set(6, 7, B); c.set(7, 7, B); c.set(8, 7, B); c.set(9, 7, S); c.set(10, 7, SD); c.set(11, 7, O);
+  // Colar (y=8)
+  c.set(5, 8, O); c.set(6, 8, SD); c.set(7, 8, SD); c.set(8, 8, SD); c.set(9, 8, SD); c.set(10, 8, O);
+}
+
+// ==================================================================
+// CROWN — coroa com pontas e gema central
+// ==================================================================
+function drawCrown(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Pontas (y=3)
+  c.set(4, 3, O); c.set(6, 3, O); c.set(9, 3, O); c.set(11, 3, O);
+  c.set(4, 2, O); c.set(6, 2, O); c.set(9, 2, O); c.set(11, 2, O);
+  c.set(5, 3, L); c.set(7, 3, L); c.set(8, 3, L); c.set(10, 3, L);
+  // Corpo (y=4-5)
+  c.set(3, 4, O); c.set(4, 4, B); c.set(5, 4, H); c.set(6, 4, L); c.set(7, 4, H); c.set(8, 4, H); c.set(9, 4, L); c.set(10, 4, H); c.set(11, 4, B); c.set(12, 4, O);
+  c.set(3, 5, O); c.set(4, 5, S); c.set(5, 5, B); c.set(6, 5, H); c.set(7, 5, H); c.set(8, 5, H); c.set(9, 5, H); c.set(10, 5, B); c.set(11, 5, S); c.set(12, 5, O);
+  // Base (y=6) + gema central
+  c.set(4, 6, O); c.set(5, 6, SD); c.set(6, 6, SD); c.set(7, 6, BR); c.set(8, 6, BR); c.set(9, 6, SD); c.set(10, 6, SD); c.set(11, 6, O);
+}
+
+// ==================================================================
+// HOOD — capuz com área facial sombreada
+// ==================================================================
+function drawHood(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Topo do capuz (y=2-3)
+  c.set(5, 2, O); c.set(6, 2, B); c.set(7, 2, L); c.set(8, 2, L); c.set(9, 2, B); c.set(10, 2, O);
+  c.set(4, 3, O); c.set(5, 3, B); c.set(6, 3, L); c.set(7, 3, H); c.set(8, 3, H); c.set(9, 3, L); c.set(10, 3, B); c.set(11, 3, O);
+  // Abertura do rosto (y=4-5) — escuro
+  c.set(4, 4, O); c.set(5, 4, SD); c.set(6, 4, SD); c.set(7, 4, SD); c.set(8, 4, SD); c.set(9, 4, SD); c.set(10, 4, SD); c.set(11, 4, O);
+  c.set(5, 5, O); c.set(6, 5, S); c.set(7, 5, SD); c.set(8, 5, SD); c.set(9, 5, S); c.set(10, 5, O);
+  // Laterais do capuz (y=6-7)
+  c.set(5, 6, O); c.set(6, 6, B); c.set(7, 6, B); c.set(8, 6, B); c.set(9, 6, B); c.set(10, 6, O);
+  c.set(6, 7, O); c.set(7, 7, SD); c.set(8, 7, SD); c.set(9, 7, O);
+}
+
+// ===== EQUIPAMENTOS — ARMADURAS =====
+
+// ==================================================================
+// LIGHT — armadura leve: peitoral com ombros
+// ==================================================================
+function drawLightArmor(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Ombros (y=3-4)
+  c.set(2, 3, O); c.set(3, 3, B); c.set(4, 3, L); c.set(5, 3, L); c.set(6, 3, B); c.set(7, 3, B); c.set(8, 3, B); c.set(9, 3, B); c.set(10, 3, B); c.set(11, 3, L); c.set(12, 3, L); c.set(13, 3, B); c.set(14, 3, O);
+  c.set(2, 4, O); c.set(3, 4, S); c.set(4, 4, B); c.set(5, 4, L); c.set(6, 4, B); c.set(7, 4, L); c.set(8, 4, L); c.set(9, 4, B); c.set(10, 4, B); c.set(11, 4, L); c.set(12, 4, B); c.set(13, 4, S); c.set(14, 4, O);
+  // Peitoral (y=5-8)
+  c.set(4, 5, O); c.set(5, 5, B); c.set(6, 5, L); c.set(7, 5, H); c.set(8, 5, H); c.set(9, 5, L); c.set(10, 5, B); c.set(11, 5, S); c.set(12, 5, O);
+  c.set(4, 6, O); c.set(5, 6, S); c.set(6, 6, B); c.set(7, 6, L); c.set(8, 6, L); c.set(9, 6, B); c.set(10, 6, S); c.set(11, 6, SD); c.set(12, 6, O);
+  c.set(4, 7, O); c.set(5, 7, S); c.set(6, 7, B); c.set(7, 7, B); c.set(8, 7, B); c.set(9, 7, S); c.set(10, 7, SD); c.set(11, 7, SD); c.set(12, 7, O);
+  c.set(4, 8, O); c.set(5, 8, SD); c.set(6, 8, S); c.set(7, 8, S); c.set(8, 8, S); c.set(9, 8, SD); c.set(10, 8, SD); c.set(11, 8, SD); c.set(12, 8, O);
+}
+
+// ==================================================================
+// HEAVY — armadura pesada: placa completa com ombreiras
+// ==================================================================
+function drawHeavyArmor(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Ombreiras largas (y=2-3)
+  c.set(1, 2, O); c.set(2, 2, B); c.set(3, 2, L); c.set(4, 2, L); c.set(5, 2, H); c.set(6, 2, B); c.set(7, 2, B); c.set(8, 2, B); c.set(9, 2, B); c.set(10, 2, B); c.set(11, 2, H); c.set(12, 2, L); c.set(13, 2, L); c.set(14, 2, B); c.set(15, 2, O);
+  c.set(1, 3, O); c.set(2, 3, S); c.set(3, 3, B); c.set(4, 3, L); c.set(5, 3, H); c.set(6, 3, B); c.set(7, 3, L); c.set(8, 3, L); c.set(9, 3, B); c.set(10, 3, B); c.set(11, 3, H); c.set(12, 3, L); c.set(13, 3, B); c.set(14, 3, S); c.set(15, 3, O);
+  // Peito em placa (y=4-8)
+  c.set(3, 4, O); c.set(4, 4, B); c.set(5, 4, L); c.set(6, 4, H); c.set(7, 4, H); c.set(8, 4, H); c.set(9, 4, L); c.set(10, 4, B); c.set(11, 4, S); c.set(12, 4, O);
+  c.set(3, 5, O); c.set(4, 5, S); c.set(5, 5, B); c.set(6, 5, L); c.set(7, 5, H); c.set(8, 5, H); c.set(9, 5, L); c.set(10, 5, B); c.set(11, 5, SD); c.set(12, 5, O);
+  c.set(3, 6, O); c.set(4, 6, S); c.set(5, 6, B); c.set(6, 6, L); c.set(7, 6, L); c.set(8, 6, L); c.set(9, 6, B); c.set(10, 6, S); c.set(11, 6, SD); c.set(12, 6, O);
+  c.set(3, 7, O); c.set(4, 7, SD); c.set(5, 7, S); c.set(6, 7, B); c.set(7, 7, B); c.set(8, 7, B); c.set(9, 7, S); c.set(10, 7, SD); c.set(11, 7, SD); c.set(12, 7, O);
+  c.set(4, 8, O); c.set(5, 8, SD); c.set(6, 8, S); c.set(7, 8, S); c.set(8, 8, S); c.set(9, 8, SD); c.set(10, 8, SD); c.set(11, 8, O);
+}
+
+// ==================================================================
+// ROBE — túnica com capuz/colarinho
+// ==================================================================
+function drawRobe(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Colarinho (y=3)
+  c.set(4, 3, O); c.set(5, 3, L); c.set(6, 3, L); c.set(7, 3, L); c.set(8, 3, L); c.set(9, 3, L); c.set(10, 3, L); c.set(11, 3, O);
+  // Corpo da túnica (y=4-9)
+  c.set(4, 4, O); c.set(5, 4, B); c.set(6, 4, B); c.set(7, 4, B); c.set(8, 4, B); c.set(9, 4, B); c.set(10, 4, B); c.set(11, 4, O);
+  c.set(4, 5, O); c.set(5, 5, S); c.set(6, 5, B); c.set(7, 5, L); c.set(8, 5, B); c.set(9, 5, S); c.set(10, 5, SD); c.set(11, 5, O);
+  c.set(4, 6, O); c.set(5, 6, S); c.set(6, 6, B); c.set(7, 6, B); c.set(8, 6, B); c.set(9, 6, S); c.set(10, 6, SD); c.set(11, 6, O);
+  c.set(4, 7, O); c.set(5, 7, S); c.set(6, 7, S); c.set(7, 7, B); c.set(8, 7, S); c.set(9, 7, S); c.set(10, 7, SD); c.set(11, 7, O);
+  c.set(5, 8, O); c.set(6, 8, SD); c.set(7, 8, S); c.set(8, 8, S); c.set(9, 8, SD); c.set(10, 8, O);
+  // Cinto (y=9)
+  c.set(5, 9, O); c.set(6, 9, SD); c.set(7, 9, SD); c.set(8, 9, SD); c.set(9, 9, SD); c.set(10, 9, O);
+}
+
+// ===== EQUIPAMENTOS — CAPA =====
+
+// ==================================================================
+// CAPE — capa vista de frente, drapeada
+// ==================================================================
+function drawCape(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // Gola (y=2-3)
+  c.set(6, 2, O); c.set(7, 2, L); c.set(8, 2, L); c.set(9, 2, L); c.set(10, 2, O);
+  c.set(5, 3, O); c.set(6, 3, B); c.set(7, 3, L); c.set(8, 3, L); c.set(9, 3, L); c.set(10, 3, B); c.set(11, 3, O);
+  // Corpo da capa (y=4-10) — alarga para baixo
+  c.set(4, 4, O); c.set(5, 4, B); c.set(6, 4, L); c.set(7, 4, L); c.set(8, 4, L); c.set(9, 4, L); c.set(10, 4, B); c.set(11, 4, O);
+  c.set(3, 5, O); c.set(4, 5, B); c.set(5, 5, L); c.set(6, 5, H); c.set(7, 5, L); c.set(8, 5, L); c.set(9, 5, H); c.set(10, 5, L); c.set(11, 5, B); c.set(12, 5, O);
+  c.set(3, 6, O); c.set(4, 6, S); c.set(5, 6, B); c.set(6, 6, L); c.set(7, 6, B); c.set(8, 6, B); c.set(9, 6, L); c.set(10, 6, B); c.set(11, 6, S); c.set(12, 6, O);
+  c.set(3, 7, O); c.set(4, 7, S); c.set(5, 7, B); c.set(6, 7, B); c.set(7, 7, S); c.set(8, 7, S); c.set(9, 7, B); c.set(10, 7, B); c.set(11, 7, S); c.set(12, 7, O);
+  c.set(3, 8, O); c.set(4, 8, SD); c.set(5, 8, S); c.set(6, 8, S); c.set(7, 8, S); c.set(8, 8, S); c.set(9, 8, S); c.set(10, 8, S); c.set(11, 8, SD); c.set(12, 8, O);
+  c.set(4, 9, O); c.set(5, 9, SD); c.set(6, 9, SD); c.set(7, 9, SD); c.set(8, 9, SD); c.set(9, 9, SD); c.set(10, 9, SD); c.set(11, 9, O);
+  // Barra (y=10)
+  c.set(5, 10, O); c.set(6, 10, SD); c.set(7, 10, SD); c.set(8, 10, SD); c.set(9, 10, SD); c.set(10, 10, O);
+}
+
 // ===== MAPA DE DESENHO =====
 const DRAW_FUNCTIONS: Record<string, (c: Canvas16, pal: RGB[]) => void> = {
+  // Armas
   dagger: drawDagger, sword: drawSword, axe: drawAxe,
   staff: drawStaff, bow: drawBow, tome: drawStaff,
-  helmet: drawSword, cap: drawSword, crown: drawSword,
-  hood: drawSword, light: drawSword, heavy: drawSword,
-  robe: drawSword, cape: drawSword,
+  // Elmos
+  cap: drawCap, helmet: drawHelmet, crown: drawCrown, hood: drawHood,
+  // Armaduras
+  light: drawLightArmor, heavy: drawHeavyArmor, robe: drawRobe,
+  // Capa
+  cape: drawCape, "": drawCape,
 };
 
 // ===== FUNÇÕES AUXILIARES =====
@@ -351,13 +509,98 @@ function paletteToRGBs(p: Palette): RGB[] {
   return [p.outline, p.dark, p.base, p.light, p.metal, p.gem];
 }
 
+// RNG determinístico a partir do seed
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ===== EFEITOS POR RARIDADE =====
+// comum: nada
+// incomum: 2 faíscas
+// raro: 4 faíscas + brilho
+// epico: faíscas + aura + partículas
+// lendario: efeito elementar forte + aura + muitas partículas
+// mitico: efeito máximo
+const RARITY_FX: Record<string, number> = {
+  common: 0, uncommon: 2, rare: 4, epic: 6, legendary: 10, mythic: 14,
+};
+
+// Adiciona efeitos visuais determinísticos ao redor do item.
+// x,y são coordenadas de origem (canto superior esquerdo do item).
+function drawRarityEffects(c: Canvas16, pal: RGB[], rarity: string, seed: number, x1: number, y1: number, x2: number, y2: number): void {
+  const count = RARITY_FX[rarity] || 0;
+  if (count === 0) return;
+
+  const [O, SD, S, B, L, H, BR] = pal;
+  const rnd = mulberry32(seed ^ 0x9E3779B9);
+  const ring = Math.floor((count - 2) / 2); // 0 = sem aura, 1+, tem aura
+
+  // Aura (épico+) — brilho ao redor do item, 1px fora do contorno
+  if (ring > 0) {
+    const glow = rarity === "mythic" ? BR : H;
+    for (let y = y1 - 1; y <= y2 + 1; y++) {
+      for (let x = x1 - 1; x <= x2 + 1; x++) {
+        const isEdge =
+          (x === x1 - 1 || x === x2 + 1 || y === y1 - 1 || y === y2 + 1);
+        if (!isEdge) continue;
+        if (c.isOccupied(x, y)) continue;
+        if (rnd() < (rarity === "mythic" ? 0.9 : 0.5)) {
+          c.set(x, y, rnd() < 0.3 ? BR : glow);
+        }
+      }
+    }
+  }
+
+  // Partículas/faíscas espalhadas ao redor (raio maior)
+  const spread = ring > 0 ? 3 : 2;
+  let placed = 0;
+  let tries = 0;
+  while (placed < count && tries < 60) {
+    tries++;
+    const dx = Math.floor((rnd() * 2 - 1) * spread);
+    const dy = Math.floor((rnd() * 2 - 1) * spread);
+    const px = Math.floor((x1 + x2) / 2) + dx;
+    const py = Math.floor((y1 + y2) / 2) + dy;
+    if (px < 0 || py < 0 || px >= c.width || py >= c.height) continue;
+    if (c.isOccupied(px, py)) continue;
+    // Evita partículas coladas no meio do item (fora da caixa)
+    if (px >= x1 && px <= x2 && py >= y1 && py <= y2) continue;
+    const r = rnd();
+    c.set(px, py, r < 0.4 ? BR : r < 0.7 ? H : L);
+    placed++;
+  }
+}
+
 export async function renderItemIcon(input: ItemIconInput): Promise<Buffer> {
   const subtype = input.subtype || "sword";
   const theme = (input.theme || input.material || "steel").toLowerCase();
   const pal = input.palette ? paletteToRGBs(input.palette) : (PALETTES[theme] || PALETTES.default);
+  const rarity = String(input.rarity || "common").toLowerCase();
+  const seed = input.seed ?? 42;
   const c = new Canvas16();
   const drawFn = DRAW_FUNCTIONS[subtype] || DRAW_FUNCTIONS.sword;
   drawFn(c, pal);
+
+  // Determina a caixa do item para posicionar efeitos ao redor
+  let x1 = 16, y1 = 16, x2 = -1, y2 = -1;
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      if (c.isOccupied(x, y)) {
+        if (x < x1) x1 = x; if (x > x2) x2 = x;
+        if (y < y1) y1 = y; if (y > y2) y2 = y;
+      }
+    }
+  }
+  if (x2 >= 0) {
+    drawRarityEffects(c, pal, rarity, seed, x1, y1, x2, y2);
+  }
+
   const buf = c.toBuffer64();
   return sharp(buf, { raw: { width: FINAL_SIZE, height: FINAL_SIZE, channels: 4 } }).png().toBuffer();
 }
