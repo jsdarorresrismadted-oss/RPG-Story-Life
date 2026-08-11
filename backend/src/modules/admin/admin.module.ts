@@ -748,13 +748,13 @@ export function createAdminModule(app: Express): void {
     try { const r = await deleteWithSoftFallback(prisma.statModel, req, "statmodel"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
-  // IA: gerar item (ícone pixel art + dados) — Groq planeja, Gemini/Pollinations renderiza
+  // IA: gerar item (plano de atributos) — Groq planeja ou IA local
   app.post("/api/admin/items/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
       // IA LOCAL: nao precisa de GROQ_API_KEY. Groq fica opcional via GROQ_PLANNER=on.
       const body = req.body || {};
       const log: string[] = [];
-      const { icon, plan } = await generateItemSprite(
+      const { plan } = await generateItemSprite(
         {
           type: String(body.type || "weapon"),
           theme: body.theme ? String(body.theme) : undefined,
@@ -763,12 +763,11 @@ export function createAdminModule(app: Express): void {
           rarity: body.rarity ? String(body.rarity) : undefined,
           level: body.level !== undefined ? Number(body.level) : undefined,
           seed: body.seed !== undefined ? Number(body.seed) : undefined,
-          reference: body.reference ? String(body.reference) : undefined,
-          quality: (body.quality === "fast" || body.quality === "normal" || body.quality === "perfect") ? body.quality : undefined,
+          variants: body.variants !== undefined ? Number(body.variants) : undefined,
         },
         log
       );
-      res.status(201).json({ icon, plan, providers: log });
+      res.status(201).json({ plan, providers: log });
     } catch (err) {
       next(err);
     }

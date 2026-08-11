@@ -12,7 +12,6 @@ import { Server as SocketIOServer } from "socket.io";
 import { config } from "./core/config";
 import { prisma, redis } from "./core/database";
 import { errorHandler } from "./core/middleware/errorHandler";
-import { syncManifestFiles } from "./core/ai/itemGenerator";
 import { createAuthModule } from "./modules/auth/auth.module";
 import { createGateway } from "./gateway/gateway";
 import { RaidService } from "./modules/raid/raid.service";
@@ -88,27 +87,6 @@ app.set("redis", redis);
 import { registerModules } from "./app";
 registerModules(app);
 createGateway(io, combatService, cooldownManager, pvpService);
-
-// Ícones gerados por IA ficam na pasta Icons do repositório — servida antes do
-// bundle estático para que itens criados em runtime apareçam sem rebuild.
-// Ícones também podem vir de frontend/public/icons (copiados para o dist no build),
-// então tentamos os dois locais antes de cair nos fallbacks de rota.
-const iconsDir = path.resolve(__dirname, "../../Icons");
-const iconsDistDir = path.resolve(__dirname, "../../frontend/dist/icons");
-app.use("/icons", (req, res, next) => {
-  express.static(iconsDir)(req, res, (err?: any) => {
-    if (err) return next(err);
-    if (res.headersSent) return;
-    express.static(iconsDistDir)(req, res, (err2?: any) => {
-      if (err2) return next(err2);
-      if (res.headersSent) return;
-      // Nenhum dos locais tem o arquivo — responde 404 limpo, sem HTML do SPA,
-      // para não "corromper" as tags <img> do jogo.
-      res.status(404).send("Not Found");
-    });
-  });
-});
-syncManifestFiles();
 
 const frontendDist = path.resolve(__dirname, "../../frontend/dist");
 app.use(express.static(frontendDist));

@@ -7,25 +7,7 @@ const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// Map de overrides de ícone (item NAME -> caminho), gerado pelo script
-// scripts/regenerate-item-icons.ts. Mantém os ícones regenerados por IA mesmo
-// quando o seed roda de novo no deploy (senão o seed reverteria para os antigos).
-let generatedIcons = {};
-try {
-  const raw = fs.readFileSync(path.join(__dirname, "generated-icons.json"), "utf8");
-  generatedIcons = JSON.parse(raw);
-} catch {
-  generatedIcons = {};
-}
-
-const ICONS_ROOT_DIR = path.resolve(__dirname, "../../Icons");
-
 function iconForItem(item) {
-  const override = generatedIcons[item.name];
-  if (override) {
-    const rel = String(override).replace(/^\/icons\//, "");
-    if (fs.existsSync(path.join(ICONS_ROOT_DIR, rel))) return override;
-  }
   return item.icon || null;
 }
 
@@ -1453,8 +1435,7 @@ if (require.main === module) {
     })
     .finally(() => prisma.$disconnect());
 } else {
-  // Permite importar os dados (ex.: script de regeneração de ícones)
-  // sem disparar o seeding.
+  // Permite importar os dados sem disparar o seeding.
   module.exports = {
     items,
     monsters,
@@ -1464,7 +1445,6 @@ if (require.main === module) {
     shopOffers,
     shopProducts,
     craftRecipes,
-    generatedIcons,
     iconForItem,
     classSkills,
     effects,
