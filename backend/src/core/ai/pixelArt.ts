@@ -1,1065 +1,365 @@
+// ===== MOTOR DE PIXEL ART V3 - QUALIDADE PROFISSIONAL =====
+// Baseado na referência: sprites limpos, volume metálico, silhueta clara
+// Iluminação ↖ uniforme em todas as armas
+
 import sharp from "sharp";
 
-const SIZE = 64;
+const FINAL_SIZE = 64;
+const INTERNAL_SIZE = 16;
+const SCALE = FINAL_SIZE / INTERNAL_SIZE;
 
 type RGB = [number, number, number];
 
-const clamp = (v: number, lo = 0, hi = 255): number => Math.max(lo, Math.min(hi, Math.round(v)));
-
-const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-const lighten = (c: RGB, t: number): RGB => mix(c, [255, 255, 255], t);
-const darken = (c: RGB, t: number): RGB => mix(c, [0, 0, 0], t);
-
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h = 0;
-  let s = 0;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h /= 6;
-  }
-  return [h * 360, s, l];
-}
-
-function hslToRgb(h: number, s: number, l: number): RGB {
-  h = ((h % 360) + 360) % 360 / 360;
-  const hue2rgb = (p: number, q: number, t: number): number => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  return [
-    clamp(hue2rgb(p, q, h + 1 / 3) * 255),
-    clamp(hue2rgb(p, q, h) * 255),
-    clamp(hue2rgb(p, q, h - 1 / 3) * 255),
-  ];
-}
-
-function hueShift(c: RGB, deg: number): RGB {
-  const [h, s, l] = rgbToHsl(c[0], c[1], c[2]);
-  return hslToRgb(h + deg, s, l);
-}
-
-export function hashSeed(s: string): number {
-  let h = 0;
-  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return h;
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pointInPolygon(px: number, py: number, poly: [number, number][]): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
-    if (yi === yj) continue;
-    if (yi > py === yj > py) continue;
-    if (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-class Canvas {
-  buf: Buffer;
-
-  constructor() {
-    this.buf = Buffer.alloc(SIZE * SIZE * 4);
-  }
-
-  setPx(x: number, y: number, c: RGB): void {
-    const xi = Math.round(x);
-    const yi = Math.round(y);
-    if (xi < 0 || yi < 0 || xi >= SIZE || yi >= SIZE) return;
-    const i = (yi * SIZE + xi) * 4;
-    this.buf[i] = clamp(c[0]);
-    this.buf[i + 1] = clamp(c[1]);
-    this.buf[i + 2] = clamp(c[2]);
-    this.buf[i + 3] = 255;
-  }
-
-  fillRect(x0: number, y0: number, w: number, h: number, c: RGB): void {
-    for (let y = Math.floor(y0); y < Math.ceil(y0 + h); y++) {
-      for (let x = Math.floor(x0); x < Math.ceil(x0 + w); x++) this.setPx(x, y, c);
-    }
-  }
-
-  fillCircle(cx: number, cy: number, r: number, c: RGB): void {
-    const rr = r * r;
-    for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) {
-      for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
-        const dx = x - cx;
-        const dy = y - cy;
-        if (dx * dx + dy * dy <= rr) this.setPx(x, y, c);
-      }
-    }
-  }
-
-  fillEllipse(cx: number, cy: number, rx: number, ry: number, c: RGB): void {
-    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
-      for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-        const dx = (x - cx) / rx;
-        const dy = (y - cy) / ry;
-        if (dx * dx + dy * dy <= 1) this.setPx(x, y, c);
-      }
-    }
-  }
-
-  fillDiamond(cx: number, cy: number, rx: number, ry: number, c: RGB): void {
-    this.fillPolygon([[cx, cy - ry], [cx + rx, cy], [cx, cy + ry], [cx - rx, cy]], c);
-  }
-
-  fillPolygonDithered(pts: [number, number][], a: RGB, b: RGB, rng: () => number): void {
-    const xs = pts.map((p) => p[0]);
-    const ys = pts.map((p) => p[1]);
-    const minX = Math.floor(Math.min(...xs));
-    const maxX = Math.ceil(Math.max(...xs));
-    const minY = Math.floor(Math.min(...ys));
-    const maxY = Math.ceil(Math.max(...ys));
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        if (!pointInPolygon(x, y, pts)) continue;
-        this.setPx(x, y, rng() < 0.5 ? a : b);
-      }
-    }
-  }
-
-  fillFacetedGem(cx: number, cy: number, rx: number, ry: number, col: RGB): void {
-    const bright = lighten(col, 0.5);
-    const dark = darken(col, 0.4);
-    this.fillDiamond(cx, cy, rx, ry, col);
-    this.fillPolygon([[cx, cy - ry], [cx + rx * 0.6, cy - ry * 0.25], [cx, cy], [cx - rx * 0.6, cy - ry * 0.25]], bright);
-    this.fillPolygon([[cx, cy], [cx + rx * 0.5, cy], [cx + rx * 0.2, cy + ry * 0.6], [cx - rx * 0.15, cy + ry * 0.75]], dark);
-    this.setPx(cx - rx * 0.2, cy - ry * 0.5, lighten(col, 0.85));
-    this.setPx(cx, cy - ry * 0.7, lighten(col, 0.7));
-  }
-
-  fillTriangle(a: [number, number], b: [number, number], cc: [number, number], c: RGB): void {
-    this.fillPolygon([a, b, cc], c);
-  }
-
-  fillGradientPolygon(pts: [number, number][], colorFn: (t: number) => RGB, from: [number, number], to: [number, number]): void {
-    const dx = to[0] - from[0];
-    const dy = to[1] - from[1];
-    const lenSq = dx * dx + dy * dy || 1;
-    const xs = pts.map((p) => p[0]);
-    const ys = pts.map((p) => p[1]);
-    const minX = Math.floor(Math.min(...xs));
-    const maxX = Math.ceil(Math.max(...xs));
-    const minY = Math.floor(Math.min(...ys));
-    const maxY = Math.ceil(Math.max(...ys));
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        if (!pointInPolygon(x, y, pts)) continue;
-        const t = ((x - from[0]) * dx + (y - from[1]) * dy) / lenSq;
-        this.setPx(x, y, colorFn(clamp(t, 0, 1)));
-      }
-    }
-  }
-
-  fillPolygon(pts: [number, number][], c: RGB): void {
-    const xs = pts.map((p) => p[0]);
-    const ys = pts.map((p) => p[1]);
-    const minX = Math.floor(Math.min(...xs));
-    const maxX = Math.ceil(Math.max(...xs));
-    const minY = Math.floor(Math.min(...ys));
-    const maxY = Math.ceil(Math.max(...ys));
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        if (pointInPolygon(x, y, pts)) this.setPx(x, y, c);
-      }
-    }
-  }
-
-  line(x0: number, y0: number, x1: number, y1: number, thickness: number, c: RGB): void {
-    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      this.fillCircle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, thickness / 2, c);
-    }
-  }
-
-  arc(cx: number, cy: number, rx: number, ry: number, a0: number, a1: number, thickness: number, c: RGB): void {
-    const steps = Math.max(8, Math.round(Math.abs(a1 - a0)));
-    for (let s = 0; s <= steps; s++) {
-      const a = ((a0 + ((a1 - a0) * s) / steps) * Math.PI) / 180;
-      this.fillCircle(cx + rx * Math.cos(a), cy + ry * Math.sin(a), thickness / 2, c);
-    }
-  }
-
-  applyShading(light: RGB, dark: RGB): void {
-    const src = Buffer.from(this.buf);
-    for (let y = 0; y < SIZE; y++) {
-      for (let x = 0; x < SIZE; x++) {
-        const i = (y * SIZE + x) * 4;
-        if (src[i + 3] === 0) continue;
-        const above = y > 0 ? src[((y - 1) * SIZE + x) * 4 + 3] : 0;
-        const below = y < SIZE - 1 ? src[((y + 1) * SIZE + x) * 4 + 3] : 0;
-        if (above === 0) this.setPx(x, y, light);
-        else if (below === 0) this.setPx(x, y, dark);
-      }
-    }
-  }
-
-  applyOutline(outline: RGB): void {
-    const src = Buffer.from(this.buf);
-    const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    for (let y = 0; y < SIZE; y++) {
-      for (let x = 0; x < SIZE; x++) {
-        const i = (y * SIZE + x) * 4;
-        if (src[i + 3] > 0) continue;
-        let adjacent = false;
-        for (const [nx, ny] of neighbors) {
-          const dx = x + nx;
-          const dy = y + ny;
-          if (dx < 0 || dy < 0 || dx >= SIZE || dy >= SIZE) continue;
-          if (src[(dy * SIZE + dx) * 4 + 3] > 0) {
-            adjacent = true;
-            break;
-          }
-        }
-        if (adjacent) this.setPx(x, y, outline);
-      }
-    }
-  }
-
-  sparkle(count: number, c: RGB, rng: () => number): void {
-    for (let n = 0; n < count; n++) {
-      this.setPx(rng() * SIZE, rng() * SIZE, c);
-    }
-  }
-
-  paintBackground(fn: (x: number, y: number) => RGB | null): void {
-    const src = Buffer.from(this.buf);
-    for (let y = 0; y < SIZE; y++) {
-      for (let x = 0; x < SIZE; x++) {
-        const i = (y * SIZE + x) * 4;
-        if (src[i + 3] > 0) continue;
-        const col = fn(x, y);
-        if (col) this.setPx(x, y, col);
-      }
-    }
-  }
-}
-
-interface Palette {
-  base: RGB;
-  light: RGB;
-  dark: RGB;
-  metal: RGB;
-  wood: RGB;
-  accent: RGB;
-  gem: RGB;
-  outline: RGB;
-}
-
-const STEEL: RGB = [150, 160, 175];
-const IRON: RGB = [140, 145, 155];
-const GOLD: RGB = [222, 178, 70];
-const SILVER: RGB = [196, 204, 216];
-const BRONZE: RGB = [176, 122, 74];
-const CRIMSON: RGB = [168, 48, 58];
-const GRAY_METAL: RGB = [168, 176, 188];
-const WOOD: RGB = [122, 82, 52];
-
-const TYPE_DEFAULT: Record<string, RGB> = {
-  weapon: STEEL,
-  helm: STEEL,
-  armor: IRON,
-  cape: CRIMSON,
-};
-
-const RARITY_COLORS: Record<string, RGB> = {
-  common: [168, 176, 188],
-  uncommon: [92, 194, 108],
-  rare: [82, 138, 240],
-  epic: [170, 92, 240],
-  legendary: [240, 186, 66],
-  mythic: [244, 92, 130],
-};
-
-const ELEMENT_COLORS: Record<string, RGB> = {
-  fire: [222, 92, 52],
-  ice: [120, 190, 232],
-  thunder: [232, 202, 74],
-  nature: [92, 172, 92],
-  light: [240, 230, 190],
-  dark: [112, 82, 152],
-  arcane: [182, 92, 222],
-  earth: [152, 122, 82],
-  water: [82, 142, 222],
-};
-
-const KEYWORD_COLORS: Record<string, RGB> = {
-  red: [196, 58, 54], vermelho: [196, 58, 54],
-  blue: [64, 110, 222], azul: [64, 110, 222],
-  green: [76, 168, 88], verde: [76, 168, 88],
-  gold: [222, 178, 70], dourado: [222, 178, 70], ouro: [222, 178, 70],
-  silver: [196, 204, 216], prata: [196, 204, 216],
-  black: [40, 42, 48], preto: [40, 42, 48],
-  white: [236, 238, 240], branco: [236, 238, 240],
-  purple: [164, 88, 224], roxo: [164, 88, 224], violeta: [164, 88, 224],
-  orange: [232, 128, 52], laranja: [232, 128, 52],
-  yellow: [236, 208, 74], amarelo: [236, 208, 74],
-  cyan: [74, 196, 214], ciano: [74, 196, 214],
-  teal: [60, 160, 150],
-  brown: [146, 98, 60], marrom: [146, 98, 60],
-  pink: [232, 118, 168], rosa: [232, 118, 168],
-  steel: STEEL, aco: STEEL,
-  iron: IRON, ferro: IRON,
-  bronze: BRONZE,
-  obsidian: [56, 50, 78], obsidiana: [56, 50, 78],
-  bone: [224, 218, 198], osso: [224, 218, 198],
-  crystal: [138, 208, 232], cristal: [138, 208, 232],
-  shadow: [96, 78, 140], sombra: [96, 78, 140],
-  crimson: CRIMSON, carmesim: CRIMSON,
-  emerald: [64, 196, 110], esmeralda: [64, 196, 110],
-  ruby: [208, 60, 84], rubi: [208, 60, 84],
-  sapphire: [70, 110, 224], safira: [70, 110, 224],
-  amethyst: [170, 100, 220], ametista: [170, 100, 220],
-  onyx: [48, 46, 56], onix: [48, 46, 56],
-  fire: ELEMENT_COLORS.fire, fogo: ELEMENT_COLORS.fire,
-  ice: ELEMENT_COLORS.ice, gelo: ELEMENT_COLORS.ice,
-  thunder: ELEMENT_COLORS.thunder, raio: ELEMENT_COLORS.thunder, trovao: ELEMENT_COLORS.thunder,
-  nature: ELEMENT_COLORS.nature, natureza: ELEMENT_COLORS.nature,
-  light: ELEMENT_COLORS.light, luz: ELEMENT_COLORS.light,
-  dark: ELEMENT_COLORS.dark, escuridao: ELEMENT_COLORS.dark,
-  arcane: ELEMENT_COLORS.arcane, arcano: ELEMENT_COLORS.arcano,
-  earth: ELEMENT_COLORS.earth, terra: ELEMENT_COLORS.earth,
-  water: ELEMENT_COLORS.water, agua: ELEMENT_COLORS.water,
-};
-
-function pickKeyword(base: RGB | null, ...terms: (string | undefined)[]): RGB | null {
-  if (base) return base;
-  for (const term of terms) {
-    if (!term) continue;
-    const lower = term.toLowerCase();
-    for (const [key, value] of Object.entries(KEYWORD_COLORS)) {
-      if (lower.includes(key)) return value;
-    }
-  }
-  return null;
-}
-
-function basePalette(base: RGB, gem: RGB): Palette {
-  return {
-    base,
-    light: lighten(base, 0.45),
-    dark: darken(base, 0.42),
-    metal: GRAY_METAL,
-    wood: WOOD,
-    accent: gem,
-    gem,
-    outline: darken(base, 0.78),
-  };
-}
-
-function resolveItemPalette(input: ItemIconInput, rng: () => number): Palette {
-  const base = pickKeyword(null, input.color, input.material, input.theme) ?? TYPE_DEFAULT[input.type] ?? GRAY_METAL;
-  const shifted = hueShift(base, (rng() * 48 - 24) + ((rng() < 0.35 ? 120 : 0)));
-  const jittered: RGB = [
-    clamp(shifted[0] + (rng() * 30 - 15)),
-    clamp(shifted[1] + (rng() * 30 - 15)),
-    clamp(shifted[2] + (rng() * 30 - 15)),
-  ];
-  const pal = basePalette(jittered, rarityColor(input.rarity));
-  const mat = (input.material || "").toLowerCase();
-  if (/(gold|ouro|dourado)/.test(mat)) pal.metal = GOLD;
-  else if (/(silver|prata)/.test(mat)) pal.metal = SILVER;
-  else if (/(bronze)/.test(mat)) pal.metal = BRONZE;
-  else if (/(obsidian|shadow|sombra)/.test(mat)) pal.metal = darken(jittered, 0.55);
-  else if (/(crystal|cristal)/.test(mat)) pal.metal = lighten(jittered, 0.45);
-  else if (/(iron|ferro)/.test(mat)) pal.metal = IRON;
-  return pal;
-}
-
-function resolveSkillPalette(input: SkillIconInput, rng: () => number): Palette {
-  const base = ELEMENT_COLORS[input.element || ""] || ELEMENT_COLORS.arcane;
-  const shifted = hueShift(base, (rng() * 40 - 20));
-  const jittered: RGB = [
-    clamp(shifted[0] + (rng() * 26 - 13)),
-    clamp(shifted[1] + (rng() * 26 - 13)),
-    clamp(shifted[2] + (rng() * 26 - 13)),
-  ];
-  return basePalette(jittered, rarityColor(input.rarity));
-}
-
-function rarityColor(rarity?: string): RGB {
-  const key = String(rarity || "").toLowerCase();
-  return RARITY_COLORS[key] || RARITY_COLORS.common;
-}
-
-const RAINBOW: RGB[] = [
-  [222, 62, 62],
-  [232, 128, 52],
-  [236, 208, 74],
-  [88, 196, 96],
-  [74, 196, 214],
-  [82, 138, 240],
-  [170, 92, 240],
+// ===== PALETAS COM CONTORNO COLORIDO =====
+const PALETTE_STEEL: RGB[] = [
+  [18, 20, 28],    // 0: contorno
+  [40, 45, 55],    // 1: sombra profunda
+  [70, 78, 90],    // 2: sombra
+  [110, 120, 135], // 3: base
+  [155, 168, 185], // 4: luz
+  [200, 210, 225], // 5: brilho
+  [235, 242, 255], // 6: brilho máximo
 ];
 
-function sectionGradient(stops: RGB[]): (t: number) => RGB {
-  return (t: number): RGB => {
-    const scaled = t * (stops.length - 1);
-    const i = Math.min(stops.length - 2, Math.floor(scaled));
-    return mix(stops[i], stops[i + 1], scaled - i);
-  };
-}
+const PALETTE_FIRE: RGB[] = [
+  [35, 10, 5],     // 0: contorno
+  [85, 18, 8],     // 1: sombra profunda
+  [150, 30, 12],   // 2: vermelho escuro
+  [200, 50, 15],   // 3: vermelho
+  [240, 95, 25],   // 4: laranja
+  [255, 165, 45],  // 5: amarelo
+  [255, 215, 100], // 6: brilho máximo
+];
 
-function bladeGradient(p: Palette): (t: number) => RGB {
-  return (t: number): RGB => {
-    const light = mix(p.light, p.base, 0.4);
-    const mid = p.base;
-    const dark = mix(p.base, p.dark, 0.7);
-    if (t < 0.5) return mix(light, mid, t * 2);
-    return mix(mid, dark, (t - 0.5) * 2);
-  };
-}
+const PALETTE_ICE: RGB[] = [
+  [8, 16, 32],     // 0: contorno
+  [18, 45, 85],    // 1: sombra profunda
+  [35, 90, 150],   // 2: azul escuro
+  [60, 140, 200],  // 3: base
+  [100, 185, 235], // 4: luz
+  [160, 220, 250], // 5: brilho
+  [215, 242, 255], // 6: brilho máximo
+];
 
-function isRainbow(input: ItemIconInput): boolean {
-  const joined = [input.theme, input.material, input.color, input.name]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return /(rainbow|arco.?iris|spectrum|prism)/.test(joined);
-}
+const PALETTE_SHADOW: RGB[] = [
+  [22, 5, 30],     // 0: contorno
+  [50, 10, 65],    // 1: sombra profunda
+  [80, 20, 105],   // 2: roxo escuro
+  [115, 38, 150],  // 3: base
+  [155, 65, 195],  // 4: luz
+  [195, 115, 235], // 5: brilho
+  [235, 180, 255], // 6: brilho máximo
+];
 
-function drawSword(c: Canvas, p: Palette, rng: () => number, input?: ItemIconInput): void {
-  const gradient = (input && isRainbow(input)) ? sectionGradient(RAINBOW) : bladeGradient(p);
-  const v = rng();
-  if (v < 0.4) {
-    c.fillGradientPolygon([[24, 8], [34, 18], [30, 44], [24, 44]], gradient, [24, 8], [30, 44]);
-    c.fillGradientPolygon([[24, 8], [34, 18], [32, 20], [26, 10]], gradient, [24, 8], [30, 44]);
-    c.fillPolygon([[25, 12], [28, 15], [26, 18], [24, 15]], p.light);
-  } else {
-    c.fillGradientPolygon([[26, 8], [36, 20], [31, 44], [25, 44]], gradient, [26, 8], [31, 44]);
-    c.fillGradientPolygon([[26, 8], [36, 20], [34, 22], [28, 10]], gradient, [26, 8], [31, 44]);
-    c.fillPolygon([[27, 12], [30, 15], [28, 18], [26, 15]], p.light);
+const PALETTE_NATURE: RGB[] = [
+  [6, 22, 4],      // 0: contorno
+  [15, 50, 10],    // 1: sombra profunda
+  [30, 88, 22],    // 2: verde escuro
+  [48, 128, 35],   // 3: base
+  [75, 168, 58],   // 4: luz
+  [115, 208, 100], // 5: brilho
+  [170, 240, 155], // 6: brilho máximo
+];
+
+const PALETTE_HOLY: RGB[] = [
+  [30, 24, 8],     // 0: contorno
+  [72, 55, 15],    // 1: sombra profunda
+  [130, 100, 25],  // 2: dourado escuro
+  [185, 150, 40],  // 3: base
+  [225, 195, 70],  // 4: luz
+  [250, 232, 130], // 5: brilho
+  [255, 248, 195], // 6: brilho máximo
+];
+
+const PALETTE_DARK: RGB[] = [
+  [12, 4, 18],     // 0: contorno
+  [30, 8, 45],     // 1: sombra profunda
+  [50, 15, 72],    // 2: roxo escuro
+  [72, 25, 105],   // 3: base
+  [100, 42, 145],  // 4: luz
+  [140, 75, 185],  // 5: brilho
+  [185, 130, 225], // 6: brilho máximo
+];
+
+const PALETTE_ARCANE: RGB[] = [
+  [18, 6, 28],     // 0: contorno
+  [45, 12, 65],    // 1: sombra profunda
+  [78, 22, 110],   // 2: magenta escuro
+  [115, 35, 155],  // 3: base
+  [155, 58, 200],  // 4: luz
+  [195, 105, 240], // 5: brilho
+  [235, 170, 255], // 6: brilho máximo
+];
+
+const PALETTES: Record<string, RGB[]> = {
+  fire: PALETTE_FIRE, ice: PALETTE_ICE, lightning: PALETTE_FIRE,
+  shadow: PALETTE_SHADOW, nature: PALETTE_NATURE, holy: PALETTE_HOLY,
+  dark: PALETTE_DARK, arcane: PALETTE_ARCANE, steel: PALETTE_STEEL,
+  iron: PALETTE_STEEL, gold: PALETTE_HOLY, default: PALETTE_STEEL,
+};
+
+// ===== CANVAS 16×16 =====
+class Canvas16 {
+  pixels: RGB[];
+  width: number;
+  height: number;
+
+  constructor(w = 16, h = 16) {
+    this.width = w;
+    this.height = h;
+    this.pixels = new Array(w * h).fill(null as any).map(() => [0, 0, 0] as RGB);
   }
-  const guard = darken(p.metal, 0.35);
-  c.fillPolygon([[18, 34], [44, 30], [44, 34], [18, 38]], guard);
-  c.fillPolygon([[22, 30], [26, 29], [24, 35], [20, 36]], guard);
-  c.fillPolygon([[40, 29], [44, 28], [44, 34], [40, 33]], guard);
-  c.fillCircle(20, 36, 1, p.light);
-  c.fillCircle(42, 31, 1, p.light);
-  c.fillPolygon([[24, 38], [28, 37], [27, 46], [23, 47]], p.wood);
-  c.line(23, 40, 27, 40, 1, GOLD);
-  c.line(24, 44, 27, 44, 1, GOLD);
-  c.fillPolygon([[23, 47], [27, 46], [28, 53], [22, 54]], p.dark);
-  c.fillFacetedGem(25, 55, 2.6, 2.6, p.gem);
-  c.fillFacetedGem(20, 36, 1.6, 1.6, p.gem);
-  c.fillFacetedGem(42, 31, 1.6, 1.6, p.gem);
-  c.fillDiamond(26, 18, 1.6, 2.4, p.light);
-}
 
-function drawDagger(c: Canvas, p: Palette, rng: () => number): void {
-  const v = rng();
-  if (v < 0.5) {
-    c.fillPolygon([[32, 7], [29, 12], [35, 12]], p.base);
-    c.fillPolygon([[29, 12], [35, 12], [37, 30], [37, 33], [27, 33], [27, 30]], p.base);
-    c.fillPolygon([[30, 13], [31, 13], [31, 30], [28, 30], [28, 25], [30, 13]], p.light);
-    c.fillPolygon([[23, 33], [41, 33], [41, 37], [23, 37]], p.metal);
-    c.fillPolygon([[30, 37], [34, 37], [34, 44], [30, 44]], p.dark);
-    c.fillCircle(32, 47, 2, p.gem);
-  } else {
-    c.fillPolygon([[33, 8], [30, 13], [35, 13]], p.base);
-    c.fillPolygon([[30, 13], [35, 13], [38, 32], [38, 35], [28, 35], [28, 32]], p.base);
-    c.fillPolygon([[31, 14], [32, 14], [32, 32], [29, 32], [29, 27], [31, 14]], p.light);
-    c.fillPolygon([[24, 35], [42, 35], [42, 39], [24, 39]], p.metal);
-    c.fillPolygon([[30, 39], [34, 39], [34, 46], [30, 46]], p.dark);
-    c.fillDiamond(32, 49, 2, 2.4, p.gem);
+  set(x: number, y: number, color: RGB): void {
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return;
+    this.pixels[y * this.width + x] = [...color] as RGB;
   }
-}
 
-function drawStaff(c: Canvas, p: Palette, rng: () => number): void {
-  const v = rng();
-  const wood = p.wood;
-  const woodDark = darken(wood, 0.3);
-  if (v < 0.5) {
-    c.fillFacetedGem(32, 11, 5.5, 5.5, p.gem);
-    c.fillCircle(30, 9, 1.8, lighten(p.gem, 0.75));
-    c.fillPolygon([[27, 19], [37, 19], [37, 26], [27, 26]], p.metal);
-    c.fillPolygon([[30, 24], [34, 24], [34, 56], [30, 56]], wood);
-    c.line(32, 26, 32, 55, 1, woodDark);
-    c.fillPolygon([[28, 40], [36, 40], [36, 44], [28, 44]], p.metal);
-    c.fillPolygon([[28, 44], [36, 44], [36, 47], [28, 47]], woodDark);
-    c.fillPolygon([[30, 56], [34, 56], [32, 61]], p.metal);
-    c.fillPolygon([[28, 19], [32, 19], [30, 23], [26, 23]], p.light);
-  } else {
-    c.fillFacetedGem(32, 12, 5, 7, p.gem);
-    c.fillDiamond(29, 9, 2, 2.5, lighten(p.gem, 0.75));
-    c.fillPolygon([[30, 21], [34, 21], [34, 56], [30, 56]], wood);
-    c.line(32, 23, 32, 54, 1, woodDark);
-    c.fillCircle(32, 24, 2, p.metal);
-    c.fillPolygon([[28, 36], [36, 36], [36, 40], [28, 40]], p.metal);
-    c.fillCircle(32, 52, 2, p.metal);
-    c.fillPolygon([[30, 56], [34, 56], [32, 61]], p.metal);
-  }
-}
-
-function drawAxe(c: Canvas, p: Palette, rng: () => number): void {
-  const v = rng();
-  const wood = p.wood;
-  const woodDark = darken(wood, 0.3);
-  if (v < 0.5) {
-    c.line(18, 58, 44, 22, 4, wood);
-    c.line(19, 57, 43, 23, 1.6, p.light);
-    c.line(25, 51, 36, 40, 1, woodDark);
-    c.fillPolygon([[28, 8], [50, 18], [54, 28], [46, 32], [38, 30], [32, 24], [30, 14]], p.metal);
-    c.fillPolygon([[30, 14], [32, 24], [38, 30], [40, 26], [36, 18]], p.light);
-    c.fillPolygon([[46, 10], [52, 18], [50, 14]], p.light);
-    c.fillFacetedGem(46, 10, 2.4, 2.4, p.gem);
-    c.fillCircle(38, 20, 1, p.dark);
-  } else {
-    c.line(24, 58, 40, 18, 4, wood);
-    c.line(30, 50, 35, 30, 1, woodDark);
-    c.fillPolygon([[20, 12], [36, 8], [52, 16], [54, 24], [46, 28], [38, 24], [32, 18]], p.metal);
-    c.fillPolygon([[22, 12], [28, 10], [34, 16], [38, 22], [32, 18], [26, 16]], p.light);
-    c.fillFacetedGem(28, 16, 2.4, 2.4, p.gem);
-    c.fillCircle(38, 16, 1, p.dark);
-  }
-}
-
-function drawHammer(c: Canvas, p: Palette, rng: () => number): void {
-  const wood = p.wood;
-  const woodDark = darken(wood, 0.3);
-  c.line(27, 58, 34, 22, 4, wood);
-  c.line(28, 52, 33, 28, 1, woodDark);
-  c.fillPolygon([[18, 6], [34, 4], [46, 8], [50, 16], [44, 20], [38, 16], [36, 14], [34, 18], [20, 16], [14, 12]], p.metal);
-  c.fillPolygon([[20, 6], [30, 5], [32, 12], [24, 13]], p.light);
-  c.fillPolygon([[38, 16], [44, 20], [42, 14]], p.light);
-  c.fillCircle(34, 11, 2.4, p.gem);
-  c.fillCircle(18, 14, 1.4, p.dark);
-  c.fillCircle(47, 12, 1.4, p.dark);
-}
-
-function drawTome(c: Canvas, p: Palette, rng: () => number): void {
-  const page = lighten(p.base, 0.65);
-  const pageDark = darken(page, 0.25);
-  c.fillPolygon([[13, 8], [51, 8], [51, 37], [13, 37]], p.base);
-  c.fillPolygon([[15, 10], [26, 10], [26, 35], [15, 35]], page);
-  c.fillPolygon([[38, 10], [49, 10], [49, 35], [38, 35]], page);
-  c.line(17, 14, 24, 14, 1, pageDark);
-  c.line(17, 18, 24, 18, 1, pageDark);
-  c.line(17, 22, 24, 22, 1, pageDark);
-  c.line(40, 14, 47, 14, 1, pageDark);
-  c.line(40, 18, 47, 18, 1, pageDark);
-  c.line(40, 22, 47, 22, 1, pageDark);
-  c.fillPolygon([[28, 8], [36, 8], [36, 37], [28, 37]], p.dark);
-  c.fillPolygon([[28, 8], [36, 8], [32, 37]], darken(p.base, 0.2));
-  c.fillPolygon([[13, 37], [51, 37], [51, 44], [13, 44]], p.dark);
-  c.fillPolygon([[28, 37], [36, 37], [32, 46]], p.accent);
-  c.fillFacetedGem(32, 23, 3, 3.5, p.gem);
-}
-
-function drawBow(c: Canvas, p: Palette, rng: () => number): void {
-  c.arc(32, 34, 20, 20, 200, 340, 5, p.wood);
-  c.arc(32, 34, 20, 20, 205, 335, 1.6, p.light);
-  c.arc(32, 34, 20, 20, 210, 330, 1, darken(p.wood, 0.3));
-  c.line(15, 28, 49, 28, 1.2, p.light);
-  if (rng() < 0.6) c.fillFacetedGem(32, 28, 1.8, 1.8, p.gem);
-}
-
-function drawCap(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillEllipse(32, 34, 21, 16, p.base);
-  c.fillEllipse(27, 27, 10, 7, p.light);
-  c.fillPolygon([[11, 38], [53, 38], [53, 43], [11, 43]], p.accent);
-  if (rng() < 0.5) c.fillPolygon([[45, 43], [58, 43], [58, 46], [45, 46]], p.base);
-  else c.fillCircle(32, 27, 2.4, p.gem);
-}
-
-function drawHelmet(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillEllipse(32, 32, 19, 20, p.base);
-  c.fillEllipse(27, 24, 9, 8, p.light);
-  c.fillPolygon([[24, 36], [40, 36], [38, 47], [26, 47]], p.outline);
-  c.fillPolygon([[26, 38], [38, 38], [37, 44], [27, 44]], darken(p.dark, 0.5));
-  c.fillCircle(31, 41, 0.8, p.light);
-  c.fillCircle(15, 40, 2, p.metal);
-  c.fillCircle(49, 40, 2, p.metal);
-  c.fillCircle(15, 40, 0.8, p.light);
-  c.fillCircle(49, 40, 0.8, p.light);
-  c.fillPolygon([[32, 13], [36, 20], [34, 26], [30, 26], [28, 20]], p.light);
-  if (rng() < 0.5) c.fillPolygon([[30, 11], [34, 11], [36, 22], [30, 22]], p.accent);
-  else c.fillDiamond(32, 18, 2, 3, p.gem);
-}
-
-function drawCrown(c: Canvas, p: Palette, rng: () => number): void {
-  const gold = p.base;
-  const goldLight = lighten(gold, 0.4);
-  const goldDark = darken(gold, 0.35);
-  c.fillTriangle([32, 6], [25, 20], [39, 20], gold);
-  c.fillTriangle([14, 10], [9, 20], [21, 20], gold);
-  c.fillTriangle([50, 10], [43, 20], [55, 20], gold);
-  c.fillTriangle([32, 6], [25, 20], [30, 20], goldLight);
-  c.fillTriangle([14, 10], [9, 20], [12, 20], goldLight);
-  c.fillTriangle([50, 10], [43, 20], [52, 20], goldLight);
-  c.fillPolygon([[9, 20], [55, 20], [55, 33], [9, 33]], gold);
-  c.fillPolygon([[9, 20], [55, 20], [55, 24], [9, 24]], goldDark);
-  c.fillPolygon([[9, 28], [12, 28], [12, 33], [9, 33]], goldDark);
-  c.fillPolygon([[52, 28], [55, 28], [55, 33], [52, 33]], goldDark);
-  c.fillFacetedGem(32, 9, 2.2, 2.2, p.gem);
-  c.fillFacetedGem(14, 13, 1.8, 1.8, p.gem);
-  c.fillFacetedGem(50, 13, 1.8, 1.8, p.gem);
-  c.fillCircle(32, 27, 2.6, p.accent);
-  c.fillCircle(31, 26, 1, p.light);
-}
-
-function drawHood(c: Canvas, p: Palette, rng: () => number): void {
-  c.fillPolygon([[32, 5], [52, 26], [48, 52], [16, 52], [12, 26]], p.base);
-  c.fillPolygon([[26, 10], [32, 5], [52, 26], [40, 26]], p.light);
-  c.fillEllipse(32, 42, 10, 14, p.outline);
-  c.fillEllipse(32, 42, 8, 12, p.dark);
-}
-
-function drawLightArmor(c: Canvas, p: Palette, rng: () => number): void {
-  const base = p.base;
-  const alt = mix(base, p.dark, 0.45);
-  c.fillPolygonDithered([[20, 20], [44, 20], [48, 44], [40, 58], [24, 58], [16, 44]], base, alt, rng);
-  c.fillPolygon([[14, 20], [26, 20], [24, 32], [12, 30]], p.dark);
-  c.fillPolygon([[38, 20], [50, 20], [52, 30], [40, 32]], p.dark);
-  c.fillPolygon([[26, 22], [38, 22], [36, 27], [28, 27]], p.light);
-  c.fillPolygon([[22, 46], [42, 46], [42, 52], [22, 52]], p.accent);
-  c.line(22, 34, 42, 34, 1, darken(base, 0.3));
-  if (rng() < 0.5) c.fillDiamond(32, 49, 3, 3, p.metal);
-  else c.fillFacetedGem(32, 49, 2.6, 2.6, p.gem);
-}
-
-function drawHeavyArmor(c: Canvas, p: Palette, rng: () => number): void {
-  const base = p.base;
-  c.fillPolygon([[20, 18], [44, 18], [50, 46], [40, 60], [24, 60], [14, 46]], base);
-  c.fillPolygon([[24, 22], [40, 22], [40, 28], [24, 28]], p.light);
-  c.fillPolygon([[20, 42], [44, 42], [44, 48], [20, 48]], p.dark);
-  c.fillCircle(16, 22, 8, p.dark);
-  c.fillCircle(48, 22, 8, p.dark);
-  c.fillCircle(16, 22, 5, p.metal);
-  c.fillCircle(48, 22, 5, p.metal);
-  c.fillCircle(15, 21, 1.5, p.light);
-  c.fillCircle(47, 21, 1.5, p.light);
-  c.fillPolygon([[28, 22], [36, 22], [36, 28], [28, 28]], p.light);
-  if (rng() < 0.5) c.fillFacetedGem(32, 36, 6, 7, p.gem);
-  else c.fillFacetedGem(32, 36, 4, 4, p.gem);
-  c.fillCircle(26, 24, 1.5, p.metal);
-  c.fillCircle(38, 24, 1.5, p.metal);
-  c.fillPolygon([[20, 48], [44, 48], [44, 54], [20, 54]], p.accent);
-}
-
-function drawRobe(c: Canvas, p: Palette, rng: () => number): void {
-  const base = p.base;
-  const alt = mix(base, p.dark, 0.5);
-  c.fillPolygonDithered([[22, 16], [42, 16], [52, 30], [48, 60], [16, 60], [12, 30]], base, alt, rng);
-  c.fillPolygon([[24, 18], [40, 18], [32, 30]], p.outline);
-  c.fillPolygon([[26, 20], [38, 20], [32, 28]], p.dark);
-  c.fillPolygon([[24, 20], [42, 20], [40, 26], [26, 26]], p.light);
-  c.fillPolygon([[20, 38], [44, 38], [44, 44], [20, 44]], p.accent);
-  c.fillPolygon([[16, 56], [48, 56], [48, 60], [16, 60]], p.accent);
-  c.fillCircle(32, 30, 2.5, p.metal);
-}
-
-function drawCape(c: Canvas, p: Palette, rng: () => number): void {
-  const base = p.base;
-  const alt = mix(base, p.dark, 0.5);
-  c.fillPolygonDithered([[26, 10], [38, 10], [44, 22], [52, 34], [56, 54], [44, 60], [20, 60], [8, 54], [12, 34], [20, 22]], base, alt, rng);
-  c.fillPolygon([[28, 14], [36, 14], [30, 32], [34, 48], [30, 58], [26, 58], [22, 46], [26, 30]], darken(base, 0.3));
-  c.fillPolygon([[27, 12], [37, 12], [37, 15], [27, 15]], p.light);
-  c.fillPolygon([[24, 52], [30, 52], [28, 56], [22, 56]], darken(base, 0.2));
-  c.fillPolygon([[34, 50], [40, 50], [38, 56], [32, 56]], darken(base, 0.2));
-  if (rng() < 0.5) c.fillCircle(32, 12, 3, p.metal);
-  else c.fillFacetedGem(32, 12, 2.4, 2.4, p.gem);
-}
-
-function drawGenericGem(c: Canvas, p: Palette): void {
-  c.fillFacetedGem(32, 32, 20, 22, p.base);
-  c.fillFacetedGem(32, 32, 3, 3, p.gem);
-}
-
-function detectElement(input: ItemIconInput): string | null {
-  const joined = [input.theme, input.material, input.color, input.name]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  if (/(fire|fogo|flame|chama)/.test(joined)) return "fire";
-  if (/(ice|gelo|frost|frio|cryo)/.test(joined)) return "ice";
-  if (/(thunder|raio|storm|tempestade|eletric)/.test(joined)) return "thunder";
-  if (/(nature|natureza|floresta|forest|leaf|folha|poison|veneno)/.test(joined)) return "nature";
-  if (/(light|luz|sagrad|holy|divin)/.test(joined)) return "light";
-  if (/(dark|sombra|shadow|obscur|void)/.test(joined)) return "dark";
-  if (/(arcane|arcano|magi|magic|runa)/.test(joined)) return "arcane";
-  if (/(earth|terra|rocha|stone|pedra|obsidian|miner)/.test(joined)) return "earth";
-  if (/(water|agua|ocean|oceano|mar\b|rio)/.test(joined)) return "water";
-  return null;
-}
-
-function drawFlames(c: Canvas, p: Palette, rng: () => number): void {
-  const flame = ELEMENT_COLORS.fire;
-  const core = lighten(flame, 0.45);
-  const x = 32;
-  const y = 12;
-  c.fillTriangle([x - 2, y], [x + 2, y], [x, y - 6], core);
-  c.fillTriangle([x - 4, y + 2], [x - 1, y + 2], [x - 2, y - 4], flame);
-  c.fillTriangle([x + 1, y + 2], [x + 4, y + 2], [x + 2, y - 4], flame);
-  if (rng() < 0.5) c.fillCircle(x, y - 7, 1, core);
-}
-
-function drawIceShards(c: Canvas, p: Palette, rng: () => number): void {
-  const ice = ELEMENT_COLORS.ice;
-  const light = lighten(ice, 0.5);
-  c.fillTriangle([32, 6], [29, 14], [35, 14], ice);
-  c.fillTriangle([32, 8], [30.5, 12], [33.5, 12], light);
-  if (rng() < 0.6) {
-    c.fillTriangle([24, 12], [22, 16], [26, 16], ice);
-    c.fillTriangle([40, 12], [38, 16], [42, 16], ice);
-  }
-}
-
-function drawThunder(c: Canvas, p: Palette, rng: () => number): void {
-  const bolt = ELEMENT_COLORS.thunder;
-  c.fillPolygon([[34, 8], [28, 22], [33, 22], [30, 32], [38, 18], [33, 18], [36, 8]], bolt);
-  if (rng() < 0.5) c.fillCircle(24, 8, 1.5, bolt);
-  if (rng() < 0.5) c.fillCircle(42, 10, 1.5, bolt);
-}
-
-function drawSparkles(c: Canvas, p: Palette, rng: () => number, count: number): void {
-  const col = ELEMENT_COLORS.arcane;
-  for (let i = 0; i < count; i++) {
-    const x = 10 + rng() * 44;
-    const y = 8 + rng() * 48;
-    c.setPx(x, y, col);
-    c.setPx(x, y + 1, col);
-    c.setPx(x + 1, y, col);
-    c.setPx(x - 1, y, col);
-    c.setPx(x, y - 1, col);
-  }
-}
-
-function applyElement(c: Canvas, p: Palette, input: ItemIconInput, rng: () => number): void {
-  const el = detectElement(input);
-  if (!el) return;
-  if (el === "fire") drawFlames(c, p, rng);
-  else if (el === "ice") drawIceShards(c, p, rng);
-  else if (el === "thunder") drawThunder(c, p, rng);
-  else drawSparkles(c, p, rng, el === "dark" ? 14 : 8);
-}
-
-function drawItem(c: Canvas, input: ItemIconInput, p: Palette, rng: () => number): void {
-  const subtype = String(input.subtype || "").toLowerCase();
-  const type = String(input.type || "").toLowerCase();
-  const swordLike = subtype === "sword" || subtype === "espada" || (!subtype && type === "weapon");
-  if (type === "weapon" || subtype === "weapon") {
-    if (subtype === "dagger" || subtype === "adaga") drawDagger(c, p, rng);
-    else if (subtype === "staff" || subtype === "cajado" || subtype === "stave") drawStaff(c, p, rng);
-    else if (subtype === "axe" || subtype === "machado") drawAxe(c, p, rng);
-    else if (subtype === "tome" || subtype === "grimorio") drawTome(c, p, rng);
-    else if (subtype === "bow" || subtype === "arco") drawBow(c, p, rng);
-    else if (subtype === "hammer" || subtype === "martelo" || subtype === "mace" || subtype === "maca") drawHammer(c, p, rng);
-    else if (swordLike) drawSword(c, p, rng, input);
-    else {
-      const shapes: ((c: Canvas, p: Palette, rng: () => number) => void)[] = [drawAxe, drawStaff, drawTome, drawDagger, drawHammer];
-      shapes[Math.floor(rng() * shapes.length)](c, p, rng);
+  toBuffer64(): Buffer {
+    const out = Buffer.alloc(FINAL_SIZE * FINAL_SIZE * 4);
+    for (let y = 0; y < FINAL_SIZE; y++) {
+      for (let x = 0; x < FINAL_SIZE; x++) {
+        const srcX = Math.floor(x / SCALE);
+        const srcY = Math.floor(y / SCALE);
+        const src = this.pixels[srcY * this.width + srcX];
+        const i = (y * FINAL_SIZE + x) * 4;
+        out[i] = src[0]; out[i+1] = src[1]; out[i+2] = src[2];
+        out[i+3] = (src[0] + src[1] + src[2] > 0) ? 255 : 0;
+      }
     }
-    applyElement(c, p, input, rng);
-    return;
-  }
-  if (type === "helm" || subtype === "helm") {
-    if (subtype === "cap" || subtype === "gorro" || subtype === "chapeu") drawCap(c, p, rng);
-    else if (subtype === "crown" || subtype === "coroa") drawCrown(c, p, rng);
-    else if (subtype === "hood" || subtype === "capuz") drawHood(c, p, rng);
-    else if (subtype === "helmet" || subtype === "elmo" || subtype === "capacete") drawHelmet(c, p, rng);
-    else {
-      const shapes: ((c: Canvas, p: Palette, rng: () => number) => void)[] = [drawHelmet, drawCap, drawCrown, drawHood];
-      shapes[Math.floor(rng() * shapes.length)](c, p, rng);
-    }
-    applyElement(c, p, input, rng);
-    return;
-  }
-  if (type === "armor" || subtype === "armor" || type === "armadura") {
-    if (subtype === "light" || subtype === "leve" || subtype === "couro") drawLightArmor(c, p, rng);
-    else if (subtype === "heavy" || subtype === "pesada" || subtype === "placa") drawHeavyArmor(c, p, rng);
-    else if (subtype === "robe" || subtype === "veste" || subtype === "manto") drawRobe(c, p, rng);
-    else {
-      const shapes: ((c: Canvas, p: Palette, rng: () => number) => void)[] = [drawHeavyArmor, drawLightArmor, drawRobe];
-      shapes[Math.floor(rng() * shapes.length)](c, p, rng);
-    }
-    applyElement(c, p, input, rng);
-    return;
-  }
-  if (type === "cape" || subtype === "cape" || subtype === "capa") {
-    drawCape(c, p, rng);
-    applyElement(c, p, input, rng);
-    return;
-  }
-  drawGenericGem(c, p);
-}
-
-function drawAttack(c: Canvas, p: Palette, rng: () => number): void {
-  const variant = rng();
-  if (variant < 0.6) {
-    c.line(20, 16, 46, 42, 4, p.metal);
-    c.line(46, 16, 20, 42, 4, p.metal);
-    c.line(21, 17, 45, 41, 1.4, p.light);
-    c.fillCircle(20, 16, 2.4, p.gem);
-    c.fillCircle(46, 16, 2.4, p.gem);
-    c.fillCircle(20, 42, 2.4, p.gem);
-    c.fillCircle(46, 42, 2.4, p.gem);
-  } else {
-    c.line(16, 50, 48, 18, 5, p.base);
-    c.line(17, 49, 47, 19, 1.6, p.light);
-    c.fillCircle(48, 18, 2.6, p.gem);
+    return out;
   }
 }
 
-function drawBuff(c: Canvas, p: Palette): void {
-  c.fillPolygon([[32, 7], [21, 22], [28, 22], [28, 42], [36, 42], [36, 22], [43, 22]], p.accent);
-  c.fillPolygon([[32, 12], [26, 20], [30, 20], [30, 38], [34, 38], [34, 20], [38, 20]], p.light);
+// ==================================================================
+// ADAGA — curta, lâmina fina, guarda, cabo, pomo
+// ==================================================================
+function drawDagger(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // POMO
+  c.set(7, 13, O); c.set(8, 13, O);
+  c.set(7, 14, SD); c.set(8, 14, SD);
+
+  // CABO (escuro, contrastante)
+  c.set(7, 10, O); c.set(8, 10, O);
+  c.set(7, 11, SD); c.set(8, 11, S);
+  c.set(7, 12, O); c.set(8, 12, O);
+
+  // GUARDA (horizontal)
+  c.set(5, 9, O); c.set(6, 9, L); c.set(7, 9, H); c.set(8, 9, H); c.set(9, 9, L); c.set(10, 9, O);
+
+  // LÂMINA (y=3-8)
+  c.set(6, 8, O); c.set(7, 8, S); c.set(8, 8, B); c.set(9, 8, L); c.set(10, 8, O);
+  c.set(6, 7, O); c.set(7, 7, B); c.set(8, 7, L); c.set(9, 7, H); c.set(10, 7, O);
+  c.set(7, 6, O); c.set(8, 6, B); c.set(9, 6, L); c.set(10, 6, O);
+  c.set(7, 5, O); c.set(8, 5, L); c.set(9, 5, H); c.set(10, 5, O);
+  c.set(7, 4, O); c.set(8, 4, B); c.set(9, 4, L); c.set(10, 4, O);
+  c.set(8, 3, O); c.set(9, 3, B); c.set(10, 3, O);
+  c.set(8, 2, O); c.set(9, 2, O);
 }
 
-function drawDebuff(c: Canvas, p: Palette, rng: () => number): void {
-  if (rng() < 0.5) {
-    c.fillPolygon([[32, 48], [21, 34], [28, 34], [28, 14], [36, 14], [36, 34], [43, 34]], p.base);
-    c.fillPolygon([[32, 43], [26, 36], [30, 36], [30, 18], [34, 18], [34, 36], [38, 36]], p.light);
-  } else {
-    c.fillCircle(32, 22, 10, p.base);
-    c.fillPolygon([[24, 26], [40, 26], [40, 36], [36, 44], [28, 44], [24, 36]], p.base);
-    c.fillCircle(27, 22, 2.6, p.outline);
-    c.fillCircle(37, 22, 2.6, p.outline);
-    c.fillPolygon([[28, 33], [36, 33], [34, 40], [30, 40]], p.outline);
-    c.fillCircle(24, 27, 1, p.light);
+// ==================================================================
+// ESPADA — lâmina longa, guarda ornamental, cabo proporcional
+// ==================================================================
+function drawSword(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // POMO
+  c.set(7, 14, O); c.set(8, 14, O); c.set(9, 14, O);
+  c.set(7, 15, SD); c.set(8, 15, S); c.set(9, 15, SD);
+
+  // CABO (com textura de embrulho)
+  c.set(7, 11, O); c.set(8, 11, O); c.set(9, 11, O);
+  c.set(7, 12, SD); c.set(8, 12, S); c.set(9, 12, SD);
+  c.set(7, 13, O); c.set(8, 13, SD); c.set(9, 13, O);
+
+  // GUARDA (ornamental, 6px)
+  c.set(5, 10, O); c.set(6, 10, B); c.set(7, 10, H); c.set(8, 10, BR); c.set(9, 10, H); c.set(10, 10, B); c.set(11, 10, O);
+  // Detalhes da guarda
+  c.set(4, 10, O); c.set(12, 10, O);
+
+  // LÂMINA (y=2-9)
+  c.set(6, 9, O); c.set(7, 9, S); c.set(8, 9, B); c.set(9, 9, L); c.set(10, 9, H); c.set(11, 9, O);
+  c.set(6, 8, O); c.set(7, 8, B); c.set(8, 8, L); c.set(9, 8, H); c.set(10, 8, L); c.set(11, 8, O);
+  c.set(6, 7, O); c.set(7, 7, L); c.set(8, 7, H); c.set(9, 7, BR); c.set(10, 7, H); c.set(11, 7, O);
+  c.set(7, 6, O); c.set(8, 6, B); c.set(9, 6, L); c.set(10, 6, H); c.set(11, 6, O);
+  c.set(7, 5, O); c.set(8, 5, L); c.set(9, 5, H); c.set(10, 5, BR); c.set(11, 5, O);
+  c.set(7, 4, O); c.set(8, 4, B); c.set(9, 4, L); c.set(10, 4, H); c.set(11, 4, O);
+  c.set(8, 3, O); c.set(9, 3, B); c.set(10, 3, L); c.set(11, 3, O);
+  c.set(8, 2, O); c.set(9, 2, B); c.set(10, 2, O);
+  c.set(9, 1, O); c.set(10, 1, O);
+}
+
+// ==================================================================
+// MACHADO — cabeça larga, cabo diagonal, forma agressiva
+// ==================================================================
+function drawAxe(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // CABO (diagonal ↘)
+  c.set(7, 7, O); c.set(8, 7, O);
+  c.set(7, 8, O); c.set(8, 8, SD);
+  c.set(8, 9, O); c.set(9, 9, O);
+  c.set(8, 10, O); c.set(9, 10, SD);
+  c.set(9, 11, O); c.set(10, 11, O);
+  c.set(9, 12, O); c.set(10, 12, SD);
+  c.set(10, 13, O); c.set(11, 13, O);
+  c.set(10, 14, O); c.set(11, 14, SD); c.set(12, 14, O);
+
+  // CABEÇA (grande, agressiva)
+  // Topo (y=1)
+  c.set(4, 1, O); c.set(5, 1, B); c.set(6, 1, L); c.set(7, 1, H); c.set(8, 1, L); c.set(9, 1, B); c.set(10, 1, O);
+  // y=2
+  c.set(3, 2, O); c.set(4, 2, S); c.set(5, 2, B); c.set(6, 2, L); c.set(7, 2, H); c.set(8, 2, BR); c.set(9, 2, H); c.set(10, 2, B); c.set(11, 2, O);
+  // y=3
+  c.set(2, 3, O); c.set(3, 3, SD); c.set(4, 3, S); c.set(5, 3, B); c.set(6, 3, L); c.set(7, 3, H); c.set(8, 3, BR); c.set(9, 3, H); c.set(10, 3, B); c.set(11, 3, O);
+  // y=4 — centro (mais larga)
+  c.set(1, 4, O); c.set(2, 4, SD); c.set(3, 4, S); c.set(4, 4, B); c.set(5, 4, L); c.set(6, 4, H); c.set(7, 4, BR); c.set(8, 4, H); c.set(9, 4, B); c.set(10, 4, S); c.set(11, 4, SD); c.set(12, 4, O);
+  // y=5
+  c.set(2, 5, O); c.set(3, 5, SD); c.set(4, 5, S); c.set(5, 5, B); c.set(6, 5, L); c.set(7, 5, H); c.set(8, 5, B); c.set(9, 5, S); c.set(10, 5, SD); c.set(11, 5, O);
+  // y=6
+  c.set(3, 6, O); c.set(4, 6, SD); c.set(5, 6, S); c.set(6, 6, B); c.set(7, 6, L); c.set(8, 6, B); c.set(9, 6, S); c.set(10, 6, O);
+  // y=7 — conexão
+  c.set(5, 7, O); c.set(6, 7, S); c.set(7, 7, B); c.set(8, 7, O);
+}
+
+// ==================================================================
+// CAJADO — cabo longo, cristal na ponta, volume
+// ==================================================================
+function drawStaff(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // CABO (y=6-14, 3px largura)
+  for (let y = 6; y <= 14; y++) {
+    c.set(7, y, O);
+    c.set(8, y, y % 3 === 0 ? L : (y % 3 === 1 ? B : S));
+    c.set(9, y, O);
   }
+
+  // PÉ
+  c.set(6, 15, O); c.set(7, 15, SD); c.set(8, 15, S); c.set(9, 15, SD); c.set(10, 15, O);
+
+  // CRISTAL (losango com volume)
+  c.set(8, 1, O);
+  c.set(7, 2, O); c.set(8, 2, BR); c.set(9, 2, O);
+  c.set(6, 3, O); c.set(7, 3, H); c.set(8, 3, BR); c.set(9, 3, H); c.set(10, 3, O);
+  c.set(7, 4, O); c.set(8, 4, L); c.set(9, 4, O);
+  c.set(7, 5, O); c.set(8, 5, B); c.set(9, 5, O);
+
+  // Detalhes decorativos ao redor do cristal
+  c.set(5, 2, O); c.set(11, 2, O);
+  c.set(4, 3, O); c.set(12, 3, O);
 }
 
-function drawHeal(c: Canvas, p: Palette): void {
-  c.fillCircle(24, 28, 8, p.base);
-  c.fillCircle(40, 28, 8, p.base);
-  c.fillPolygon([[16, 28], [48, 28], [32, 50]], p.base);
-  c.fillCircle(22, 25, 3, p.light);
-  c.fillPolygon([[30, 30], [34, 30], [34, 40], [30, 40]], p.light);
+// ==================================================================
+// ARCO — curva definida, corda visível, pontas decorativas
+// ==================================================================
+function drawBow(c: Canvas16, pal: RGB[]): void {
+  const [O, SD, S, B, L, H, BR] = pal;
+
+  // CORPO DO ARCO (curva para esquerda)
+  // Topo pontiagudo
+  c.set(10, 1, O); c.set(11, 1, O);
+  c.set(9, 2, O); c.set(10, 2, B); c.set(11, 2, O);
+  c.set(8, 3, O); c.set(9, 3, L); c.set(10, 3, B); c.set(11, 3, O);
+  c.set(7, 4, O); c.set(8, 4, B); c.set(9, 4, L); c.set(10, 4, H); c.set(11, 4, O);
+  c.set(6, 5, O); c.set(7, 5, S); c.set(8, 5, B); c.set(9, 5, L); c.set(10, 5, H); c.set(11, 5, O);
+  c.set(6, 6, O); c.set(7, 6, SD); c.set(8, 6, S); c.set(9, 6, B); c.set(10, 6, L); c.set(11, 6, O);
+  c.set(6, 7, O); c.set(7, 7, SD); c.set(8, 7, S); c.set(9, 7, B); c.set(10, 7, O);
+  c.set(6, 8, O); c.set(7, 8, SD); c.set(8, 8, S); c.set(9, 8, O);
+  c.set(7, 9, O); c.set(8, 9, SD); c.set(9, 9, O);
+  c.set(7, 10, O); c.set(8, 10, S); c.set(9, 10, O);
+  c.set(8, 11, O); c.set(9, 11, B); c.set(10, 11, O);
+  c.set(8, 12, O); c.set(9, 12, L); c.set(10, 12, O);
+  c.set(9, 13, O); c.set(10, 13, B); c.set(11, 13, O);
+  c.set(10, 14, O); c.set(11, 14, O);
+
+  // CORDA (linha fina, separada do corpo)
+  c.set(5, 2, SD); c.set(5, 3, SD); c.set(5, 4, SD);
+  c.set(5, 5, SD); c.set(5, 6, SD); c.set(5, 7, SD);
+  c.set(5, 8, SD); c.set(5, 9, SD); c.set(5, 10, SD);
+  c.set(5, 11, SD); c.set(5, 12, SD); c.set(5, 13, SD);
+  c.set(5, 14, SD);
+
+  // PONTAS DECORATIVAS
+  c.set(4, 1, O); c.set(11, 14, O);
 }
 
-function drawShield(c: Canvas, p: Palette): void {
-  c.fillPolygon([[32, 7], [46, 13], [46, 35], [32, 55], [18, 35], [18, 13]], p.base);
-  c.fillPolygon([[32, 15], [40, 20], [40, 33], [32, 47], [24, 33], [24, 20]], p.dark);
-  c.fillPolygon([[29, 25], [35, 25], [35, 38], [29, 38]], p.metal);
-  c.fillPolygon([[26, 29], [38, 29], [38, 33], [26, 33]], p.metal);
-  c.fillCircle(32, 20, 2, p.gem);
+// ===== MAPA DE DESENHO =====
+const DRAW_FUNCTIONS: Record<string, (c: Canvas16, pal: RGB[]) => void> = {
+  dagger: drawDagger, sword: drawSword, axe: drawAxe,
+  staff: drawStaff, bow: drawBow, tome: drawStaff,
+  helmet: drawSword, cap: drawSword, crown: drawSword,
+  hood: drawSword, light: drawSword, heavy: drawSword,
+  robe: drawSword, cape: drawSword,
+};
+
+// ===== FUNÇÕES AUXILIARES =====
+export function hashSeed(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) { h ^= input.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
 }
 
-function drawUtility(c: Canvas, p: Palette, rng: () => number): void {
-  if (rng() < 0.6) {
-    c.fillPolygon([[36, 7], [24, 32], [32, 32], [28, 55], [46, 27], [35, 27], [41, 7]], p.base);
-    c.fillPolygon([[34, 13], [28, 28], [33, 28], [30, 42], [40, 25], [34, 25], [37, 13]], p.light);
-  } else {
-    c.fillDiamond(32, 20, 12, 14, p.base);
-    c.fillDiamond(32, 20, 9, 11, p.dark);
-    c.fillDiamond(32, 20, 3, 3, p.gem);
-    c.fillCircle(32, 44, 2.4, p.gem);
+export async function renderSkillIcon(input: { kind: string; name: string; element?: string; rarity?: string; seed: number }): Promise<Buffer> {
+  const theme = (input.element || input.kind || "arcane").toLowerCase();
+  const pal = PALETTES[theme] || PALETTES.arcane;
+  const c = new Canvas16();
+  const [O, SD, S, B, L, H] = pal;
+  const cx = 8, cy = 8;
+
+  switch (input.kind) {
+    case "attack":
+      c.set(cx-2, cy-2, O); c.set(cx-1, cy-1, B); c.set(cx, cy, H); c.set(cx+1, cy+1, B); c.set(cx+2, cy+2, O);
+      c.set(cx+2, cy-2, O); c.set(cx+1, cy-1, B); c.set(cx, cy, H); c.set(cx-1, cy+1, B); c.set(cx-2, cy+2, O);
+      break;
+    case "buff":
+      c.set(cx, cy-3, H); c.set(cx, cy-2, L); c.set(cx, cy-1, B);
+      c.set(cx-1, cy, S); c.set(cx, cy, L); c.set(cx+1, cy, S);
+      c.set(cx, cy+1, B); c.set(cx, cy+2, S);
+      break;
+    case "heal":
+      c.set(cx, cy-2, H); c.set(cx, cy-1, L);
+      c.set(cx-2, cy, L); c.set(cx-1, cy, B); c.set(cx, cy, H); c.set(cx+1, cy, B); c.set(cx+2, cy, L);
+      c.set(cx, cy+1, L); c.set(cx, cy+2, B);
+      break;
+    default:
+      c.set(cx, cy-2, H); c.set(cx-1, cy-1, L); c.set(cx, cy-1, L); c.set(cx+1, cy-1, L);
+      c.set(cx-2, cy, B); c.set(cx-1, cy, L); c.set(cx, cy, H); c.set(cx+1, cy, L); c.set(cx+2, cy, B);
+      c.set(cx-1, cy+1, S); c.set(cx, cy+1, B); c.set(cx+1, cy+1, S);
+      c.set(cx, cy+2, S);
   }
+
+  const buf = c.toBuffer64();
+  return sharp(buf, { raw: { width: FINAL_SIZE, height: FINAL_SIZE, channels: 4 } }).png().toBuffer();
 }
 
-function drawSkill(c: Canvas, input: SkillIconInput, p: Palette, rng: () => number): void {
-  const kind = String(input.kind || "").toLowerCase();
-  if (kind === "attack") drawAttack(c, p, rng);
-  else if (kind === "buff") drawBuff(c, p);
-  else if (kind === "debuff") drawDebuff(c, p, rng);
-  else if (kind === "heal") drawHeal(c, p);
-  else if (kind === "shield") drawShield(c, p);
-  else if (kind === "utility") drawUtility(c, p, rng);
-  else if (kind === "passive") drawBuff(c, p);
-  else drawAttack(c, p, rng);
-}
-
+// ===== INTERFACE PÚBLICA =====
 export interface ItemIconInput {
-  type: string;
-  subtype?: string;
-  name?: string;
-  description?: string;
-  rarity?: string;
-  theme?: string;
-  material?: string;
-  color?: string;
-  seed?: number;
+  type: string; subtype?: string; name?: string; description?: string;
+  rarity?: string; theme?: string; material?: string; color?: string;
+  seed?: number; palette?: Palette;
 }
 
-export interface SkillIconInput {
-  kind: string;
-  name?: string;
-  element?: string;
-  rarity?: string;
-  seed?: number;
+export interface Palette {
+  outline: RGB; dark: RGB; base: RGB; light: RGB; metal: RGB; gem: RGB;
+  accent?: RGB; wood?: RGB;
 }
 
-function sparkleCount(rarity?: string): number {
-  const key = String(rarity || "").toLowerCase();
-  if (key === "mythic") return 26;
-  if (key === "legendary") return 16;
-  if (key === "epic") return 9;
-  if (key === "rare") return 4;
-  return 0;
-}
-
-function drawMagicDust(c: Canvas, rarity: string | undefined, rng: () => number): void {
-  const count = sparkleCount(rarity);
-  if (count === 0) return;
-  const dustColors: RGB[] = [
-    [240, 244, 250],
-    [240, 210, 96],
-    [120, 160, 244],
-    [220, 140, 244],
-  ];
-  for (let i = 0; i < count; i++) {
-    const col = dustColors[Math.floor(rng() * dustColors.length)];
-    const x = 6 + rng() * (SIZE - 12);
-    const y = 6 + rng() * (SIZE - 12);
-    c.setPx(x, y, col);
-    if (rng() < 0.5) c.setPx(x + 1, y, col);
-  }
-}
-
-// Fundo de masmorra: pedras escuras + moldura rústica com runas e brilho da raridade.
-function dungeonBackdrop(p: Palette, rng: () => number): (x: number, y: number) => RGB | null {
-  const frame = 4;
-  const stoneBase: RGB = [52, 48, 62];
-  const stoneLight = lighten(stoneBase, 0.12);
-  const stoneDark = darken(stoneBase, 0.22);
-  const stoneMid: RGB = [68, 62, 80];
-  const mortar: RGB = [28, 26, 34];
-
-  const brickWidth = 10;
-  const brickHeight = 8;
-  const bricks: number[] = [];
-  const cols = Math.ceil(SIZE / brickWidth);
-  const rows = Math.ceil(SIZE / brickHeight);
-  for (let r = 0; r < rows; r++) {
-    for (let col = 0; col < cols; col++) {
-      bricks.push(rng() < 0.35 ? 1 : 0);
-    }
-  }
-
-  const runeSpots: [number, number, number][] = [];
-  const runeCount = 3 + Math.floor(rng() * 3);
-  for (let i = 0; i < runeCount; i++) {
-    const spot: [number, number, number] = [frame + Math.floor(rng() * (SIZE - frame * 2)), frame + Math.floor(rng() * (SIZE - frame * 2)), Math.floor(rng() * 2)];
-    runeSpots.push(spot);
-  }
-  const isFrame = (x: number, y: number): boolean => x < frame || y < frame || x >= SIZE - frame || y >= SIZE - frame;
-  return (x: number, y: number): RGB | null => {
-    if (isFrame(x, y)) {
-      const onCorner = (x < 2 || x >= SIZE - 2) && (y < 2 || y >= SIZE - 2);
-      if (onCorner) return stoneMid;
-      const nearOuter = x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1;
-      return nearOuter ? stoneDark : stoneBase;
-    }
-    for (const [rx, ry, kind] of runeSpots) {
-      if (kind === 0 && Math.abs(x - rx) <= 1 && Math.abs(y - ry) <= 1) return p.gem;
-      if (kind === 1 && Math.abs(x - rx) <= 2 && y === ry) return p.gem;
-    }
-    const col = Math.floor(x / brickWidth);
-    const row = Math.floor(y / brickHeight);
-    const b = bricks[row * cols + col] ?? 0;
-    return b === 1 ? stoneLight : stoneMid;
-  };
-}
-
-// Fundo temático: madeira/pergaminho envelhecido para armas, pedra rústica para armaduras.
-function woodenBackdrop(p: Palette, rng: () => number): (x: number, y: number) => RGB | null {
-  const frame = 4;
-  const plankBase: RGB = [74, 58, 44];
-  const plankLight = lighten(plankBase, 0.14);
-  const plankDark = darken(plankBase, 0.25);
-  const grain: RGB = darken(plankBase, 0.35);
-  const mortar: RGB = [30, 26, 30];
-
-  const runeSpots: [number, number, number][] = [];
-  const runeCount = 3 + Math.floor(rng() * 3);
-  for (let i = 0; i < runeCount; i++) {
-    runeSpots.push([frame + Math.floor(rng() * (SIZE - frame * 2)), frame + Math.floor(rng() * (SIZE - frame * 2)), Math.floor(rng() * 2)]);
-  }
-  const isFrame = (x: number, y: number): boolean => x < frame || y < frame || x >= SIZE - frame || y >= SIZE - frame;
-  return (x: number, y: number): RGB | null => {
-    if (isFrame(x, y)) {
-      const onCorner = (x < 2 || x >= SIZE - 2) && (y < 2 || y >= SIZE - 2);
-      if (onCorner) return plankDark;
-      const nearOuter = x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1;
-      return nearOuter ? darken(plankDark, 0.3) : plankBase;
-    }
-    for (const [rx, ry, kind] of runeSpots) {
-      if (kind === 0 && Math.abs(x - rx) <= 1 && Math.abs(y - ry) <= 1) return p.gem;
-      if (kind === 1 && Math.abs(x - rx) <= 2 && y === ry) return p.gem;
-    }
-    const plank = Math.floor(y / 9);
-    const offset = plank % 2 === 0 ? 0 : 5;
-    const edge = (x - offset) % 14 === 0;
-    if (edge) return mortar;
-    const vein = (x + plank * 3) % 11 < 2;
-    return vein ? grain : plankBase;
-  };
-}
-
-function itemBackdrop(p: Palette, rng: () => number, input: ItemIconInput): (x: number, y: number) => RGB | null {
-  const type = String(input.type || "").toLowerCase();
-  const subtype = String(input.subtype || "").toLowerCase();
-  const weaponLike = type === "weapon" || subtype === "weapon" || ["sword", "espada", "axe", "machado", "staff", "cajado", "bow", "arco", "tome", "grimorio", "dagger", "adaga", "hammer", "martelo", "mace", "maca"].includes(subtype);
-  if (weaponLike) return woodenBackdrop(p, rng);
-  return dungeonBackdrop(p, rng);
-}
-
-async function encode(buf: Buffer, colors: number): Promise<Buffer> {
-  return sharp(buf, { raw: { width: SIZE, height: SIZE, channels: 4 } })
-    .png({ palette: true, colours: colors, dither: 0 })
-    .toBuffer();
-}
-
-// Paleta máxima por raridade: itens melhores ganham mais cores, mantendo a leitura de pixel art.
-function paletteLimit(rarity?: string): number {
-  const key = String(rarity || "").toLowerCase();
-  if (key === "mythic") return 24;
-  if (key === "legendary") return 18;
-  if (key === "epic") return 14;
-  if (key === "rare") return 11;
-  return 9;
+function paletteToRGBs(p: Palette): RGB[] {
+  return [p.outline, p.dark, p.base, p.light, p.metal, p.gem];
 }
 
 export async function renderItemIcon(input: ItemIconInput): Promise<Buffer> {
-  const seed = Math.floor(input.seed ?? hashSeed(input.name ?? input.subtype ?? input.type));
-  const rng = mulberry32(seed);
-  const pal = resolveItemPalette(input, rng);
-  const canvas = new Canvas();
-  drawItem(canvas, input, pal, rng);
-  canvas.applyShading(pal.light, pal.dark);
-  canvas.applyOutline(pal.outline);
-  canvas.paintBackground(itemBackdrop(pal, rng, input));
-  drawMagicDust(canvas, input.rarity, rng);
-  return encode(canvas.buf, paletteLimit(input.rarity));
+  const subtype = input.subtype || "sword";
+  const theme = (input.theme || input.material || "steel").toLowerCase();
+  const pal = input.palette ? paletteToRGBs(input.palette) : (PALETTES[theme] || PALETTES.default);
+  const c = new Canvas16();
+  const drawFn = DRAW_FUNCTIONS[subtype] || DRAW_FUNCTIONS.sword;
+  drawFn(c, pal);
+  const buf = c.toBuffer64();
+  return sharp(buf, { raw: { width: FINAL_SIZE, height: FINAL_SIZE, channels: 4 } }).png().toBuffer();
 }
 
-export async function renderSkillIcon(input: SkillIconInput): Promise<Buffer> {
-  const seed = Math.floor(input.seed ?? hashSeed(input.name ?? input.kind));
-  const rng = mulberry32(seed);
-  const pal = resolveSkillPalette(input, rng);
-  const canvas = new Canvas();
-  drawSkill(canvas, input, pal, rng);
-  canvas.applyShading(pal.light, pal.dark);
-  canvas.applyOutline(pal.outline);
-  canvas.paintBackground(dungeonBackdrop(pal, rng));
-  canvas.sparkle(sparkleCount(input.rarity), lighten(pal.gem, 0.4), rng);
-  return encode(canvas.buf, paletteLimit(input.rarity));
-}
+export { PALETTES, PALETTE_STEEL, PALETTE_FIRE, PALETTE_ICE, PALETTE_SHADOW, PALETTE_NATURE };

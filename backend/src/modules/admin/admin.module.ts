@@ -751,9 +751,7 @@ export function createAdminModule(app: Express): void {
   // IA: gerar item (ícone pixel art + dados) — Groq planeja, Gemini/Pollinations renderiza
   app.post("/api/admin/items/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      if (!process.env.GROQ_API_KEY) {
-        throw new AppError(503, "Gerador de itens desativado: defina GROQ_API_KEY nas variáveis do Railway");
-      }
+      // IA LOCAL: nao precisa de GROQ_API_KEY. Groq fica opcional via GROQ_PLANNER=on.
       const body = req.body || {};
       const log: string[] = [];
       const { icon, plan } = await generateItemSprite(
@@ -765,6 +763,8 @@ export function createAdminModule(app: Express): void {
           rarity: body.rarity ? String(body.rarity) : undefined,
           level: body.level !== undefined ? Number(body.level) : undefined,
           seed: body.seed !== undefined ? Number(body.seed) : undefined,
+          reference: body.reference ? String(body.reference) : undefined,
+          quality: (body.quality === "fast" || body.quality === "normal" || body.quality === "perfect") ? body.quality : undefined,
         },
         log
       );

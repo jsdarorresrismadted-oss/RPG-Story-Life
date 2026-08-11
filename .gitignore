@@ -6,3 +6,11 @@ dist/
 .vscode/
 .idea/
 *.tsbuildinfo
+
+# Arquivos de teste/gerados localmente (nao vao para o deploy)
+backend/previews/
+backend/analyze-icons.ts
+frontend/public/icons/64x64/Armas/px-*.png
+frontend/public/icons/64x64/Armas/ai-*.png
+frontend/public/icons/64x64/Armas/lib-*.png
+frontend/public/icons/64x64/Armas/Sword-Manual.png

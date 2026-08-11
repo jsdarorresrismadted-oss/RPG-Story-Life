@@ -60,6 +60,16 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [result, setResult] = useState<GeneratedItemResult | null>(null);
   const [seed, setSeed] = useState(1);
   const [variants, setVariants] = useState(3);
+  const [reference, setReference] = useState("");
+  const [quality, setQuality] = useState<"fast" | "normal" | "perfect">("normal");
+
+  const readFileAsDataURL = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
   useEffect(() => {
     adminApi.classes
@@ -81,6 +91,8 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         color: color.trim() || undefined,
         seed,
         variants,
+        reference: reference || undefined,
+        quality,
       });
       setResult(data);
       setSeed((s) => s + 1);
@@ -132,15 +144,17 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
     }
   };
 
-  if (!providers?.groq) {
+  if (providers && !providers.groq) {
     return (
-      <button
-        title="Defina GROQ_API_KEY nas variáveis do Railway para ativar"
-        className="flex items-center gap-2 px-4 py-2 bg-dark-700 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed"
-        disabled
-      >
-        <Wand2 size={16} /> Gerador de itens indisponível
-      </button>
+      <div className="flex flex-col gap-1">
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          <Wand2 size={16} /> Gerar item com IA local
+        </button>
+        <p className="text-[10px] text-gray-500">Sem GROQ_API_KEY: plano e pixel art 100% locais.</p>
+      </div>
     );
   }
 
@@ -169,8 +183,8 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             </div>
 
             <p className="text-xs text-gray-500 mb-4">
-              Groq planeja o item (nome, atributos, prompt de arte) e o Pollinations.ai renderiza o ícone pixel art 64x64
-              com fundo magenta removido automaticamente. Deixe Tema/Material/Cor vazios para a IA escolher tudo.
+              A IA local planeja o item (nome, atributos, preços) e desenha o ícone pixel art 64x64 proceduralmente —
+              sem depender de Groq ou serviços externos. Deixe Tema/Material/Cor vazios para a IA escolher tudo.
               O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
 
@@ -204,13 +218,36 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 <input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="ex.: aço negro" className={inputClass + " mt-1"} />
               </label>
               <label className="text-xs text-gray-400">
-                Qualidade (candidatos)
-                <select value={variants} onChange={(e) => setVariants(Number(e.target.value))} className={inputClass + " mt-1"}>
-                  <option value={1}>1 — rápido (~15s)</option>
-                  <option value={2}>2 — equilibrado (~30s)</option>
-                  <option value={3}>3 — melhor (~45s)</option>
+                Qualidade da Imagem IA
+                <select value={quality} onChange={(e) => setQuality(e.target.value as any)} className={inputClass + " mt-1"}>
+                  <option value="fast">Rápido (~2min, 512px)</option>
+                  <option value="normal">Normal (~3min, 768px, enhance)</option>
+                  <option value="perfect">Perfeito (~5min, 1024px, enhance)</option>
                 </select>
               </label>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-xs text-gray-400">
+                Sprite de referência (opcional)
+                <input
+                  type="file"
+                  accept="image/png,.piskel"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setReference(await readFileAsDataURL(f));
+                  }}
+                  className={inputClass + " mt-1 file:bg-dark-700 file:border-0 file:text-gray-300 file:px-3 file:py-1 file:rounded-md file:cursor-pointer"}
+                />
+              </label>
+              {reference ? (
+                <p className="mt-1 text-[10px] text-fuchsia-300 flex items-center justify-between">
+                  <span>Paleta extraída deste sprite será usada no ícone gerado.</span>
+                  <button onClick={() => setReference("")} className="text-gray-400 hover:text-white underline">remover</button>
+                </p>
+              ) : (
+                <p className="mt-1 text-[10px] text-gray-600">Use um .piskel ou PNG desenhado por você: a IA vai gerar itens novos com as MESMAS cores.</p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-4">
@@ -220,7 +257,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {busy ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                {busy ? "Planejando e desenhando..." : "Gerar item"}
+                {busy ? "Gerando (IA local)..." : "Gerar item"}
               </button>
             </div>
 
