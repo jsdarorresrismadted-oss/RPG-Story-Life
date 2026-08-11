@@ -1,6 +1,7 @@
 import { Express, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../../core/database";
 import { config } from "../../core/config";
 import { authenticate, requireRole, AuthPayload } from "../../core/middleware/auth";
@@ -21,6 +22,31 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
     requireRole("admin", "owner")(req, res, next);
   });
 }
+
+// Limitador específico para geração via IA: os prompts chamam APIs pagas
+// (Groq/Gemini/Pollinations), então restringimos mais que o rate limit global.
+const aiLimiter = rateLimit({
+  windowMs: config.aiRateLimit.windowMs,
+  max: config.aiRateLimit.maxRequests,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Limite de geracoes de IA atingido. Aguarde um pouco e tente de novo.",
+});
+
+// Cooldown mínimo entre disparos de prompt (mesmo de IPs/admin diferentes)
+// para nao estourar a cota diaria de tokens da Gemini.
+const lastAiCall = new Map<string, number>();
+function aiCooldown(req: Request, _res: Response, next: NextFunction): void {
+  const now = Date.now();
+  const last = lastAiCall.get("global") || 0;
+  const waitMs = config.aiRateLimit.minIntervalMs - (now - last);
+  if (waitMs > 0) {
+    return next(new AppError(429, "Geracao de IA em cooldown — aguarde " + Math.ceil(waitMs / 1000) + "s."));
+  }
+  lastAiCall.set("global", now);
+  next();
+}
+const aiGuard = [requireAdmin, aiLimiter, aiCooldown];
 
 // Tenta apagar de verdade; se o registro estiver referenciado por outros dados
 // (inventário, lojas, drops, craft, etc.), aplica soft-delete (isActive=false)
@@ -659,7 +685,7 @@ export function createAdminModule(app: Express): void {
     try { res.json(aiProvidersAvailable()); } catch (err) { next(err); }
   });
 
-  app.post("/api/admin/classes/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/classes/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { prompt, count } = req.body || {};
       const idea = String(prompt || "").trim();
@@ -723,7 +749,7 @@ export function createAdminModule(app: Express): void {
   });
 
   // IA: gerar item (ícone pixel art + dados) — Groq planeja, Gemini/Pollinations renderiza
-  app.post("/api/admin/items/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/items/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!process.env.GROQ_API_KEY) {
         throw new AppError(503, "Gerador de itens desativado: defina GROQ_API_KEY nas variáveis do Railway");
@@ -889,7 +915,7 @@ export function createAdminModule(app: Express): void {
     }
   };
 
-  app.post("/api/admin/monsters/generate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/monsters/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const idea = String((req.body || {}).prompt || "").trim();
       if (!idea) throw new AppError(400, "Descreva o monstro que a IA deve criar (ex.: 'lobo ancião de gelo da floresta nível 12')");
@@ -901,13 +927,13 @@ export function createAdminModule(app: Express): void {
     } catch (err) { next(err); }
   });
 
-  app.post("/api/admin/raids/generate", requireAdmin, async (_req: Request, _res: Response, next: NextFunction) => {
+  app.post("/api/admin/raids/generate", ...aiGuard, async (_req: Request, _res: Response, next: NextFunction) => {
     try {
       throw new AppError(400, "Geração de raid por IA desativada — configure os raids manualmente no painel de Maps.");
     } catch (err) { next(err); }
   });
 
-  app.post("/api/admin/pvp/generate", requireAdmin, async (_req: Request, _res: Response, next: NextFunction) => {
+  app.post("/api/admin/pvp/generate", ...aiGuard, async (_req: Request, _res: Response, next: NextFunction) => {
     try {
       throw new AppError(400, "Geração de PvP por IA desativada — configure a arena manualmente.");
     } catch (err) { next(err); }

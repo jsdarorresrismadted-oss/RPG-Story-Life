@@ -15,6 +15,11 @@ export const config = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "100", 10),
   },
+  aiRateLimit: {
+    windowMs: parseInt(process.env.AI_RATE_LIMIT_WINDOW_MS || "60000", 10),
+    maxRequests: parseInt(process.env.AI_RATE_LIMIT_MAX_REQUESTS || "6", 10),
+    minIntervalMs: parseInt(process.env.AI_MIN_INTERVAL_MS || "8000", 10),
+  },
   combat: {
     tickRate: parseInt(process.env.COMBAT_TICK_RATE || "1000", 10),
     cooldownResolution: parseInt(process.env.COOLDOWN_RESOLUTION || "100", 10),
