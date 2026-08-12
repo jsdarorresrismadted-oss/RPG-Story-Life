@@ -388,9 +388,13 @@ export function createAdminModule(app: Express): void {
   app.delete("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id;
+      const charRows = await prisma.character.findMany({ where: { userId: id }, select: { id: true } });
+      const charIds = charRows.map((c) => c.id);
       await prisma.$transaction([
         prisma.pvpMatch.deleteMany({ where: { OR: [{ challengerCharacter: { userId: id } }, { opponentCharacter: { userId: id } }] } }),
         prisma.combatSession.deleteMany({ where: { character: { userId: id } } }),
+        prisma.raidRun.deleteMany({ where: { character: { userId: id } } }),
+        prisma.combatLog.deleteMany({ where: { characterId: { in: charIds } } }),
         prisma.activeEffect.deleteMany({ where: { character: { userId: id } } }),
         prisma.activeCooldown.deleteMany({ where: { character: { userId: id } } }),
         prisma.equipment.deleteMany({ where: { character: { userId: id } } }),
@@ -411,6 +415,11 @@ export function createAdminModule(app: Express): void {
         prisma.userEnchantment.deleteMany({ where: { userId: id } }),
         prisma.userBooster.deleteMany({ where: { userId: id } }),
         prisma.partyMember.deleteMany({ where: { userId: id } }),
+        prisma.party.deleteMany({ where: { leaderId: id } }),
+        prisma.gameLog.deleteMany({ where: { userId: id } }),
+        prisma.chatLog.deleteMany({ where: { userId: id } }),
+        prisma.analyticsEvent.deleteMany({ where: { userId: id } }),
+        prisma.seasonPass.deleteMany({ where: { userId: id } }),
         prisma.user.delete({ where: { id } }),
       ]);
       logDelete(req, "user", id);
