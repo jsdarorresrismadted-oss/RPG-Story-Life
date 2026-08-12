@@ -945,7 +945,12 @@ export class CombatService {
 
     let classXpGain = 0;
     if (character.classProgress && character.classProgress.length > 0) {
-      const classXp = boosterBonuses.classXp > 0 ? Math.floor(xpGain * (1 + boosterBonuses.classXp / 100)) : xpGain;
+      // CXP base vem do classXpReward do monstro (0 = usa o XP normal, comportamento antigo)
+      const baseClassXp =
+        Number(monster.classXpReward || 0) > 0
+          ? Math.floor(Number(monster.classXpReward) * mult)
+          : xpGain;
+      const classXp = boosterBonuses.classXp > 0 ? Math.floor(baseClassXp * (1 + boosterBonuses.classXp / 100)) : baseClassXp;
       await grantClassXp(this.prisma, character.classProgress[0].id, classXp);
       classXpGain = classXp;
     }

@@ -169,7 +169,7 @@ export function ClassPage() {
                 <div className="relative w-10 h-10 flex items-center justify-center">
                   <EntityIcon src={skill.icon} size={22} className="text-white" imgClassName="w-8 h-8 object-contain" />
                   {skill.iconSecondary && (
-                    <EntityIcon src={skill.iconSecondary} size={12} className="absolute -bottom-0.5 -right-0.5 rounded bg-dark-800 border border-dark-600" imgClassName="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 object-contain rounded bg-dark-800 border border-dark-600" />
+                    <EntityIcon src={skill.iconSecondary} size={22} className="absolute inset-0" imgClassName="absolute inset-0 w-8 h-8 m-auto object-contain translate-x-1 translate-y-1" />
                   )}
                 </div>
               )
@@ -380,7 +380,7 @@ export function ClassPage() {
                   <div className="relative w-8 h-8 shrink-0">
                     <EntityIcon src={selectedSkill.icon} size={22} className="text-white" imgClassName="w-full h-full object-contain" />
                     {selectedSkill.iconSecondary && (
-                      <EntityIcon src={selectedSkill.iconSecondary} size={10} className="absolute -bottom-0.5 -right-0.5 rounded bg-dark-800 border border-dark-600" imgClassName="absolute -bottom-0.5 -right-0.5 w-3 h-3 object-contain rounded bg-dark-800 border border-dark-600" />
+                      <EntityIcon src={selectedSkill.iconSecondary} size={22} className="absolute inset-0" imgClassName="absolute inset-0 w-full h-full object-contain translate-x-1 translate-y-1" />
                     )}
                   </div>
                 )}

@@ -99,6 +99,7 @@ export const adminApi = {
     create: (classId: string, data: any) => api.post(`/admin/classes/${classId}/skills`, data),
     update: (id: string, data: any) => api.put(`/admin/skills/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/skills/${id}`, { params }),
+    aiIcons: (data: any) => api.post("/admin/skills/ai-icons", data),
   },
   passives: {
     list: (classId: string) => api.get(`/admin/classes/${classId}/passives`),

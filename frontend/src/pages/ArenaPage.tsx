@@ -488,7 +488,7 @@ export function ArenaPage() {
                         <div className="relative w-6 h-6 mx-auto mb-1">
                           <EntityIcon src={skill.icon} size={22} className="mx-auto" imgClassName="w-full h-full object-contain" />
                           {skill.iconSecondary && (
-                            <EntityIcon src={skill.iconSecondary} size={12} className="absolute -bottom-1 -right-1 rounded bg-dark-800 border border-dark-600" imgClassName="absolute -bottom-1 -right-1 w-3.5 h-3.5 object-contain rounded bg-dark-800 border border-dark-600" />
+                            <EntityIcon src={skill.iconSecondary} size={22} className="absolute inset-0" imgClassName="absolute inset-0 w-full h-full object-contain translate-x-1 translate-y-1" />
                           )}
                         </div>
                       ) : skill.trigger === "ultimate" ? (

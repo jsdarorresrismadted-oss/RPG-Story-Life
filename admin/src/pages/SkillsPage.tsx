@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { Loader2, Palette } from "lucide-react";
 import { adminApi } from "../api";
 import JsonField from "../components/JsonField";
 import IconPicker from "../components/IconPicker";
@@ -84,6 +85,7 @@ export default function SkillsPage() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ ...defaultSkill });
   const [saving, setSaving] = useState(false);
+  const [artBusy, setArtBusy] = useState(false);
   const [passiveModalOpen, setPassiveModalOpen] = useState(false);
   const [passiveEditing, setPassiveEditing] = useState<any>(null);
   const [passiveForm, setPassiveForm] = useState<any>({ ...defaultPassive });
@@ -224,6 +226,29 @@ export default function SkillsPage() {
       load(selectedClassId);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete");
+    }
+  };
+
+  const handleGenerateArt = async () => {
+    if (!String(form.name || "").trim()) {
+      toast.error("Preencha o nome da skill antes de gerar a arte");
+      return;
+    }
+    setArtBusy(true);
+    try {
+      const { data } = await adminApi.skills.aiIcons({
+        name: form.name,
+        description: form.description,
+        kind: form.kind,
+        currentIcon: form.icon,
+        seed: editing?.id ? `${editing.id}-${form.name}` : form.name,
+      });
+      setForm({ ...form, icon: data.icon, iconSecondary: data.iconSecondary });
+      toast.success("Artes geradas! Revise e salve.");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Falha ao gerar artes");
+    } finally {
+      setArtBusy(false);
     }
   };
 
@@ -677,6 +702,21 @@ export default function SkillsPage() {
                 <div>
                   <label className="block text-sm text-gray-400 mb-1.5">Icon Secundário (efeito)</label>
                   <IconPicker categories={["Skills"]} value={form.iconSecondary} onChange={(v) => setForm({ ...form, iconSecondary: v })} placeholder="Ícone extra exibido junto" />
+                </div>
+                <div className="sm:col-span-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerateArt}
+                    disabled={artBusy}
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {artBusy ? <Loader2 size={16} className="animate-spin" /> : <Palette size={16} />}
+                    {artBusy ? "Gerando artes (pode levar ~1 min)..." : "Gerar arte da skill com IA (ícone + efeito)"}
+                  </button>
+                  <p className="text-[11px] text-gray-600 mt-1">
+                    Usa Gemini Image (se GEMINI_API_KEY + GEMINI_IMAGE_MODEL configurados) ou Pollinations.ai (grátis).
+                    Gera um par de artes no estilo atual de iconskill/ e preenche os dois campos.
+                  </p>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm text-gray-400 mb-1.5">Description *</label>

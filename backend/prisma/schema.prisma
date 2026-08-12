@@ -679,6 +679,7 @@ model Monster {
   dodge          Float        @default(1.0)
   accuracy       Float        @default(90.0)
   xpReward       BigInt       @default(10)
+  classXpReward  BigInt       @default(0) // XP de classe (CXP); 0 = usa o XP normal
   goldReward     BigInt       @default(5)
   dropTable      String?
   attackSpeed    Int          @default(2000)

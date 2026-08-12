@@ -3,11 +3,12 @@ import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import JsonField, { JsonFieldDef } from "../components/JsonField";
 import IconPicker from "../components/IconPicker";
+import MonsterSkillsField from "../components/MonsterSkillsField";
 
 export interface FieldConfig {
   name: string;
   label: string;
-  type: "text" | "number" | "textarea" | "select" | "boolean" | "json" | "icon";
+  type: "text" | "number" | "textarea" | "select" | "boolean" | "json" | "icon" | "monster-skills";
   options?: string[];
   optionsFrom?: string;
   optionsFor?: { source: string; map: Record<string, string[]> };
@@ -133,6 +134,8 @@ export default function CrudPage({ config }: CrudPageProps) {
     for (const field of config.fields) {
       if (field.jsonSchema) {
         defaults[field.name] = field.jsonSchema.mode === "record" ? {} : [];
+      } else if (field.type === "monster-skills") {
+        defaults[field.name] = [];
       } else {
         defaults[field.name] = field.defaultValue ?? (field.type === "boolean" ? false : field.type === "number" ? 0 : "");
       }
@@ -161,6 +164,14 @@ export default function CrudPage({ config }: CrudPageProps) {
         } else {
           values[field.name] = raw ? JSON.stringify(raw, null, 2) : "";
         }
+      } else if (field.type === "monster-skills") {
+        let parsed: any = [];
+        if (typeof raw === "string" && raw.trim()) {
+          try { parsed = JSON.parse(raw); } catch { parsed = []; }
+        } else if (Array.isArray(raw)) {
+          parsed = raw;
+        }
+        values[field.name] = parsed;
       } else if (field.type === "number") {
         values[field.name] = raw ?? 0;
       } else if (field.type === "boolean") {
@@ -194,6 +205,8 @@ export default function CrudPage({ config }: CrudPageProps) {
       let value = form[field.name];
       if (field.type === "json") {
         payload[field.name] = field.jsonSchema ? JSON.stringify(value) : value && value.trim() ? value : null;
+      } else if (field.type === "monster-skills") {
+        payload[field.name] = Array.isArray(value) && value.length > 0 ? JSON.stringify(value) : null;
       } else if (field.type === "number") {
         payload[field.name] = Number(value) || 0;
       } else if (field.type === "boolean") {
@@ -439,6 +452,13 @@ export default function CrudPage({ config }: CrudPageProps) {
             onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
             className={inputClass}
             required={field.required}
+          />
+        );
+      case "monster-skills":
+        return (
+          <MonsterSkillsField
+            value={value}
+            onChange={(v) => setForm({ ...form, [field.name]: v })}
           />
         );
       case "json":
@@ -688,7 +708,7 @@ export default function CrudPage({ config }: CrudPageProps) {
                           </p>
                         </div>
                       )}
-                      <div className={field.type === "textarea" || field.type === "json" || field.type === "icon" ? "sm:col-span-2" : ""}>
+                      <div className={field.type === "textarea" || field.type === "json" || field.type === "icon" || field.type === "monster-skills" ? "sm:col-span-2" : ""}>
                         <label className="block text-sm text-gray-400 mb-1.5">{field.label}</label>
                         {renderField(field)}
                         {field.hint && <p className="text-xs text-gray-500 mt-1">{field.hint}</p>}

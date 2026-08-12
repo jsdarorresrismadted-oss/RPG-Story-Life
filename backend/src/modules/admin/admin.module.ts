@@ -10,6 +10,7 @@ import { DEFAULT_GAME_LIMITS, invalidateGameLimits } from "../../core/gameLimits
 import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../../core/ai/classGenerator";
 import { generateItemSprite, defaultIconForItem } from "../../core/ai/itemGenerator";
 import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
+import { generateSkillIcons } from "../../core/ai/skillIconGenerator";
 import {
   withEnchantmentStats,
   enchantmentProgression,
@@ -1024,6 +1025,27 @@ export function createAdminModule(app: Express): void {
 
   app.delete("/api/admin/skills/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try { const r = await deleteWithSoftFallback(prisma.skill, req, "skill"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+  });
+
+  // Gera o par de artes da skill (ícone principal + secundário) via IA de imagem
+  // (Gemini Image se GEMINI_API_KEY estiver definida; senão Pollinations.ai grátis).
+  app.post("/api/admin/skills/ai-icons", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body ?? {};
+      const name = String(body.name ?? "").trim();
+      if (!name) throw new AppError(400, "Preencha o nome da skill antes de gerar a arte");
+      const icons = await generateSkillIcons({
+        name,
+        description: String(body.description ?? ""),
+        kind: String(body.kind ?? "attack"),
+        currentIcon: typeof body.currentIcon === "string" ? body.currentIcon : null,
+        seed: body.seed ?? undefined,
+      });
+      res.json(icons);
+    } catch (err) {
+      if (err instanceof AppError) return next(err);
+      next(new AppError(502, `Falha ao gerar a arte da skill: ${(err as Error).message}`));
+    }
   });
 
   // Class passives CRUD
