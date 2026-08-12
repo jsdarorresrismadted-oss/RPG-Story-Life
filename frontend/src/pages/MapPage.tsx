@@ -256,20 +256,12 @@ interface GachaBooster {
   boostValue: number;
 }
 
-interface OwnedBooster {
-  id: string;
-  quantity: number;
-  equipped: boolean;
-  booster: GachaBooster;
-}
-
 interface GachaData {
   npc: { id: string; name: string; description: string; type: string };
   config: { id: string; freeTickets: number; ticketCost: number; chances: Record<string, number>; slotChances?: Record<string, number>; active: boolean } | null;
   tickets: number;
   gold: number;
   catalog: GachaBooster[];
-  owned: OwnedBooster[];
   rarityLabels: Record<string, string>;
 }
 
@@ -563,19 +555,6 @@ export function MapPage() {
       toast.error(err.response?.data?.error || "Falha ao comprar ticket.");
     } finally {
       setBuyingTicket(false);
-    }
-  };
-
-  const toggleBooster = async (owned: OwnedBooster) => {
-    try {
-      if (owned.equipped) {
-        await gachaApi.unequip(owned.id);
-      } else {
-        await gachaApi.equip(owned.id);
-      }
-      if (npc) loadGacha(npc.id);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Falha ao equipar booster.");
     }
   };
 
@@ -1352,7 +1331,7 @@ export function MapPage() {
                         <p className="text-xs text-gray-400 uppercase tracking-wide flex items-center gap-2">
                           <Sparkles size={12} className="text-yellow-400" /> Última rolagem — {lastRoll.rarityLabel}
                         </p>
-                        <p className="text-sm font-medium mt-1">{lastRoll.booster.name}</p>
+                        <p className="text-sm font-medium mt-1">{lastRoll.booster.name} <span className="text-[10px] text-cyan-300 ml-1">→ inventário</span></p>
                         <p className="text-xs text-gray-400">{BOOST_LABELS[lastRoll.booster.boostType] ?? lastRoll.booster.boostType} +{lastRoll.booster.boostValue}%</p>
                       </div>
                     )}
@@ -1392,43 +1371,14 @@ export function MapPage() {
                       </div>
                     </div>
 
-                    {/* Meus boosters */}
-                    <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                        <Crown size={12} className="text-yellow-400" /> Meus Anéis e Colares ({gachaData.owned.length})
+                    {/* Drop vai para o inventário */}
+                    <div className="rounded-lg bg-dark-900 border border-dark-600 p-3">
+                      <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                        <Package size={12} className="text-cyan-400" /> O anel/colar rolado vai direto para o seu <span className="text-white font-semibold">Inventário</span>
                       </p>
-                      {gachaData.owned.length > 0 ? (
-                        <div className="space-y-1.5">
-                          {gachaData.owned.map((ub) => (
-                            <div key={ub.id} className={`card p-2.5 flex items-center gap-3 ${ub.equipped ? "border-purple-500/40" : ""}`}>
-                              <div className="w-8 h-8 rounded-lg bg-dark-700 flex items-center justify-center shrink-0">
-                                <Gem size={14} className={ub.booster.type === "ring" ? "text-yellow-400" : "text-orange-400"} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {ub.booster.name}
-                                  {ub.quantity > 1 && <span className="text-[10px] text-gray-400 ml-1">x{ub.quantity}</span>}
-                                </p>
-                                <p className="text-[11px] text-gray-500">
-                                  <span className={`px-1.5 py-px rounded-full text-[10px] mr-1 ${BOOSTER_RARITY_BADGE[ub.booster.rarity] ?? ""}`}>
-                                    {gachaData.rarityLabels?.[ub.booster.rarity] ?? ub.booster.rarity}
-                                  </span>
-                                  {BOOST_LABELS[ub.booster.boostType] ?? ub.booster.boostType} +{ub.booster.boostValue}% • {ub.booster.type === "ring" ? "Anel" : "Colar"}
-                                  {ub.equipped && <span className="text-purple-300 ml-1.5">• equipado</span>}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => toggleBooster(ub)}
-                                className={`text-xs px-3 py-1.5 rounded-lg shrink-0 ${ub.equipped ? "btn-secondary" : "btn-primary"}`}
-                              >
-                                {ub.equipped ? "Remover" : "Equipar"}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-500">Você ainda não rolou nenhum anel/colar. Use um ticket!</p>
-                      )}
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Abra a aba <span className="text-gray-300">Inventário</span> para equipar no slot de anel ou colar.
+                      </p>
                     </div>
                   </>
                 ) : (

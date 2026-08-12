@@ -10,7 +10,7 @@ import { sumCoreStats } from "../../core/stats/coreStats";
 import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStats";
 import { grantPassXp } from "../seasons/seasons.module";
 import { isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "../../core/progression";
-import { getEquippedBoosterBonuses } from "../../core/boosters";
+import { getTotalBoosterBonuses } from "../../core/boosters";
 import { RaidService } from "../raid/raid.service";
 
 function parseJson(value: any, fallback: any = null): any {
@@ -236,7 +236,7 @@ export class CombatService {
     ]);
 
     // Boosters equipados do jogador (anel/colar): dano e defesa entram no combate
-    const boosterBonuses = await getEquippedBoosterBonuses(character.userId);
+    const boosterBonuses = await getTotalBoosterBonuses(character.userId, character.id);
 
     const statsInput: StatsInput = {
       level: character.level,
@@ -915,7 +915,7 @@ export class CombatService {
     let goldGain = Math.floor(Number(monster.goldReward || 0)) * mult;
 
     // Boosters equipados (anel/colar): XP, Gold e XP de classe
-    const boosterBonuses = await getEquippedBoosterBonuses(character.userId);
+    const boosterBonuses = await getTotalBoosterBonuses(character.userId, character.id);
     if (boosterBonuses.xp > 0) xpGain = Math.floor(xpGain * (1 + boosterBonuses.xp / 100));
     if (boosterBonuses.gold > 0) goldGain = Math.floor(goldGain * (1 + boosterBonuses.gold / 100));
 

@@ -5,7 +5,7 @@ import { computeStats, CLASS_STAT_CONVERSION } from "../../core/classEngine/stat
 import { applyClassXp, classXpToNextRank } from "../../core/progression";
 import { sumCoreStats } from "../../core/stats/coreStats";
 import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStats";
-import { getEquippedBoosterBonuses } from "../../core/boosters";
+import { getTotalBoosterBonuses } from "../../core/boosters";
 import { PassiveDef } from "../../core/classEngine/types";
 
 function parseJson(value: any, fallback: any = null): any {
@@ -106,7 +106,7 @@ async function characterCombatStats(character: any): Promise<any> {
     .filter((p: any) => (p.rankRequired ?? 1) <= rank)
     .map(parsePassiveForStats);
 
-  const boosterBonuses = await getEquippedBoosterBonuses(character.userId);
+  const boosterBonuses = await getTotalBoosterBonuses(character.userId, character.id);
 
   const weapon = equipment?.weapon ?? null;
 

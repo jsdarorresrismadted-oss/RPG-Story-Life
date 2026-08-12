@@ -420,6 +420,9 @@ export interface Item {
   icon?: string | null;
   attackSpeedMs?: number;
   dps?: number;
+  boosterId?: string | null;
+  boostType?: string | null;
+  boostValue?: number;
 }
 
 export type ItemType =

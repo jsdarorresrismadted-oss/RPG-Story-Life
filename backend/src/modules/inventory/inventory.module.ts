@@ -155,6 +155,15 @@ export function createInventoryModule(app: Express): void {
           create: { characterId, [field]: inv.itemId },
           update: { [field]: inv.itemId },
         });
+
+        // Ao equipar anel/colar do inventario (gacha), desequipa boosters
+        // legados (UserBooster) do mesmo tipo para nao somar dois bônus.
+        if (itemType === "ring" || itemType === "necklace") {
+          await tx.userBooster.updateMany({
+            where: { userId: req.user!.userId, equipped: true, booster: { type: itemType } },
+            data: { equipped: false },
+          });
+        }
       });
 
       res.json({ message: "Item equipped" });

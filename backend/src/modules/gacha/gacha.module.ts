@@ -71,14 +71,34 @@ export function createGachaModule(app: Express): void {
 
       const boostValue = Math.min(booster.boostValue, BOOST_MAX_BY_RARITY[rarity] ?? booster.boostValue);
 
-      await prisma.$transaction([
-        prisma.user.update({ where: { id: user.id }, data: { gachaTickets: { decrement: 1 } } }),
-        prisma.userBooster.upsert({
-          where: { userId_boosterId: { userId: user.id, boosterId: booster.id } },
-          create: { userId: user.id, boosterId: booster.id, quantity: 1 },
-          update: { quantity: { increment: 1 } },
-        }),
-      ]);
+      // O anel/colar vai para o INVENTARIO do usuario como item equipavel
+      // (slot ring/necklace). Se ja existe o item deste booster, empilha.
+      let item = await prisma.item.findFirst({ where: { boosterId: booster.id } });
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({ where: { id: user.id }, data: { gachaTickets: { decrement: 1 } } });
+        if (!item) {
+          item = await tx.item.create({
+            data: {
+              name: booster.name,
+              description: booster.description,
+              icon: booster.icon,
+              type: booster.type,
+              rarity: booster.rarity,
+              boostType: booster.boostType,
+              boostValue,
+              boosterId: booster.id,
+            },
+          });
+        }
+        const existing = await tx.inventory.findFirst({
+          where: { userId: user.id, itemId: item.id, slotIndex: null },
+        });
+        if (existing) {
+          await tx.inventory.update({ where: { id: existing.id }, data: { quantity: { increment: 1 } } });
+        } else {
+          await tx.inventory.create({ data: { userId: user.id, itemId: item.id, quantity: 1 } });
+        }
+      });
 
       const ticketsLeft = Math.max(0, user.gachaTickets - 1);
       res.json({

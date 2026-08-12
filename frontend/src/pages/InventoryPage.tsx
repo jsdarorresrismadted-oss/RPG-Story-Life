@@ -27,6 +27,15 @@ const CORE_STAT_LABELS: { key: string; label: string; color: string }[] = [
   { key: "luck", label: "Sorte", color: "text-yellow-400" },
 ];
 
+const GACHA_BOOST_LABELS: Record<string, string> = {
+  defense: "Defesa",
+  damage: "Dano Geral",
+  dropChance: "Chance de Drop",
+  xp: "XP",
+  gold: "Ouro",
+  classXp: "XP de Classe",
+};
+
 export function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -463,6 +472,14 @@ export function InventoryPage() {
                       <span className="text-orange-300/90">Velocidade</span>
                       <span className="font-mono text-orange-300">
                         {Number(selectedItem.item.attackSpeedMs) > 0 ? `${(Number(selectedItem.item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
+                      </span>
+                    </div>
+                  )}
+                  {selectedItem.item.boostType && (
+                    <div className="col-span-2 border-t border-dark-600 pt-1.5 mt-1 flex items-center justify-between">
+                      <span className="text-purple-300/90">Bonus (Anel/Colar do Gacha)</span>
+                      <span className="font-mono text-purple-300">
+                        {GACHA_BOOST_LABELS[selectedItem.item.boostType] ?? selectedItem.item.boostType} +{selectedItem.item.boostValue}%
                       </span>
                     </div>
                   )}

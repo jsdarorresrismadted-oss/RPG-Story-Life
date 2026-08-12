@@ -64,6 +64,33 @@ export async function getEquippedBoosterBonuses(userId: string): Promise<Booster
   return sumBoosterBonuses(owned);
 }
 
+// Aneis/Colares do gacha que foram para o inventario e estao equipados nos
+// slots ring/necklace do personagem (boosts % gravados no proprio Item)
+export async function getEquippedItemBoosterBonuses(characterId: string): Promise<BoosterBonuses> {
+  const equipment = await prisma.equipment.findUnique({
+    where: { characterId },
+    select: { ring: true, necklace: true },
+  });
+  const bonuses = { ...EMPTY_BOOSTER_BONUSES };
+  for (const item of [equipment?.ring ?? null, equipment?.necklace ?? null]) {
+    if (!item?.boostType) continue;
+    const t = item.boostType as BoostType;
+    if (t in bonuses) bonuses[t] += Number(item.boostValue) || 0;
+  }
+  return bonuses;
+}
+
+// Soma boosters legados (UserBooster) + aneis/colares equipados no inventario
+export async function getTotalBoosterBonuses(userId: string, characterId: string): Promise<BoosterBonuses> {
+  const [legacy, items] = await Promise.all([
+    getEquippedBoosterBonuses(userId),
+    getEquippedItemBoosterBonuses(characterId),
+  ]);
+  const total = { ...EMPTY_BOOSTER_BONUSES };
+  for (const t of BOOST_TYPES) total[t] = legacy[t] + items[t];
+  return total;
+}
+
 export async function getGachaConfig() {
   return prisma.gachaConfig.findUnique({ where: { id: "gacha" } });
 }

@@ -1079,7 +1079,7 @@ async function seedWorld() {
   // referências de loja/drop (monstros são re-semeados logo abaixo).
   {
     const seedNames = new Set(items.map((i) => i.name));
-    const stale = await prisma.item.findMany({ where: { type: { in: ["ring", "necklace"] } } });
+    const stale = await prisma.item.findMany({ where: { type: { in: ["ring", "necklace"] }, boosterId: null } });
     const staleIds = stale.filter((i) => !seedNames.has(i.name)).map((i) => i.id);
     if (staleIds.length > 0) {
       await prisma.shopItem.deleteMany({ where: { itemId: { in: staleIds } } });
