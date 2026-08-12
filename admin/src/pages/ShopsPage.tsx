@@ -51,12 +51,23 @@ const NPC_TYPE_BADGE: Record<string, string> = {
 };
 
 type ShopTab = "items" | "enchantments" | "classes";
+type ShopContentKind = "item" | "enchantment" | "class";
 type AddModalState =
   | { kind: "pick" }
   | { kind: "item"; editing?: any }
   | { kind: "enchantment"; editing?: any }
   | { kind: "class"; editing?: any }
   | null;
+
+// Tipos de NPC que possuem loja (mesma regra do jogo em MapPage).
+const SHOP_TYPES = new Set(["vendor", "shop", "enchantments", "classes"]);
+const SHOP_CONTENT_BY_TYPE: Record<string, ShopContentKind[]> = {
+  vendor: ["item"],
+  shop: ["item"],
+  enchantments: ["enchantment"],
+  classes: ["class"],
+};
+const TAB_BY_KIND: Record<ShopContentKind, ShopTab> = { item: "items", enchantment: "enchantments", class: "classes" };
 
 interface Npc {
   id: string;
@@ -174,16 +185,33 @@ export default function ShopsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const availableNpcTypes = useMemo(() => Array.from(new Set(npcs.map((n) => n.type).filter(Boolean))), [npcs]);
+  const shopNpcs = useMemo(() => npcs.filter((n) => SHOP_TYPES.has(n.type)), [npcs]);
+  const availableNpcTypes = useMemo(() => Array.from(new Set(shopNpcs.map((n) => n.type).filter(Boolean))), [shopNpcs]);
+
+  const allowedTabs = useMemo<ShopTab[]>(() => {
+    return (SHOP_CONTENT_BY_TYPE[selected?.type ?? ""] ?? []).map((k) => TAB_BY_KIND[k]);
+  }, [selected?.type]);
 
   const filteredNpcs = useMemo(() => {
-    return npcs.filter((n) => {
+    return shopNpcs.filter((n) => {
       if (npcFilterType !== "all" && n.type !== npcFilterType) return false;
       if (!filter.trim()) return true;
       const q = filter.toLowerCase();
       return n.name.toLowerCase().includes(q) || n.type.toLowerCase().includes(q);
     });
-  }, [npcs, filter, npcFilterType]);
+  }, [shopNpcs, filter, npcFilterType]);
+
+  const selectNpc = (n: Npc) => {
+    setSelected(n);
+    setShopTab((SHOP_CONTENT_BY_TYPE[n.type]?.[0] && TAB_BY_KIND[SHOP_CONTENT_BY_TYPE[n.type][0]]) ?? "items");
+  };
+
+  useEffect(() => {
+    if (selected && allowedTabs.length > 0 && !allowedTabs.includes(shopTab)) {
+      setShopTab(allowedTabs[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedTabs.join(",")]);
 
   const itemName = (id: string | null) => (id ? items.find((i) => i.id === id)?.name ?? id : null);
   const enchantmentName = (id: string | null) => (id ? enchantments.find((e) => e.id === id)?.name ?? id : null);
@@ -757,7 +785,7 @@ export default function ShopsPage() {
             {filteredNpcs.map((n) => (
               <button
                 key={n.id}
-                onClick={() => setSelected(n)}
+                onClick={() => selectNpc(n)}
                 className={`w-full text-left px-4 py-3 border-b border-dark-700 transition-colors ${
                   selected?.id === n.id ? "bg-accent-600/20 border-l-2 border-l-accent-500" : "hover:bg-dark-700/50"
                 }`}
@@ -787,18 +815,20 @@ export default function ShopsPage() {
                 </div>
                 <p className="text-sm text-gray-400 mt-1">{selected.description}</p>
               </div>
-              <button
-                onClick={openAdd}
-                className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors shrink-0"
-              >
-                <Plus size={15} /> ADICIONAR
-              </button>
+              {allowedTabs.length > 0 && (
+                <button
+                  onClick={openAdd}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors shrink-0"
+                >
+                  <Plus size={15} /> ADICIONAR
+                </button>
+              )}
             </div>
 
             {/* Loja — tabs por categoria */}
             <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-dark-600 flex items-center gap-2 flex-wrap">
-                {tabs.map((t) => {
+                {tabs.filter((t) => allowedTabs.includes(t.key)).map((t) => {
                   const Icon = t.icon;
                   return (
                     <button
@@ -812,11 +842,13 @@ export default function ShopsPage() {
                     </button>
                   );
                 })}
-                <div className="ml-auto">
-                  <button onClick={openAdd} className="text-xs text-accent-400 hover:text-accent-300">
-                    + Adicionar
-                  </button>
-                </div>
+                {allowedTabs.length > 0 && (
+                  <div className="ml-auto">
+                    <button onClick={openAdd} className="text-xs text-accent-400 hover:text-accent-300">
+                      + Adicionar
+                    </button>
+                  </div>
+                )}
               </div>
 
               {shopTab === "enchantments" && (
@@ -968,48 +1000,41 @@ export default function ShopsPage() {
       </div>
 
       {/* ===== Modal: escolher categoria ===== */}
-      {addModal?.kind === "pick" && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setAddModal(null)}>
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-4">
-              <h2 className="text-lg font-bold">Adicionar à Shop</h2>
-              <button onClick={() => setAddModal(null)} className="text-gray-500 hover:text-gray-300 text-xl leading-none">✕</button>
-            </div>
-            <div className="space-y-2">
-              <button
-                onClick={() => openItemModal()}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-dark-900 border border-dark-600 hover:border-accent-500/50 hover:bg-dark-700/50 rounded-xl text-left transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center"><Package size={18} className="text-sky-300" /></div>
-                <div>
-                  <p className="font-medium text-white">Itens</p>
-                  <p className="text-xs text-gray-500">Itens comuns e itens que possuem Craft</p>
-                </div>
-              </button>
-              <button
-                onClick={() => openEnchantmentModal()}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-dark-900 border border-dark-600 hover:border-purple-500/50 hover:bg-dark-700/50 rounded-xl text-left transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center"><Sparkles size={18} className="text-purple-300" /></div>
-                <div>
-                  <p className="font-medium text-white">Encantamentos</p>
-                  <p className="text-xs text-gray-500">Encantamentos existentes para venda</p>
-                </div>
-              </button>
-              <button
-                onClick={() => openClassModal()}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-dark-900 border border-dark-600 hover:border-orange-500/50 hover:bg-dark-700/50 rounded-xl text-left transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center"><Swords size={18} className="text-orange-300" /></div>
-                <div>
-                  <p className="font-medium text-white">Classes</p>
-                  <p className="text-xs text-gray-500">Classes existentes para desbloqueio</p>
-                </div>
-              </button>
+      {addModal?.kind === "pick" && (() => {
+        const kinds = SHOP_CONTENT_BY_TYPE[selected?.type ?? ""] ?? [];
+        const options: { kind: string; label: string; desc: string; icon: any; cls: string; open: () => void }[] = [];
+        if (kinds.includes("item")) options.push({ kind: "item", label: "Itens", desc: "Itens comuns e itens que possuem Craft", icon: Package, cls: "text-sky-300 border-sky-500/30 bg-sky-500/15", open: () => openItemModal() });
+        if (kinds.includes("enchantment")) options.push({ kind: "enchantment", label: "Encantamentos", desc: "Encantamentos existentes para venda", icon: Sparkles, cls: "text-purple-300 border-purple-500/30 bg-purple-500/15", open: () => openEnchantmentModal() });
+        if (kinds.includes("class")) options.push({ kind: "class", label: "Classes", desc: "Classes existentes para desbloqueio", icon: Swords, cls: "text-orange-300 border-orange-500/30 bg-orange-500/15", open: () => openClassModal() });
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setAddModal(null)}>
+            <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between mb-4">
+                <h2 className="text-lg font-bold">Adicionar à Shop</h2>
+                <button onClick={() => setAddModal(null)} className="text-gray-500 hover:text-gray-300 text-xl leading-none">✕</button>
+              </div>
+              <div className="space-y-2">
+                {options.map((opt) => {
+                  const Icon = opt.icon;
+                  return (
+                    <button
+                      key={opt.kind}
+                      onClick={opt.open}
+                      className="w-full flex items-center gap-3 px-4 py-3 bg-dark-900 border border-dark-600 hover:bg-dark-700/50 rounded-xl text-left transition-colors"
+                    >
+                      <div className={`w-10 h-10 rounded-lg border flex items-center justify-center ${opt.cls}`}><Icon size={18} /></div>
+                      <div>
+                        <p className="font-medium text-white">{opt.label}</p>
+                        <p className="text-xs text-gray-500">{opt.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ===== Modal: Adicionar Item ===== */}
       {addModal?.kind === "item" && (

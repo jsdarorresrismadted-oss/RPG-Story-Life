@@ -392,7 +392,6 @@ const shopOffers = [
   { npc: "Aurelia", item: "Adaga Serrilhada", price: 140, class: "assassino" },
   { npc: "Aurelia", item: "Cajado Arcano", price: 160, class: "mago" },
   { npc: "Aurelia", item: "Armadura de Couro", price: 120, requiredLevel: 3 },
-  ...enchantments.map((e) => ({ npc: "Aurelia", enchantment: e.slug, price: e.price })),
   ...enchantments.map((e) => ({ npc: "Eldrin", enchantment: e.slug, price: e.price })),
   { npc: "Capitão Valdir", class: "cavaleiro", price: 1500 },
   { npc: "Capitão Valdir", class: "mago", price: 1500 },
@@ -1234,6 +1233,34 @@ async function seedWorld() {
       await prisma.shopItem.create({ data });
       console.log("  shop:", offer.npc, "->", offer.item ?? offer.enchantment ?? offer.class, cls ? `[${cls.name}]` : "");
     }
+  }
+
+  // Limpeza: cada NPC só pode ter na loja o tipo compatível com o dele
+  // (vendor -> itens, enchantments -> encantamentos, classes -> classes).
+  // NPCs de quest (quest_giver) e gacha não vendem nada.
+  {
+    const SHOP_KIND_BY_TYPE = {
+      vendor: ["item"],
+      shop: ["item"],
+      enchantments: ["enchantment"],
+      classes: ["class"],
+      quest_giver: [],
+      gacha: [],
+    };
+    const allShopNpcs = await prisma.npc.findMany({
+      select: { id: true, type: true, shopItems: { select: { id: true, itemId: true, enchantmentId: true, classId: true } } },
+    });
+    let removedCount = 0;
+    for (const n of allShopNpcs) {
+      const allowed = SHOP_KIND_BY_TYPE[n.type] ?? [];
+      for (const s of n.shopItems ?? []) {
+        const kind = s.classId && !s.itemId && !s.enchantmentId ? "class" : s.enchantmentId ? "enchantment" : "item";
+        if (allowed.includes(kind)) continue;
+        await prisma.shopItem.delete({ where: { id: s.id } });
+        removedCount++;
+      }
+    }
+    if (removedCount > 0) console.log("  removed shop items de tipo incompatível:", removedCount);
   }
 
   console.log("Seeding craft recipes...");
