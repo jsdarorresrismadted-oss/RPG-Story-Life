@@ -412,7 +412,7 @@ export function InventoryPage() {
 
       {selectedItem &&
         createPortal(
-          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setSelectedItem(null)}>
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[60] p-4 overflow-y-auto" onClick={() => setSelectedItem(null)}>
             <div className="panel p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-start gap-4 mb-4">
               <div className={`w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br ${
