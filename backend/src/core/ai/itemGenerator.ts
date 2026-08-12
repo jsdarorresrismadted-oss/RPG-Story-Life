@@ -3,9 +3,46 @@ import { AppError } from "../middleware/errorHandler";
 // ===== Gerador de equipamentos (somente planejamento) =====
 // - IA LOCAL (plano deterministico) gera: nome, descricao, atributos e precos.
 //   (Groq opcional via GROQ_PLANNER=on quando o usuario quiser nomes por LLM.)
-// - Nao gera imagens/icones: os itens ficam sem icone (o front exibe fallback).
+// - Nao gera imagens: os itens recebem o icone padrao da biblioteca por tipo/subtipo
+//   (frontend/public), garantindo que todo item gerado siga o padrao visual.
 
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+
+// ===== Icones padrao (biblioteca frontend/public) =====
+// Subtipo com icone proprio; senao cai no icone do tipo; senao null (fallback no front).
+export const ITEM_ICON_BY_SUBTYPE: Record<string, string> = {
+  sword: "/weaponicon/sword.png",
+  longsword: "/weaponicon/longsword.png",
+  dagger: "/daggericon/dagger.png",
+  spear: "/weaponicon/spear.png",
+  axe: "/weaponicon/axe.png",
+  mace: "/weaponicon/mace.png",
+  bow: "/weaponicon/bow.png",
+  staff: "/weaponicon/staff.png",
+  tome: "/weaponicon/staff.png",
+  cap: "/helmeticon/helm.png",
+  helmet: "/helmeticon/helm.png",
+  crown: "/helmeticon/helm.png",
+  hood: "/helmeticon/helm.png",
+  light: "/armoricon/armor.png",
+  heavy: "/armoricon/armor.png",
+  robe: "/armoricon/armor.png",
+};
+
+export const ITEM_ICON_BY_TYPE: Record<string, string> = {
+  weapon: "/weaponicon/sword.png",
+  helm: "/helmeticon/helm.png",
+  armor: "/armoricon/armor.png",
+  cape: "/cloakicon/cape.png",
+  ring: "/ringicon/ring.png",
+  necklace: "/necklceicon/necklace.png",
+  consumable: "/potionicon/vida.png",
+};
+
+export function defaultIconForItem(type: string, subtype?: string | null): string | null {
+  const st = String(subtype || "").toLowerCase();
+  return ITEM_ICON_BY_SUBTYPE[st] || ITEM_ICON_BY_TYPE[String(type || "").toLowerCase()] || null;
+}
 
 const TYPE_PT: Record<string, string> = {
   weapon: "arma",
@@ -45,6 +82,7 @@ export interface ItemPlan {
   name: string;
   description: string;
   subtype: string;
+  icon: string | null;
   stats: Record<string, number>;
   attackSpeedMs?: number; // apenas armas
   dps?: number; // apenas armas
@@ -143,6 +181,7 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     name: String(raw.name).slice(0, 60),
     description: String(raw.description || "").slice(0, 300),
     subtype: String(raw.subtype || "").slice(0, 20),
+    icon: defaultIconForItem(input.type, String(raw.subtype || "")),
     stats,
     attackSpeedMs: isWeapon ? Math.max(500, Math.min(2600, Math.round(Number(raw.attackSpeedMs) || 2000))) : 0,
     dps: isWeapon ? Math.max(0, Math.round(Number(raw.dps) || 0)) : 0,
@@ -261,6 +300,7 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
     name,
     description,
     subtype,
+    icon: defaultIconForItem(input.type, subtype),
     stats: { ...STAT_KEYS },
     attackSpeedMs,
     dps,

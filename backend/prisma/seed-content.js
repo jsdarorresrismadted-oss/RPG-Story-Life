@@ -11,6 +11,62 @@ function iconForItem(item) {
   return item.icon || null;
 }
 
+// ===== Icones padrao por tipo/subtipo (biblioteca frontend/public) =====
+const ITEM_ICON_BY_SUBTYPE = {
+  sword: "/weaponicon/sword.png",
+  longsword: "/weaponicon/longsword.png",
+  dagger: "/daggericon/dagger.png",
+  spear: "/weaponicon/spear.png",
+  axe: "/weaponicon/axe.png",
+  mace: "/weaponicon/mace.png",
+  bow: "/weaponicon/bow.png",
+  staff: "/weaponicon/staff.png",
+  tome: "/weaponicon/staff.png",
+  cap: "/helmeticon/helm.png",
+  helmet: "/helmeticon/helm.png",
+  crown: "/helmeticon/helm.png",
+  hood: "/helmeticon/helm.png",
+  light: "/armoricon/armor.png",
+  heavy: "/armoricon/armor.png",
+  robe: "/armoricon/armor.png",
+};
+const ITEM_ICON_BY_TYPE = {
+  weapon: "/weaponicon/sword.png",
+  helm: "/helmeticon/helm.png",
+  armor: "/armoricon/armor.png",
+  cape: "/cloakicon/cape.png",
+  ring: "/ringicon/ring.png",
+  necklace: "/necklceicon/necklace.png",
+  consumable: "/potionicon/vida.png",
+};
+function defaultItemIcon(type, subtype) {
+  const st = String(subtype || "").toLowerCase();
+  return ITEM_ICON_BY_SUBTYPE[st] || ITEM_ICON_BY_TYPE[String(type || "").toLowerCase()] || null;
+}
+
+// Backfill: itens e boosters antigos sem icone ganham o icone padrao do tipo/subtipo.
+async function backfillItemIcons() {
+  const missingItems = await prisma.item.findMany({ where: { icon: null }, select: { id: true, type: true, subtype: true } });
+  let itemsUpdated = 0;
+  for (const it of missingItems) {
+    const icon = defaultItemIcon(it.type, it.subtype);
+    if (!icon) continue;
+    await prisma.item.update({ where: { id: it.id }, data: { icon } });
+    itemsUpdated++;
+  }
+  console.log("Backfill icons: itens atualizados:", itemsUpdated);
+
+  const missingBoosters = await prisma.booster.findMany({ where: { icon: null }, select: { id: true, type: true } });
+  let boostersUpdated = 0;
+  for (const b of missingBoosters) {
+    const icon = ITEM_ICON_BY_TYPE[String(b.type || "").toLowerCase()] || null;
+    if (!icon) continue;
+    await prisma.booster.update({ where: { id: b.id }, data: { icon } });
+    boostersUpdated++;
+  }
+  console.log("Backfill icons: boosters atualizados:", boostersUpdated);
+}
+
 const starterClasses = [
   {
     name: "Cavaleiro",
@@ -261,6 +317,7 @@ for (const rarity of ["common", "uncommon", "rare", "epic", "legendary", "mythic
       slug: `${isRing ? "anel" : "colar"}-${info.boostType}-${rarity}`,
       description: `Aumenta ${info.label.toLowerCase()} em +${value}%.`,
       type: isRing ? "ring" : "necklace",
+      icon: isRing ? "/ringicon/ring.png" : "/necklceicon/necklace.png",
       rarity,
       boostType: info.boostType,
       boostValue: value,
@@ -1425,6 +1482,8 @@ async function seedWorld() {
   ]);
   console.log("DONE. classes:", classes);
   console.log("users:", JSON.stringify(users));
+
+  await backfillItemIcons();
 }
 
 if (require.main === module) {

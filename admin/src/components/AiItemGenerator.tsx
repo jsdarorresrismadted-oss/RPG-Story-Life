@@ -8,6 +8,7 @@ interface GeneratedItemResult {
     name: string;
     description: string;
     subtype: string;
+    icon?: string | null;
     stats: Record<string, number>;
     attackSpeedMs?: number;
     dps?: number;
@@ -97,6 +98,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
       await adminApi.items.create({
         name: result.plan.name,
         description: result.plan.description,
+        icon: result.plan.icon || undefined,
         type,
         subtype: result.plan.subtype || undefined,
         rarity,
@@ -217,6 +219,13 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             {result && (
               <div className="mt-5 bg-dark-900/60 border border-dark-600 rounded-xl p-4">
                 <div className="flex items-center gap-3">
+                  {result.plan.icon && (
+                    <img
+                      src={result.plan.icon}
+                      alt={result.plan.name}
+                      className="w-12 h-12 rounded-lg bg-dark-800 border border-dark-600 object-contain p-1"
+                    />
+                  )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-white">{result.plan.name}</p>

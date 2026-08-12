@@ -8,7 +8,7 @@ import { authenticate, requireRole, AuthPayload } from "../../core/middleware/au
 import { AppError } from "../../core/middleware/errorHandler";
 import { DEFAULT_GAME_LIMITS, invalidateGameLimits } from "../../core/gameLimits";
 import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../../core/ai/classGenerator";
-import { generateItemSprite } from "../../core/ai/itemGenerator";
+import { generateItemSprite, defaultIconForItem } from "../../core/ai/itemGenerator";
 import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
 import {
   withEnchantmentStats,
@@ -779,11 +779,25 @@ export function createAdminModule(app: Express): void {
   });
 
   app.post("/api/admin/items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { res.status(201).json(await prisma.item.create({ data: normalizeBody("item", req.body) })); } catch (err) { next(err); }
+    try {
+      const body = normalizeBody("item", req.body);
+      if (!body.icon) {
+        const dflt = defaultIconForItem(body.type, body.subtype);
+        if (dflt) body.icon = dflt;
+      }
+      res.status(201).json(await prisma.item.create({ data: body })); 
+    } catch (err) { next(err); }
   });
 
   app.put("/api/admin/items/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { res.json(await prisma.item.update({ where: { id: req.params.id }, data: normalizeBody("item", req.body) })); } catch (err) { next(err); }
+    try {
+      const body = normalizeBody("item", req.body);
+      if (!body.icon) {
+        const dflt = defaultIconForItem(body.type, body.subtype);
+        if (dflt) body.icon = dflt;
+      }
+      res.json(await prisma.item.update({ where: { id: req.params.id }, data: body })); 
+    } catch (err) { next(err); }
   });
 
   app.delete("/api/admin/items/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
