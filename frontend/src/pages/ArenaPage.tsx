@@ -3,8 +3,8 @@ import { getSocket } from "../services/socket";
 import { pvpApi, authApi, inventoryApi } from "../services/api";
 import { useGameStore } from "../store/gameStore";
 import { useAuthStore } from "../store/authStore";
-import { PvpMatchState, PvpMe, PvpOpponent } from "../types";
-import { Swords, Trophy, Star, RefreshCw, LogOut, Users, Crown, Heart, Zap, HeartPulse } from "lucide-react";
+import { PvpMatchState, PvpMe } from "../types";
+import { Swords, Star, RefreshCw, LogOut, Crown, Heart, Zap, HeartPulse, Dices } from "lucide-react";
 import toast from "react-hot-toast";
 import { EntityIcon } from "../components/EntityIcon";
 
@@ -50,7 +50,6 @@ export function ArenaPage() {
   const { selectedCharacter } = useGameStore();
   const { setUser } = useAuthStore();
   const [me, setMe] = useState<PvpMe | null>(null);
-  const [opponents, setOpponents] = useState<PvpOpponent[]>([]);
   const [match, setMatch] = useState<PvpMatchState | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +70,6 @@ export function ArenaPage() {
   const loadArena = () => {
     pvpApi.arena().then(({ data }) => {
       setMe(data.me || null);
-      setOpponents(Array.isArray(data.opponents) ? data.opponents : []);
     }).catch(() => {}).finally(() => setLoading(false));
   };
 
@@ -228,16 +226,16 @@ export function ArenaPage() {
     };
   }, []);
 
-  const challenge = async (targetId: string) => {
+  const challenge = async () => {
     setChallenging(true);
     setResult(null);
     setLog([]);
     try {
-      const { data } = await pvpApi.challenge(targetId);
+      const { data } = await pvpApi.challenge();
       toast(`${data.targetName} recebeu seu desafio — aguardando resposta...`, { duration: 3000 });
       setCooldownLeft(Math.ceil((data.expiresInMs ?? 30000) / 1000));
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Falha ao desafiar.");
+      toast.error(err.response?.data?.error || "Falha ao procurar partida.");
     } finally {
       setChallenging(false);
     }
@@ -245,11 +243,7 @@ export function ArenaPage() {
 
   const findMatch = () => {
     if (challenging || cooldownLeft > 0) return;
-    if (!opponents.length) {
-      toast("Nenhum aventureiro disponível no momento. Tente novamente em instantes.");
-      return;
-    }
-    challenge(opponents[0].id);
+    challenge();
   };
 
   const flee = async () => {
@@ -487,13 +481,6 @@ export function ArenaPage() {
           <Swords size={20} className="text-red-400" /> Arena PvP
         </h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={findMatch}
-            disabled={challenging || cooldownLeft > 0 || opponents.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/20 border border-purple-500/40 text-xs font-semibold text-purple-200 hover:bg-purple-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Swords size={14} /> {challenging ? "Procurando..." : "Procurar partida"}
-          </button>
           <button onClick={loadArena} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-600 text-xs font-semibold text-gray-300 hover:bg-dark-700 transition-colors">
             <RefreshCw size={14} /> Atualizar
           </button>
@@ -522,45 +509,25 @@ export function ArenaPage() {
         </div>
       )}
 
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-300">
-        <Users size={16} className="text-purple-400" /> Aventureiros disponíveis
-      </div>
-
-      <div className="space-y-2">
-        {opponents.length === 0 && (
-          <p className="text-sm text-gray-500">Nenhum aventureiro disponível no momento.</p>
-        )}
-        {opponents.map((o) => (
-          <div key={o.id} className="rounded-xl border border-dark-700 bg-[#12141a] p-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-dark-800 border border-dark-600 flex items-center justify-center text-base font-bold text-gray-200">
-                {o.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">{o.name}</p>
-                <p className="text-[11px] text-gray-500">
-                  {o.className} • lvl {o.level} • {o.arenaWins}V/{o.arenaLosses}D
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-mono text-purple-300 flex items-center gap-1">
-                <Trophy size={13} /> {o.arenaRating}
-              </span>
-              <button
-                onClick={() => challenge(o.id)}
-                disabled={challenging || cooldownLeft > 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/30 text-xs font-semibold text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Swords size={13} /> {challenging ? "Desafiando..." : "Desafiar"}
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-8 text-center">
+        <div className="w-14 h-14 mx-auto rounded-full bg-purple-500/15 border border-purple-500/40 flex items-center justify-center text-purple-300 mb-3">
+          {challenging ? <RefreshCw size={22} className="animate-spin" /> : <Dices size={22} />}
+        </div>
+        <h2 className="font-display font-semibold text-white">Partida aleatória</h2>
+        <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+          O sistema escolhe um aventureiro aleatório para você duelar — ninguém escolhe o adversário, então a arena é justa e sem combinações.
+        </p>
+        <button
+          onClick={findMatch}
+          disabled={challenging || cooldownLeft > 0}
+          className="mt-5 inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-purple-500/20 border border-purple-500/40 text-sm font-bold text-purple-200 hover:bg-purple-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Swords size={15} /> {challenging ? "Procurando oponente..." : "Procurar partida"}
+        </button>
       </div>
 
       <p className="text-[11px] text-gray-500 mt-4 flex items-center gap-1.5">
-        <Crown size={12} /> O oponente recebe um aviso e pode aceitar. Depois é com você: use suas skills e poções na hora. Vencedor ganha ouro e rating.
+        <Crown size={12} /> Quando um oponente é encontrado, ele recebe um aviso e pode aceitar. Depois é com você: use suas skills e poções na hora. Vencedor ganha ouro e rating.
       </p>
     </div>
   );

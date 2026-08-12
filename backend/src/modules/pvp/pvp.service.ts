@@ -191,22 +191,23 @@ export class PvpService {
   }
 
   // ============ Desafio (pendente até o alvo aceitar) ============
-  async challenge(userId: string, targetCharacterId: string): Promise<any> {
+async challenge(userId: string): Promise<any> {
     const me = await this.prisma.character.findFirst({ where: { userId } });
     if (!me) throw new Error("Personagem não encontrado.");
-    if (me.id === targetCharacterId) throw new Error("Você não pode desafiar a si mesmo.");
 
     const cooldownMs = me.lastArenaAt ? Date.now() - new Date(me.lastArenaAt).getTime() : COOLDOWN_MS;
     if (cooldownMs < COOLDOWN_MS) {
       const secs = Math.ceil((COOLDOWN_MS - cooldownMs) / 1000);
-      throw new Error(`Arena em cooldown — aguarde ${secs}s.`);
+      throw new Error(`Arena em cooldown - aguarde ${secs}s.`);
     }
 
-    const target = await this.prisma.character.findUnique({
-      where: { id: targetCharacterId },
+    const pool = await this.prisma.character.findMany({
+      where: { user: { isBanned: false }, id: { not: me.id } },
       include: { user: true },
+      take: 200,
     });
-    if (!target || !target.user) throw new Error("Aventureiro não encontrado.");
+    if (pool.length === 0) throw new Error("Nenhum aventureiro disponível para duelar no momento.");
+    const target = pool[Math.floor(Math.random() * pool.length)];
 
     await this.ensureNotBusy(me.id);
     await this.ensureNotBusy(target.id);

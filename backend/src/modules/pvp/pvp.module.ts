@@ -4,14 +4,11 @@ import { AppError } from "../../core/middleware/errorHandler";
 import { PvpService } from "./pvp.service";
 
 export function createPvpModule(app: Express, pvpService: PvpService): void {
-  // Minhas stats de arena
+  // Minhas stats de arena (sem lista de oponentes — o desafio é sempre aleatório)
   app.get("/api/pvp/arena", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const [me, opponents] = await Promise.all([
-        pvpService.getMyStats(req.user!.userId),
-        pvpService.listOpponents(req.user!.userId),
-      ]);
-      res.json({ me, opponents });
+      const me = await pvpService.getMyStats(req.user!.userId);
+      res.json({ me });
     } catch (err) {
       next(err);
     }
@@ -33,12 +30,10 @@ export function createPvpModule(app: Express, pvpService: PvpService): void {
     }
   });
 
-  // Desafiar outro aventureiro — cria um desafio pendente até o alvo aceitar.
+  // Procurar partida — o backend escolhe um oponente ALEATÓRIO para você.
   app.post("/api/pvp/arena/challenge", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { targetCharacterId } = req.body || {};
-      if (!targetCharacterId) throw new AppError(400, "Alvo não informado.");
-      const payload = await pvpService.challenge(req.user!.userId, targetCharacterId);
+      const payload = await pvpService.challenge(req.user!.userId);
       const io = app.get("io") as any;
       if (io && payload.targetUserId) {
         io.to(`user:${payload.targetUserId}`).emit("pvp:challenge", {

@@ -750,6 +750,7 @@ export function MapPage() {
                 <Link
                   key={mm.id}
                   to={`/combat/${mm.monster.id}`}
+                  onClick={() => sessionStorage.setItem("combatOriginMapSlug", map.slug)}
                   className="card-hover flex items-center gap-3"
                 >
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${

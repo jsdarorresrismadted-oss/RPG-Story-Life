@@ -61,6 +61,7 @@ function itemEffects(item: any): { heal: number; manaRestore: number } {
 export function CombatPage() {
   const { monsterId } = useParams<{ monsterId: string }>();
   const navigate = useNavigate();
+  const [originMapSlug] = useState(() => sessionStorage.getItem("combatOriginMapSlug") ?? "");
   const { selectedCharacter } = useGameStore();
   const setInCombat = useGameStore((s) => s.setInCombat);
   const { user, setUser } = useAuthStore();
@@ -511,7 +512,7 @@ export function CombatPage() {
                   Drops: {combat.rewards.drops.map((d) => `${d.quantity}x ${d.name}`).join(", ")}
                 </p>
               )}
-              <button onClick={() => navigate("/map")} className="btn-primary mt-1">Voltar ao mapa</button>
+              <button onClick={() => navigate(originMapSlug ? `/map/${originMapSlug}` : "/map")} className="btn-primary mt-1">Voltar ao mapa</button>
             </div>
           )}
 
@@ -526,7 +527,7 @@ export function CombatPage() {
             <div className="mt-4 text-center py-3">
               <p className="text-amber-400 font-bold text-lg">Você fugiu do combate</p>
               <p className="text-xs text-gray-500 mt-1">Você não recebeu recompensas desta luta.</p>
-              <button onClick={() => navigate("/map")} className="btn-primary mt-3">Voltar ao mapa</button>
+              <button onClick={() => navigate(originMapSlug ? `/map/${originMapSlug}` : "/map")} className="btn-primary mt-3">Voltar ao mapa</button>
             </div>
           )}
 
