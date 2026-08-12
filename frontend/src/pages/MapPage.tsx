@@ -7,7 +7,7 @@ import { getSocket } from "../services/socket";
 import {
   ArrowLeft, Skull, Store, ScrollText, Navigation, Shield, Map as MapIcon,
   X, ShoppingBag, CheckCircle2, Clock, Gift, Lock, Swords, Hammer, Crown, Sparkles,
-  Dices, Ticket, Gem, Package, Coins,
+  Dices, Ticket, Gem, Package, Coins, Pen, Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
@@ -345,6 +345,41 @@ function isQuestNpc(type?: string | null) {
   return !!type && QUEST_TYPES.has(type);
 }
 
+const WORLD_MAP_IMG = "/map/bf9dcec3-5bf2-49d7-9a5f-3ead21ba4c2a.png";
+const PINS_STORAGE_KEY = "worldMapPins";
+
+const PIN_DEFAULTS: Record<string, { left: number; top: number }> = {
+  arcadia: { left: 25, top: 42 },
+  "floresta-sombria": { left: 52, top: 26 },
+  "caverna-do-dragao": { left: 74, top: 64 },
+};
+
+function loadWorldPins(slugs: string[]): Record<string, { left: number; top: number }> {
+  const result: Record<string, { left: number; top: number }> = {};
+  let extra = 0;
+  for (const s of slugs) {
+    if (PIN_DEFAULTS[s]) {
+      result[s] = PIN_DEFAULTS[s];
+    } else {
+      result[s] = { left: 14 + (extra % 3) * 33, top: 16 + Math.floor(extra / 3) * 38 };
+      extra += 1;
+    }
+  }
+  try {
+    const raw = localStorage.getItem(PINS_STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      for (const key of Object.keys(result)) {
+        const pos = saved?.[key];
+        if (pos && typeof pos.left === "number" && typeof pos.top === "number") {
+          result[key] = { left: Math.min(100, Math.max(0, pos.left)), top: Math.min(100, Math.max(0, pos.top)) };
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return result;
+}
+
 export function MapPage() {
   const { slug } = useParams<{ slug: string }>();
   const { user, setUser } = useAuthStore();
@@ -367,6 +402,25 @@ export function MapPage() {
   const [rolling, setRolling] = useState(false);
   const [buyingTicket, setBuyingTicket] = useState(false);
   const [lastRoll, setLastRoll] = useState<GachaRollResult | null>(null);
+  const [worldPins, setWorldPins] = useState<Record<string, { left: number; top: number }>>({});
+  const [pinEditMode, setPinEditMode] = useState(false);
+  const [pinEditingSlug, setPinEditingSlug] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (slug) return;
+    setWorldPins((prev) => {
+      if (Object.keys(prev).length > 0) return prev;
+      return loadWorldPins(maps.map((m) => m.slug));
+    });
+  }, [maps, slug]);
+
+  const savePin = (mapSlug: string, left: number, top: number) => {
+    const next = { ...worldPins, [mapSlug]: { left, top } };
+    setWorldPins(next);
+    try {
+      localStorage.setItem(PINS_STORAGE_KEY, JSON.stringify(next));
+    } catch { /* ignore */ }
+  };
 
   const doneQuests = new Set(
     questProgress.filter((q) => q.status === "completed" || q.status === "claimed").map((q) => q.questId)
@@ -617,47 +671,145 @@ export function MapPage() {
   if (!slug) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-            <MapIcon size={22} className="text-purple-400" /> Mapa Mundi
-          </h1>
-          <p className="text-sm text-gray-400 mt-1">Escolha um local para explorar.</p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+              <MapIcon size={22} className="text-purple-400" /> Mapa Mundi
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">Escolha um local para explorar.</p>
+          </div>
+          {maps.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPinEditMode((v) => !v)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-colors ${
+                pinEditMode ? "bg-purple-500 text-white hover:bg-purple-400" : "bg-dark-700 text-gray-300 hover:bg-dark-600"
+              }`}
+            >
+              {pinEditMode ? <Check size={14} /> : <Pen size={14} />}
+              {pinEditMode ? "Concluir" : "Ajustar posições"}
+            </button>
+          )}
         </div>
-        {maps.length === 0 && <p className="text-gray-500 text-sm">Nenhum mapa disponível.</p>}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {maps.map((m) => {
-            const raid = raidStatus[m.id];
-            const isRaid = m.type === "raid";
-            return (
-              <Link key={m.id} to={`/map/${m.slug}`} className="card-hover block p-5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-display font-bold text-lg">{m.name}</h3>
-                    <p className="text-xs text-gray-400 mt-1 line-clamp-2">{m.description}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {isRaid && (
-                      <span className="text-[10px] px-2 py-0.5 bg-red-500/15 text-red-400 rounded-md font-bold tracking-wider flex items-center gap-1">
-                        <Swords size={10} /> RAID
-                      </span>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-6 items-start">
+          <div className="relative w-full rounded-xl overflow-hidden border border-dark-700 select-none">
+            <img
+              src={WORLD_MAP_IMG}
+              alt="Mapa Mundi"
+              draggable={false}
+              className="w-full h-auto block"
+              onDragStart={(e) => e.preventDefault()}
+            />
+            {maps.map((m) => {
+              const pin = worldPins[m.slug];
+              if (!pin) return null;
+              const isRaid = m.type === "raid";
+              const editing = pinEditMode && pinEditingSlug === m.slug;
+              const pinBody = (
+                <>
+                  <span
+                    className={`block w-5 h-5 rounded-full border-2 shadow-lg transition-all ${
+                      isRaid
+                        ? "bg-red-600 border-red-300"
+                        : editing
+                          ? "bg-purple-500 border-purple-200 ring-2 ring-purple-300"
+                          : "bg-blue-600 border-blue-200"
+                    }`}
+                  />
+                  <span
+                    className={`absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs px-2 py-0.5 rounded-md font-bold border ${
+                      isRaid ? "bg-red-950/90 text-red-300 border-red-800" : "bg-dark-950/90 text-gray-200 border-dark-700"
+                    }`}
+                  >
+                    {m.name}
+                  </span>
+                </>
+              );
+              if (!pinEditMode) {
+                return (
+                  <Link
+                    key={m.id}
+                    to={`/map/${m.slug}`}
+                    title={m.name}
+                    className="absolute z-10 group focus:outline-none"
+                    style={{ left: `${pin.left}%`, top: `${pin.top}%` }}
+                  >
+                    <span className="flex items-center -translate-x-1/2 -translate-y-1/2 group-hover:scale-110 transition-transform">
+                      {pinBody}
+                    </span>
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPinEditingSlug(pinEditingSlug === m.slug ? null : m.slug);
+                  }}
+                  className="absolute z-10 focus:outline-none cursor-crosshair"
+                  style={{ left: `${pin.left}%`, top: `${pin.top}%` }}
+                >
+                  <span className="flex items-center -translate-x-1/2 -translate-y-1/2">{pinBody}</span>
+                </button>
+              );
+            })}
+            {pinEditMode && (
+              <div
+                className="absolute inset-0 z-[5]"
+                onClick={(e) => {
+                  if (!pinEditingSlug) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  savePin(
+                    pinEditingSlug,
+                    ((e.clientX - rect.left) / rect.width) * 100,
+                    ((e.clientY - rect.top) / rect.height) * 100
+                  );
+                }}
+              />
+            )}
+          </div>
+          <div className="flex flex-col gap-3">
+            {maps.length === 0 ? (
+              <p className="text-gray-500 text-sm">Nenhum mapa disponível.</p>
+            ) : (
+              maps.map((m) => {
+                const raid = raidStatus[m.id];
+                const isRaid = m.type === "raid";
+                return (
+                  <Link key={m.id} to={`/map/${m.slug}`} className="card-hover block p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-display font-bold text-sm flex items-center gap-2">
+                          {m.name}
+                          {isRaid && <Swords size={12} className="text-red-400" />}
+                        </h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{m.description}</p>
+                      </div>
+                      <span className="text-[10px] px-2 py-1 bg-yellow-500/10 text-yellow-400 rounded-md whitespace-nowrap shrink-0">Lv.{m.requiredLevel}+</span>
+                    </div>
+                    {isRaid && raid && (
+                      <div className="mt-2 flex items-center gap-2 text-[11px]">
+                        <span className="text-red-400">Tentativas: {raid.attemptsUsed}/{raid.maxAttempts}</span>
+                        <span className="text-gray-500">• Reset em {formatRaidReset(raid.resetsInMs)}</span>
+                      </div>
                     )}
-                    <span className="text-xs px-2 py-1 bg-yellow-500/10 text-yellow-400 rounded-md whitespace-nowrap">Lv.{m.requiredLevel}+</span>
-                  </div>
-                </div>
-                {isRaid && raid && (
-                  <div className="mt-2 flex items-center gap-2 text-xs">
-                    <span className="text-red-400">Tentativas: {raid.attemptsUsed}/{raid.maxAttempts}</span>
-                    <span className="text-gray-500">• Reset em {formatRaidReset(raid.resetsInMs)}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
-                  <span className="px-2 py-0.5 bg-dark-700 rounded-md capitalize">{m.region}</span>
-                  <span className="flex items-center gap-1"><Skull size={12} /> {m.monsters?.length || 0} monstros</span>
-                  <span className="flex items-center gap-1"><ScrollText size={12} /> {m.npcs?.length || 0} NPCs</span>
-                </div>
-              </Link>
-            );
-          })}
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-500">
+                      <span className="px-1.5 py-0.5 bg-dark-700 rounded-md capitalize">{m.region}</span>
+                      <span className="flex items-center gap-1"><Skull size={11} /> {m.monsters?.length || 0} monstros</span>
+                      <span className="flex items-center gap-1"><ScrollText size={11} /> {m.npcs?.length || 0} NPCs</span>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
+            {pinEditMode && (
+              <p className="text-[11px] text-purple-300/80 leading-relaxed bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
+                Clique em um pino para selecionar e depois clique no mapa para movê-lo. As posições ficam salvas neste navegador.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     );
