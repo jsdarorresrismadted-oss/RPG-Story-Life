@@ -4,6 +4,7 @@ import { authenticate } from "../../core/middleware/auth";
 import { AppError } from "../../core/middleware/errorHandler";
 import { withEnchantmentStats } from "../../core/enchantments/enchantmentStats";
 import { parseQuestIds } from "../../core/progression";
+import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 
 const EQUIP_SLOTS = ["weapon", "class", "helm", "armor", "cape", "ring", "necklace"] as const;
 
@@ -54,15 +55,7 @@ async function enrichWithRecipe(rows: any[]): Promise<any[]> {
   });
 }
 
-const SLOT_MAP: Record<string, string> = {
-  weapon: "weaponId",
-  class: "classItemId",
-  helm: "helmId",
-  armor: "armorId",
-  cape: "capeId",
-  ring: "ringId",
-  necklace: "necklaceId",
-};
+const SLOT_MAP = EQUIP_SLOT_MAP;
 
 function parseSlots(raw: string | null): string[] {
   try {

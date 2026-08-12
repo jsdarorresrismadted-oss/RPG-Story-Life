@@ -5,6 +5,7 @@ import { AppError } from "../../core/middleware/errorHandler";
 import { getGameLimits } from "../../core/gameLimits";
 import { computeStats } from "../../core/classEngine/stat-calculator";
 import { addItemsToInventory, classXpToNextRank, xpToNextLevel } from "../../core/progression";
+import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 import { sumCoreStats } from "../../core/stats/coreStats";
 
 function parseJson(value: any, fallback: any): any {
@@ -15,26 +16,27 @@ function parseJson(value: any, fallback: any): any {
   return value;
 }
 
-// Starter items granted per class (matched by item name)
-const STARTER_KITS: Record<string, { itemName: string; quantity: number }[]> = {
+// Starter items granted per class (matched by item name).
+// Items with equip: true are auto-equipped in their slot on creation.
+const STARTER_KITS: Record<string, { itemName: string; quantity: number; equip?: boolean }[]> = {
   cavaleiro: [
-    { itemName: "Espada de Iniciante", quantity: 1 },
+    { itemName: "Espada de Iniciante", quantity: 1, equip: true },
     { itemName: "Escudo de Madeira", quantity: 1 },
-    { itemName: "Poção de Vida", quantity: 5 },
+    { itemName: "Po��o de Vida", quantity: 5 },
   ],
   mago: [
-    { itemName: "Cajado do Aprendiz", quantity: 1 },
-    { itemName: "Poção de Mana", quantity: 5 },
-    { itemName: "Poção de Vida", quantity: 3 },
+    { itemName: "Cajado do Aprendiz", quantity: 1, equip: true },
+    { itemName: "Po��o de Mana", quantity: 5 },
+    { itemName: "Po��o de Vida", quantity: 3 },
   ],
   assassino: [
-    { itemName: "Adaga de Iniciante", quantity: 1 },
-    { itemName: "Poção de Vida", quantity: 5 },
+    { itemName: "Adaga de Iniciante", quantity: 1, equip: true },
+    { itemName: "Po��o de Vida", quantity: 5 },
   ],
   suporte: [
-    { itemName: "Cajado da Luz", quantity: 1 },
-    { itemName: "Poção de Mana", quantity: 5 },
-    { itemName: "Poção de Vida", quantity: 3 },
+    { itemName: "Cajado da Luz", quantity: 1, equip: true },
+    { itemName: "Po��o de Mana", quantity: 5 },
+    { itemName: "Po��o de Vida", quantity: 3 },
   ],
 };
 
@@ -134,6 +136,23 @@ export function createCharacterModule(app: Express): void {
         const kit = STARTER_KITS[gameClass.slug];
         if (kit && kit.length > 0) {
           await addItemsToInventory(tx, req.user!.userId, kit);
+          for (const entry of kit) {
+            if (!entry.equip) continue;
+            const item = await tx.item.findFirst({ where: { name: entry.itemName, isActive: true } });
+            if (!item) continue;
+            const row = await tx.inventory.findFirst({
+              where: { userId: req.user!.userId, itemId: item.id, slotIndex: null },
+            });
+            if (!row) continue;
+            const field = EQUIP_SLOT_MAP[item.type];
+            if (!field) continue;
+            await tx.inventory.update({ where: { id: row.id }, data: { isEquipped: true } });
+            await tx.equipment.upsert({
+              where: { characterId: created.id },
+              create: { characterId: created.id, [field]: item.id },
+              update: { [field]: item.id },
+            });
+          }
         }
 
         return created;

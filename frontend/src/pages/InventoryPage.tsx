@@ -268,6 +268,7 @@ export function InventoryPage() {
         <div className="flex justify-center">
           <CharacterPreview
             equipped={equippedMap}
+            classInfo={selectedCharacter?.class ? { name: selectedCharacter.class.name, icon: selectedCharacter.class.icon ?? null } : null}
             onSlotClick={(slot, inv) => {
               if (inv) setSelectedItem(inv);
             }}
