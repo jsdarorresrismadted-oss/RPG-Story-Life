@@ -811,7 +811,7 @@ export function MapPage() {
 
       {/* NPC modal */}
       {npc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setNpc(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4" onClick={() => setNpc(null)}>
           <div className={`panel w-full ${isShopNpc(npc.type) && !isEnchantNpc(npc.type) && !isClassNpc(npc.type) ? "max-w-6xl" : "max-w-lg"} max-h-[85vh] overflow-y-auto p-5`} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -1397,7 +1397,7 @@ export function MapPage() {
       )}
 
       {npcLoading && !npc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
         </div>
       )}

@@ -565,7 +565,7 @@ export function ShopPage() {
       )}
 
       {confirm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setConfirm(null)}>
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setConfirm(null)}>
           <div className="panel p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-display font-bold mb-2">Confirmar compra</h3>
             <div className="flex items-center gap-2 mb-1">
