@@ -10,6 +10,7 @@ import {
   rollRarity,
   rollSlot,
 } from "../../core/boosters";
+import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 
 const GACHA_TYPES = new Set(["gacha"]);
 
@@ -93,10 +94,32 @@ export function createGachaModule(app: Express): void {
         const existing = await tx.inventory.findFirst({
           where: { userId: user.id, itemId: item.id, slotIndex: null },
         });
+        let invRow = existing;
         if (existing) {
           await tx.inventory.update({ where: { id: existing.id }, data: { quantity: { increment: 1 } } });
         } else {
-          await tx.inventory.create({ data: { userId: user.id, itemId: item.id, quantity: 1 } });
+          invRow = await tx.inventory.create({ data: { userId: user.id, itemId: item.id, quantity: 1 } });
+        }
+
+        // Auto-equipa anel/colar se o slot estiver vazio (nao sobrescreve
+        // item ja equipado no slot).
+        const slotField = EQUIP_SLOT_MAP[booster.type];
+        if (slotField) {
+          const character = await tx.character.findFirst({ where: { userId: user.id } });
+          if (character) {
+            const equipment = await tx.equipment.findFirst({ where: { characterId: character.id } });
+            const occupied = equipment ? (equipment as any)[slotField] : null;
+            if (!occupied) {
+              await tx.equipment.upsert({
+                where: { characterId: character.id },
+                create: { characterId: character.id, [slotField]: item.id },
+                update: { [slotField]: item.id },
+              });
+              if (invRow) {
+                await tx.inventory.update({ where: { id: invRow.id }, data: { isEquipped: true } });
+              }
+            }
+          }
         }
       });
 

@@ -6,7 +6,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "preDeployCommand": "cd backend && npx prisma db push --accept-data-loss --skip-generate && node prisma/seed-content.js",
+    "preDeployCommand": "cd backend && npx prisma db push --accept-data-loss --skip-generate",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",

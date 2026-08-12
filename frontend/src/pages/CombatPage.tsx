@@ -630,11 +630,17 @@ export function CombatPage() {
                 const healPotions = potions.filter((p) => p.heal > 0);
                 if (healPotions.length === 0) return null;
                 const p = healPotions[0];
-                const needsHp = (combat.characterHp ?? 0) < (combat.maxHp ?? 0);
-                const disabled = p.quantity < 1 || !needsHp || combat.state !== "active";
+                const disabled = p.quantity < 1 || combat.state !== "active";
                 return (
                   <button
-                    onClick={() => usePotion(p.inventoryId)}
+                    onClick={() => {
+                      const needsHp = (combat.characterHp ?? 0) < (combat.maxHp ?? 0);
+                      if (!needsHp) {
+                        toast("Vida já está cheia.");
+                        return;
+                      }
+                      usePotion(p.inventoryId);
+                    }}
                     disabled={disabled}
                     className={`w-28 card-hover py-2 text-center ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
                     title={`Poção de cura: restaura ${p.heal} de vida (x${p.quantity})`}
@@ -655,11 +661,17 @@ export function CombatPage() {
                 const manaPotions = potions.filter((p) => p.manaRestore > 0);
                 if (manaPotions.length === 0) return null;
                 const p = manaPotions[0];
-                const needsMana = (combat.characterMana ?? 0) < (combat.maxMana ?? 0);
-                const disabled = p.quantity < 1 || !needsMana || combat.state !== "active";
+                const disabled = p.quantity < 1 || combat.state !== "active";
                 return (
                   <button
-                    onClick={() => usePotion(p.inventoryId)}
+                    onClick={() => {
+                      const needsMana = (combat.characterMana ?? 0) < (combat.maxMana ?? 0);
+                      if (!needsMana) {
+                        toast("Mana já está cheia.");
+                        return;
+                      }
+                      usePotion(p.inventoryId);
+                    }}
                     disabled={disabled}
                     className={`w-28 card-hover py-2 text-center ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
                     title={`Poção de mana: restaura ${p.manaRestore} de mana (x${p.quantity})`}
