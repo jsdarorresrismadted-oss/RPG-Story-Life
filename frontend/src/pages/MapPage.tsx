@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, Link } from "react-router-dom";
 import { mapsApi, npcApi, questsApi, raidApi, craftApi, authApi, gachaApi, inventoryApi } from "../services/api";
 import { Map as MapType } from "../types";
@@ -810,6 +811,8 @@ export function MapPage() {
       </div>
 
       {/* NPC modal */}
+      {createPortal(
+        <>
       {npc && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setNpc(null)}>
           <div className="min-h-full flex justify-center">
@@ -1402,6 +1405,9 @@ export function MapPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
         </div>
+      )}
+        </>,
+        document.body
       )}
     </div>
   );

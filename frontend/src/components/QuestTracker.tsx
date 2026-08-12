@@ -88,7 +88,6 @@ export function QuestTracker({ compact }: { compact?: boolean }) {
   }, [load]);
 
   if (loading) return null;
-  if (quests.length === 0) return null;
 
   return (
     <div className={`panel p-4 ${compact ? "p-3" : ""}`}>
@@ -97,6 +96,12 @@ export function QuestTracker({ compact }: { compact?: boolean }) {
         Quests em andamento
         <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">{quests.length}</span>
       </h2>
+      {quests.length === 0 ? (
+        <div className="rounded-lg bg-dark-900 border border-dashed border-dark-600 p-3 text-center">
+          <p className="text-sm text-gray-500">Nenhuma quest em andamento.</p>
+          <p className="text-[11px] text-gray-600 mt-1">Aceite uma quest em um NPC de quests no mapa.</p>
+        </div>
+      ) : (
       <div className="space-y-3">
         {quests.map((q) => {
           const total = q.objectives.length || 1;
@@ -143,6 +148,7 @@ export function QuestTracker({ compact }: { compact?: boolean }) {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
