@@ -8,6 +8,7 @@ import { TopBar } from "./TopBar";
 import { ChatPanel } from "./ChatPanel";
 import { OnboardingModal } from "../OnboardingModal";
 import { PvpChallengeToast } from "../PvpChallengeToast";
+import { CombatResumeBanner } from "../CombatResumeBanner";
 import { useGameStore } from "../../store/gameStore";
 
 export function GameLayout() {
@@ -70,6 +71,7 @@ export function GameLayout() {
       </div>
       {user?.characters && user.characters.length > 0 && <OnboardingModal />}
       <PvpChallengeToast />
+      <CombatResumeBanner />
     </div>
   );
 }

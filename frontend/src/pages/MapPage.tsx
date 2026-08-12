@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
 import { effectiveEnchantmentStats } from "../lib/enchantmentStats";
 import { EntityIcon } from "../components/EntityIcon";
+import { QuestTracker } from "../components/QuestTracker";
 
 const ENCH_STAT_LABELS: { key: string; label: string }[] = [
   { key: "strength", label: "Força" },
@@ -773,6 +774,7 @@ export function MapPage() {
         </div>
 
         <div className="space-y-4">
+          <QuestTracker />
           <div className="panel p-4">
             <h2 className="font-display font-semibold mb-3 flex items-center gap-2">
               <Store size={16} className="text-cyan-400" /> NPCs

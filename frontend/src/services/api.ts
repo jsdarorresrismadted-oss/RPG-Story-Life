@@ -86,6 +86,10 @@ export const monstersApi = {
   get: (id: string) => api.get(`/monsters/${id}`),
 };
 
+export const combatApi = {
+  active: () => api.get("/combat/active"),
+};
+
 export const questsApi = {
   accept: (id: string) => api.post(`/quests/${id}/accept`),
   abandon: (id: string) => api.post(`/quests/${id}/abandon`),

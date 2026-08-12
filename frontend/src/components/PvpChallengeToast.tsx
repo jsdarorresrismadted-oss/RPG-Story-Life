@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getSocket } from "../services/socket";
 import { Swords, X, Check } from "lucide-react";
 
@@ -10,6 +11,7 @@ interface PendingBanner {
 
 // Banner global que aparece para o desafiado aceitar/recusar um duelo PvP.
 export function PvpChallengeToast() {
+  const navigate = useNavigate();
   const [banner, setBanner] = useState<PendingBanner | null>(null);
 
   useEffect(() => {
@@ -46,6 +48,7 @@ export function PvpChallengeToast() {
     if (!s || !banner) return;
     s.emit("pvp:respondChallenge", { challengeId: banner.challengeId, accept });
     setBanner(null);
+    if (accept) navigate("/arena");
   };
 
   if (!banner) return null;

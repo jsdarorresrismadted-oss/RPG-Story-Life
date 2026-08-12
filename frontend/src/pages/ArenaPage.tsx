@@ -243,6 +243,15 @@ export function ArenaPage() {
     }
   };
 
+  const findMatch = () => {
+    if (challenging || cooldownLeft > 0) return;
+    if (!opponents.length) {
+      toast("Nenhum aventureiro disponível no momento. Tente novamente em instantes.");
+      return;
+    }
+    challenge(opponents[0].id);
+  };
+
   const flee = async () => {
     if (!match) return;
     const s = getSocket();
@@ -477,9 +486,18 @@ export function ArenaPage() {
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           <Swords size={20} className="text-red-400" /> Arena PvP
         </h1>
-        <button onClick={loadArena} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-600 text-xs font-semibold text-gray-300 hover:bg-dark-700 transition-colors">
-          <RefreshCw size={14} /> Atualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={findMatch}
+            disabled={challenging || cooldownLeft > 0 || opponents.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/20 border border-purple-500/40 text-xs font-semibold text-purple-200 hover:bg-purple-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Swords size={14} /> {challenging ? "Procurando..." : "Procurar partida"}
+          </button>
+          <button onClick={loadArena} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-600 text-xs font-semibold text-gray-300 hover:bg-dark-700 transition-colors">
+            <RefreshCw size={14} /> Atualizar
+          </button>
+        </div>
       </div>
 
       {me && (
