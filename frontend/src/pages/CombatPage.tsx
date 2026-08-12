@@ -8,6 +8,7 @@ import { authApi, charactersApi, inventoryApi, monstersApi } from "../services/a
 import { ArrowLeft, Sword, Shield, Zap, Skull, Heart, Sparkles, Coins, Lock, Star, DoorOpen, FlaskConical, HeartPulse, Droplets } from "lucide-react";
 import toast from "react-hot-toast";
 import { EntityIcon } from "../components/EntityIcon";
+import { QuestTracker } from "../components/QuestTracker";
 
 interface CombatPotion {
   inventoryId: string;
@@ -551,6 +552,9 @@ export function CombatPage() {
           ))}
         </div>
       </div>
+
+      {/* ===== QUESTS EM ANDAMENTO (só aparece com quest ativa) ===== */}
+      <QuestTracker />
 
       {/* ===== BAIXO: barra de skills (fixa) ===== */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-dark-900/95 backdrop-blur-md border-t border-dark-700 px-4 py-3">
