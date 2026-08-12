@@ -4,8 +4,9 @@ import { AppError } from "../../core/middleware/errorHandler";
 // Raid com ondas:
 // - Onda 1 começa com 2 monstros e vai aumentando até a onda final.
 // - Onda final = horda máxima de monstros e, em seguida, o boss.
-// Cada onda é representada como um "monstro agregado" (N× HP do monstro base),
-// com id sintético no formato raid:{mapId}:{stage}. O estágio 10 é o boss.
+// Cada onda contém N monstros REAIS (um por criatura), com ids
+// raid:{mapId}:{stage}:{i}; o id de onda raid:{mapId}:{stage} é usado no
+// contexto da sessão (o estágio 10 é o boss, com um único monstro).
 export const RAID_MONSTER_PREFIX = "raid:";
 
 export interface RaidStageInfo {
@@ -79,13 +80,15 @@ export class RaidService {
     return map;
   }
 
-  async buildMonster(mapId: string, stage: number): Promise<any> {
+  async buildWaveFor(mapId: string, stage: number): Promise<{ monsters: any[]; raid: any }> {
     const map = await this.loadMap(mapId);
-    return this.buildStageMonster(map, stage);
+    return this.buildWave(map, stage);
   }
 
-  // Monta o "monstro agregado" do estágio com escala por onda + dificuldade do mapa.
-  private buildStageMonster(map: any, stage: number): any {
+  // Monta a onda com monstros REAIS (um por criatura viva no campo), sem agregação
+  // de HP. Cada monstro tem id próprio `raid:{mapId}:{stage}:{i}`; o id da onda
+  // `raid:{mapId}:{stage}` é mantido no contexto `raid` para o fluxo de resume.
+  private buildWave(map: any, stage: number): { monsters: any[]; raid: any } {
     const waves = map.raidWaves || 10;
     const difficulty = map.raidDifficulty || 2;
     const shape = this.stageShape(stage, waves);
@@ -93,40 +96,48 @@ export class RaidService {
     const monsters: any[] = (map.monsters || []).map((mm: any) => mm.monster);
     const pool = monsters.filter((m: any) => !m.isBoss);
     const boss = monsters.find((m: any) => m.isBoss) || monsters[monsters.length - 1] || null;
-    const base = shape.isBoss ? boss : pool.length > 0 ? pool[stage % pool.length] : monsters[0] || null;
-    if (!base) throw new AppError(400, "Este raid não tem monstros configurados.");
+    if (shape.isBoss && !boss) throw new AppError(400, "Este raid não tem boss configurado.");
+    if (!shape.isBoss && pool.length === 0) throw new AppError(400, "Este raid não tem monstros configurados.");
 
     const hpScale = difficulty * (1 + (shape.wave - 1) * 0.45) * (shape.isBoss ? 2.2 : 1);
     const atkScale = difficulty * (0.9 + (shape.wave - 1) * 0.25) * (shape.isBoss ? 1.8 : 1);
-    const level = base.level + (shape.isBoss ? Math.max(5, Math.round(waves * 1.5)) : shape.wave - 1);
-    const multi = shape.isBoss ? 1 : shape.count;
-    const hp = Math.max(1, Math.round(Number(base.hp || 50) * multi * hpScale));
+    const levelAdd = shape.isBoss ? Math.max(5, Math.round(waves * 1.5)) : shape.wave - 1;
+    const waveId = this.monsterIdFor(map.id, stage);
+    const count = shape.isBoss ? 1 : shape.count;
+
+    const instances: any[] = [];
+    for (let i = 0; i < count; i++) {
+      const base = shape.isBoss ? boss : pool[i % pool.length];
+      instances.push({
+        id: `${waveId}:${i}`,
+        name: base.name,
+        description: base.description || "",
+        imageUrl: base.imageUrl,
+        level: base.level + levelAdd,
+        isBoss: shape.isBoss,
+        isElite: shape.isBoss || base.isElite || shape.count >= 6,
+        faction: base.faction,
+        element: base.element,
+        hp: Math.max(1, Math.round(Number(base.hp || 50) * hpScale)),
+        mana: Math.max(1, Math.round(Number(base.mana || 20))),
+        attack: Math.max(1, Math.round(Number(base.attack || 10) * atkScale)),
+        defense: Math.max(0, Math.round(Number(base.defense || 5) * (shape.isBoss ? 1.5 : 1))),
+        magic: Math.max(0, Math.round(Number(base.magic || 5) * atkScale)),
+        magicDefense: Math.max(0, Math.round(Number(base.magicDefense || 5) * (shape.isBoss ? 1.5 : 1))),
+        speed: base.speed || 10,
+        criticalChance: base.criticalChance || 2,
+        criticalDamage: base.criticalDamage || 150,
+        dodge: base.dodge || 1,
+        accuracy: base.accuracy || 90,
+        attackSpeed: base.attackSpeed || 2000,
+        skills: base.skills || "[]",
+        xpReward: shape.isBoss ? Math.round(Number(base.xpReward || 100) * difficulty * 6) : 0,
+        goldReward: shape.isBoss ? Math.round(Number(base.goldReward || 50) * difficulty * 6) : 0,
+      });
+    }
 
     return {
-      id: this.monsterIdFor(map.id, stage),
-      name: shape.isBoss ? base.name : shape.count > 1 ? `${shape.count}x ${base.name}` : base.name,
-      description: base.description || "",
-      imageUrl: base.imageUrl,
-      level,
-      isBoss: shape.isBoss,
-      isElite: shape.isBoss || base.isElite || shape.count >= 6,
-      faction: base.faction,
-      element: base.element,
-      hp,
-      mana: Math.max(1, Math.round(Number(base.mana || 20) * multi)),
-      attack: Math.max(1, Math.round(Number(base.attack || 10) * atkScale)),
-      defense: Math.max(0, Math.round(Number(base.defense || 5) * (shape.isBoss ? 1.5 : 1))),
-      magic: Math.max(0, Math.round(Number(base.magic || 5) * atkScale)),
-      magicDefense: Math.max(0, Math.round(Number(base.magicDefense || 5) * (shape.isBoss ? 1.5 : 1))),
-      speed: base.speed || 10,
-      criticalChance: base.criticalChance || 2,
-      criticalDamage: base.criticalDamage || 150,
-      dodge: base.dodge || 1,
-      accuracy: base.accuracy || 90,
-      attackSpeed: base.attackSpeed || 2000,
-      skills: base.skills || "[]",
-      xpReward: shape.isBoss ? Math.round(Number(base.xpReward || 100) * difficulty * 6) : 0,
-      goldReward: shape.isBoss ? Math.round(Number(base.goldReward || 50) * difficulty * 6) : 0,
+      monsters: instances,
       raid: {
         mapId: map.id,
         mapName: map.name,
@@ -135,9 +146,24 @@ export class RaidService {
         totalWaves: waves,
         isBoss: shape.isBoss,
         monstersTotal: shape.count,
-        perMonsterHp: Math.max(1, Math.round(hp / shape.count)),
       },
     };
+  }
+
+  // Monstro de contexto da onda (id = `raid:{mapId}:{stage}`) para o entry/UI;
+  // no multi-inimigo o Battle recebe a lista real de criaturas via `enemies`.
+  buildContextMonster(wave: { monsters: any[]; raid: any }): any {
+    const first = wave.monsters[0];
+    const raid = wave.raid;
+    if (wave.monsters.length > 1) {
+      return {
+        ...first,
+        id: this.monsterIdFor(raid.mapId, raid.stage),
+        name: `${wave.monsters.length}x ${first.name}`,
+        raid,
+      };
+    }
+    return { ...first, raid };
   }
 
   // ===== Run ativa =====
@@ -200,21 +226,21 @@ export class RaidService {
   }
 
   // Avança para a próxima onda. Retorna done=true quando o boss caiu (raid vencida).
-  async advanceRun(runId: string): Promise<{ run: any; done: boolean; nextStage: number | null; monster: any | null }> {
+  async advanceRun(runId: string): Promise<{ run: any; done: boolean; nextStage: number | null; wave: { monsters: any[]; raid: any } | null }> {
     const run = await this.prisma.raidRun.findUnique({ where: { id: runId } });
-    if (!run || run.state !== "active") return { run, done: true, nextStage: null, monster: null };
+    if (!run || run.state !== "active") return { run, done: true, nextStage: null, wave: null };
 
     const map = await this.loadMap(run.mapId);
     const lastStage = this.totalStages(map.raidWaves || 10) - 1;
     const nextStage = run.stage + 1;
     if (nextStage > lastStage) {
       const updated = await this.prisma.raidRun.update({ where: { id: run.id }, data: { state: "won" } });
-      return { run: updated, done: true, nextStage: null, monster: null };
+      return { run: updated, done: true, nextStage: null, wave: null };
     }
 
     const updated = await this.prisma.raidRun.update({ where: { id: run.id }, data: { stage: nextStage } });
-    const monster = this.buildStageMonster(map, nextStage);
-    return { run: updated, done: false, nextStage, monster };
+    const wave = this.buildWave(map, nextStage);
+    return { run: updated, done: false, nextStage, wave };
   }
 
   async failRun(runId: string): Promise<void> {

@@ -2,10 +2,10 @@
 // Tudo que vem do banco é tratado como `any` na borda; estes tipos descrevem o contrato interno.
 
 export type Action =
-  | { action: "damage"; amount?: number; scaling?: Scaling[]; damageType?: "physical" | "magic" | "true"; ignoreDefense?: boolean; crit?: boolean }
+  | { action: "damage"; amount?: number; scaling?: Scaling[]; damageType?: "physical" | "magic" | "true"; ignoreDefense?: boolean; crit?: boolean; area?: boolean }
   | { action: "heal"; amount?: number; scaling?: Scaling[]; percentOfMax?: number }
   | { action: "mana"; amount?: number; scaling?: Scaling[]; restore?: boolean }
-  | { action: "applyEffect"; effect: string; stacks?: number; target?: "self" | "enemy" }
+  | { action: "applyEffect"; effect: string; stacks?: number; target?: "self" | "enemy"; area?: boolean }
   | { action: "removeEffect"; effect: string; stacks?: number; target?: "self" | "enemy" }
   | { action: "consumeStacks"; effect: string; stacks?: number; target?: "self" | "enemy" }
   | { action: "summon"; name: string; duration?: number; attackPercent?: number; hpPercent?: number }
@@ -162,6 +162,18 @@ export interface BattleEntity {
   isPlayer: boolean;
 }
 
+export interface EnemySnapshot {
+  id: string;
+  name: string;
+  level: number;
+  isBoss?: boolean;
+  isElite?: boolean;
+  imageUrl?: string | null;
+  hp: number;
+  maxHp: number;
+  effects: Array<{ slug: string; name: string; kind: string; stacks: number; remainingMs: number }>;
+}
+
 export interface BattleLogLine {
   text: string;
   type?: string;
@@ -173,6 +185,8 @@ export interface CombatEvent {
   target: "player" | "monster";
   kind: CombatEventKind;
   value: number;
+  /** id do inimigo específico (multi-inimigo/raid). Ausente = monstro único/agregado. */
+  entityId?: string;
 }
 
 export interface BattleSnapshot {
@@ -184,6 +198,7 @@ export interface BattleSnapshot {
   monsterMaxHp: number;
   playerEffects: Array<{ slug: string; name: string; kind: string; stacks: number; remainingMs: number }>;
   monsterEffects: Array<{ slug: string; name: string; kind: string; stacks: number; remainingMs: number }>;
+  enemies?: EnemySnapshot[];
   messages: string[];
   events: CombatEvent[];
 }

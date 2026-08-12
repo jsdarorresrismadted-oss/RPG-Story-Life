@@ -36,6 +36,7 @@ export const conditionTypeOptions = [
 export const actionFields = [
   { name: "action", label: "Ação", type: "select" as const, options: actionOptions },
   { name: "amount", label: "Quantidade Base", type: "number" as const },
+  { name: "area", label: "Área (atinge todos os inimigos da onda)", type: "boolean" as const },
   { name: "effect", label: "Efeito (slug)", type: "effect-slug" as const },
   { name: "stacks", label: "Stacks", type: "number" as const },
   { name: "target", label: "Alvo", type: "select" as const, options: targetOptions },

@@ -11,6 +11,7 @@ import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../.
 import { generateItemSprite, defaultIconForItem } from "../../core/ai/itemGenerator";
 import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
 import { generateSkillIcons } from "../../core/ai/skillIconGenerator";
+import { generateMap, persistGeneratedMap } from "../../core/ai/mapGenerator";
 import {
   withEnchantmentStats,
   enchantmentProgression,
@@ -959,6 +960,18 @@ export function createAdminModule(app: Express): void {
   app.post("/api/admin/pvp/generate", ...aiGuard, async (_req: Request, _res: Response, next: NextFunction) => {
     try {
       throw new AppError(400, "Geração de PvP por IA desativada — configure a arena manualmente.");
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/maps/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      if (!idea) throw new AppError(400, "Descreva o mapa que a IA deve criar (ex.: 'floresta negra do norte nível 10, com lago envenenado')");
+      requireAi();
+      const providerLog: string[] = [];
+      const gen = await generateMap(idea, providerLog);
+      const saved = await persistGeneratedMap(gen);
+      res.status(201).json({ data: saved, providers: providerLog });
     } catch (err) { next(err); }
   });
 

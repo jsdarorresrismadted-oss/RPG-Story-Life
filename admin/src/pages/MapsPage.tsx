@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { MapPin, Plus, RefreshCw, Shield, Skull, Trash2 } from "lucide-react";
+import { Loader2, MapPin, Plus, RefreshCw, Shield, Skull, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
 
@@ -22,6 +22,8 @@ const MAP_FIELDS: EntityField[] = [
   { name: "maxRaidAttempts", label: "Máx tentativas de raid", type: "number", defaultValue: 3 },
   { name: "raidWaves", label: "Ondas do raid", type: "number", defaultValue: 10 },
   { name: "raidDifficulty", label: "Dificuldade do raid", type: "number", defaultValue: 2, hint: "Escala de HP/dano (1-5)" },
+  { name: "pinLeft", label: "Pino no mapa mundi — X (%)", type: "number", defaultValue: 50, hint: "Onde o jogador se vê/clica no mapa mundi (0-100)" },
+  { name: "pinTop", label: "Pino no mapa mundi — Y (%)", type: "number", defaultValue: 50, hint: "Onde o jogador se vê/clica no mapa mundi (0-100)" },
   { name: "isPvPZone", label: "Zona PvP", type: "boolean", defaultValue: false },
   { name: "isActive", label: "Ativo", type: "boolean", defaultValue: true },
 ];
@@ -59,6 +61,10 @@ export default function MapsPage() {
   const [mmForm, setMmForm] = useState<Record<string, any>>({ ...DEFAULT_MM });
   const [mmEditing, setMmEditing] = useState<any>(null);
   const [savingMm, setSavingMm] = useState(false);
+
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -227,6 +233,33 @@ export default function MapsPage() {
 
   const spawns = useMemo(() => selected?.monsters ?? [], [selected]);
 
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error("Descreva o mapa que a IA deve criar");
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const res = await adminApi.maps.generate(aiPrompt.trim());
+      const saved = res.data?.data;
+      toast.success(`Mapa "${saved?.name ?? "?"}" gerado e salvo no banco!`);
+      if (saved?.warnings && saved.warnings.length > 0) {
+        saved.warnings.forEach((w: string) => toast(w, { icon: "⚠️" }));
+      }
+      setAiOpen(false);
+      await load();
+      if (saved?.id) {
+        setSelectedId(saved.id);
+        setCreating(false);
+        setTab("monstros");
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Falha ao gerar");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -237,6 +270,12 @@ export default function MapsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAiOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <Wand2 size={16} /> Gerar com IA
+          </button>
           <button
             onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors"
@@ -474,6 +513,49 @@ export default function MapsPage() {
           )}
         </div>
       </div>
+
+      {aiOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => !aiBusy && setAiOpen(false)}>
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-xl w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Wand2 size={18} className="text-fuchsia-400" /> Gerar mapa com IA
+              </h2>
+              <button onClick={() => setAiOpen(false)} className="text-gray-500 hover:text-gray-300 text-xl leading-none" disabled={aiBusy}>
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Gemini (ou Groq como fallback) cria só o mapa: nome, região, tipo (normal/raid), stats de raid e o pino no mapa mundi onde o jogador se vê e clica para entrar. Depois é só adicionar monstros aqui no painel.
+            </p>
+            <label className={labelClass}>Prompt para a IA</label>
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              rows={3}
+              className={inputClass}
+              placeholder="Descreva o mapa... ex.: 'floresta negra do norte, nível 10, com lago envenenado'"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setAiPrompt("Floresta Negra de Verdania, nível 10, gótica com névoa roxa e um lago envenenado no centro — zona normal")}
+                className="px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                Exemplo
+              </button>
+              <button
+                onClick={handleAiGenerate}
+                disabled={aiBusy}
+                className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {aiBusy ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                {aiBusy ? "Gerando (pode levar ~30s)..." : "Gerar e salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

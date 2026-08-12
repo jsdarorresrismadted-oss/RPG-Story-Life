@@ -26,6 +26,7 @@ interface Floater {
   kind: "normal" | "crit" | "dot" | "heal" | "hot" | "miss" | "dodge";
   dx: number;
   dy: number;
+  enemyId?: string;
 }
 
 // Linhas do log que agora são representadas pelos números flutuantes (não duplicar).
@@ -89,12 +90,12 @@ export function CombatPage() {
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const floaterSeq = useRef(0);
 
-  const pushFloater = (target: "player" | "monster", text: string, kind: Floater["kind"]) => {
+  const pushFloater = (target: "player" | "monster", text: string, kind: Floater["kind"], enemyId?: string) => {
     const id = ++floaterSeq.current;
     const col = id % 7;
     const dx = (col - 3) * 26;
     const dy = (col % 3) * 12;
-    setFloaters((prev) => [...prev.slice(-7), { id, target, text, kind, dx, dy }]);
+    setFloaters((prev) => [...prev.slice(-12), { id, target, text, kind, dx, dy, enemyId }]);
     window.setTimeout(() => {
       setFloaters((prev) => prev.filter((f) => f.id !== id));
     }, 1100);
@@ -104,10 +105,10 @@ export function CombatPage() {
   const emitEvents = (events?: CombatFloatEvent[]) => {
     if (!events || events.length === 0) return;
     for (const ev of events) {
-      if (ev.kind === "miss") pushFloater(ev.target, "MISS!", "miss");
-      else if (ev.kind === "dodge") pushFloater(ev.target, "DODGE!", "dodge");
-      else if (ev.kind === "heal" || ev.kind === "hot") pushFloater(ev.target, `+${ev.value}`, ev.kind);
-      else if (ev.value > 0) pushFloater(ev.target, `-${ev.value}`, ev.kind);
+      if (ev.kind === "miss") pushFloater(ev.target, "MISS!", "miss", ev.entityId);
+      else if (ev.kind === "dodge") pushFloater(ev.target, "DODGE!", "dodge", ev.entityId);
+      else if (ev.kind === "heal" || ev.kind === "hot") pushFloater(ev.target, `+${ev.value}`, ev.kind, ev.entityId);
+      else if (ev.value > 0) pushFloater(ev.target, `-${ev.value}`, ev.kind, ev.entityId);
     }
   };
 
@@ -485,9 +486,108 @@ export function CombatPage() {
           )}
         </div>
 
-        {/* Monster */}
+        {/* Monster(s) */}
         <div className="panel p-5 relative">
-          {floaters.filter((f) => f.target === "monster").map((f) => (
+          {combat?.enemies && combat.enemies.length > 1 ? (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-orange-600 flex items-center justify-center">
+                  <Skull size={24} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="font-display font-bold capitalize">{monsterName}</h2>
+                  <p className="text-xs text-gray-400">Onda com {combat.enemies.length} inimigos</p>
+                </div>
+                {combat.state === "active" && (
+                  <span className="ml-auto flex items-center gap-2 text-sm text-red-400">
+                    <Sparkles size={14} className="animate-pulse" /> Em combate
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {combat.enemies.map((e) => {
+                  const pct = Math.min(100, (e.hp / Math.max(1, e.maxHp)) * 100);
+                  const dead = e.hp <= 0;
+                  return (
+                    <div key={e.id} className={`relative rounded-xl border p-3 ${dead ? "border-dark-700 bg-dark-800/40 opacity-60" : e.isBoss ? "border-red-500/50 bg-red-950/20" : "border-dark-600 bg-dark-800/60"}`}>
+                      {floaters.filter((f) => f.target === "monster" && f.enemyId === e.id).map((f) => (
+                        <span key={f.id} className={`combat-floater ${f.kind}`} style={{ left: `calc(50% + ${f.dx}px)`, top: `calc(30% + ${f.dy}px)` }}>{f.text}</span>
+                      ))}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${e.isBoss ? "bg-gradient-to-br from-red-700 to-orange-600" : "bg-gradient-to-br from-red-600 to-orange-600"}`}>
+                          <Skull size={18} className="text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-bold capitalize truncate">{e.name}</h3>
+                          <p className="text-[10px] text-gray-500">
+                            Nv {e.level}{e.isBoss ? " • BOSS" : e.isElite ? " • Elite" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      {dead ? (
+                        <p className="text-[11px] text-green-400 font-bold text-center py-2">Derrotado</p>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-[10px] mb-1">
+                            <span className="text-red-400">HP</span>
+                            <span className="font-mono">{Math.max(0, Math.round(e.hp))} / {Math.round(e.maxHp)}</span>
+                          </div>
+                          <div className="stat-bar">
+                            <div className="stat-bar-fill bg-gradient-to-r from-red-500 to-orange-500" style={{ width: `${pct}%` }} />
+                          </div>
+                        </>
+                      )}
+                      {e.effects && e.effects.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {e.effects.map((fx) => (
+                            <span key={fx.slug} title={`${fx.name}${fx.stacks > 1 ? ` ×${fx.stacks}` : ""} · ${fx.remainingMs > 0 ? `${(fx.remainingMs / 1000).toFixed(0)}s` : "permanente"}`} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${
+                              fx.kind === "dot" || fx.kind === "debuff" ? "bg-red-500/10 text-red-300 border-red-500/30" : "bg-orange-500/10 text-orange-300 border-orange-500/30"
+                            }`}>
+                              {fx.name}{fx.stacks > 1 ? ` ×${fx.stacks}` : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {combat.state === "won" && (
+                <div className="mt-4 text-center py-3 space-y-2">
+                  <p className="text-green-400 font-bold text-lg">
+                    {combat.raid?.cleared ? "RAID CONCLUÍDO!" : "Vitória!"}
+                  </p>
+                  {combat.raid?.cleared && (
+                    <p className="text-xs text-red-300">Você derrotou todas as ondas e o chefe final do raid.</p>
+                  )}
+                  {combat.rewards && (
+                    <p className="text-sm text-gray-300 flex items-center justify-center gap-3 flex-wrap">
+                      <span className="flex items-center gap-1"><Sparkles size={14} className="text-purple-400" /> +{combat.rewards.xpGain ?? 0} XP</span>
+                      <span className="flex items-center gap-1"><Star size={14} className="text-amber-400" /> +{combat.rewards.classXpGain ?? 0} CXP</span>
+                      <span className="flex items-center gap-1"><Coins size={14} className="text-yellow-400" /> +{combat.rewards.goldGain ?? 0} gold</span>
+                    </p>
+                  )}
+                  {combat.rewards?.drops && combat.rewards.drops.length > 0 && (
+                    <p className="text-xs text-emerald-300">
+                      Drops: {combat.rewards.drops.map((d) => `${d.quantity}x ${d.name}`).join(", ")}
+                    </p>
+                  )}
+                  <button onClick={startCombat} disabled={loading} className="btn-primary mt-1">{loading ? "Iniciando..." : "Voltar ao combate"}</button>
+                </div>
+              )}
+
+              {combat.state === "lost" && (
+                <div className="mt-4 text-center py-3">
+                  <p className="text-red-400 font-bold text-lg">Derrota</p>
+                  <button onClick={startCombat} className="btn-primary mt-2">Tentar novamente</button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+          {floaters.filter((f) => f.target === "monster" && !f.enemyId).map((f) => (
             <span key={f.id} className={`combat-floater ${f.kind}`} style={{ left: `calc(50% + ${f.dx}px)`, top: `calc(38% + ${f.dy}px)` }}>{f.text}</span>
           ))}
           <div className="flex items-center gap-3 mb-4">
@@ -572,6 +672,8 @@ export function CombatPage() {
             <button onClick={startCombat} disabled={loading} className="btn-primary w-full mt-4 py-3">
               {loading ? "Engajando..." : "Iniciar combate"}
             </button>
+          )}
+            </>
           )}
         </div>
       </div>

@@ -53,6 +53,8 @@ export interface BattleOptions {
   passives: PassiveDef[];
   effects: EffectDef[];
   monster: any;
+  /** Onda de raid: vários monstros ao mesmo tempo. Quando presente, `monster` define apenas o contexto/id da onda. */
+  enemies?: any[];
   monsterSkills?: SkillDef[];
   classResource: Record<string, any>;
   autoPilot?: boolean; // arena PvP (legado): o personagem lança skills sozinho a cada tick
@@ -101,6 +103,9 @@ export class Battle {
   player: BattleEntity;
   monster: BattleEntity;
   rank: number;
+  enemies: BattleEntity[] = [];
+  enemyMeta: any[] = [];
+  multi = false;
 
   private skills: SkillDef[];
   private passives: PassiveDef[];
@@ -164,6 +169,29 @@ export class Battle {
       lastAttackAt: Date.now(),
       isPlayer: !!opts.pvp,
     };
+
+    const rawEnemies = opts.enemies && opts.enemies.length > 0 ? opts.enemies : null;
+    if (rawEnemies) {
+      this.multi = true;
+      this.enemyMeta = rawEnemies;
+      this.enemies = rawEnemies.map((m: any, i: number) => {
+        const base = computeMonsterStats(m);
+        return {
+          id: m.id || `${opts.monster?.id}:${i}`,
+          name: m.name || "Monstro",
+          level: m.level ?? 1,
+          stats: base,
+          hp: base.hp,
+          mana: base.mana,
+          maxHp: base.hp,
+          maxMana: base.mana,
+          effects: [],
+          lastAttackAt: Date.now(),
+          isPlayer: false,
+        };
+      });
+      this.monster = this.enemies[0];
+    }
 
     this.rebuildModifiers();
     this.registerHandlers();
@@ -254,6 +282,36 @@ export class Battle {
     return finiteStats(applyStatModifiers(this.monster.stats, { flat, percent }));
   }
 
+  private effectiveEnemyStats(enemy: BattleEntity): DerivedStats {
+    const flat: Record<string, number> = {};
+    const percent: Record<string, number> = {};
+    for (const e of enemy.effects) {
+      const f = e.effect.statModifiers?.flat;
+      const p = e.effect.statModifiers?.percent;
+      if (f) for (const [k, v] of Object.entries(f)) flat[k] = (flat[k] || 0) + Number(v) || 0;
+      if (p) for (const [k, v] of Object.entries(p)) percent[k] = (percent[k] || 0) + Number(v) || 0;
+    }
+    return finiteStats(applyStatModifiers(enemy.stats, { flat, percent }));
+  }
+
+  private aliveEnemies(): BattleEntity[] {
+    return this.enemies.filter((e) => e.hp > 0);
+  }
+
+  private focusEnemy(): BattleEntity {
+    return this.aliveEnemies()[0] || this.enemies[0] || this.monster;
+  }
+
+  private syncFocus(): void {
+    if (!this.multi) return;
+    this.monster = this.focusEnemy();
+  }
+
+  private metaOf(enemy: BattleEntity): any {
+    const i = this.enemies.indexOf(enemy);
+    return i >= 0 ? this.enemyMeta[i] || {} : {};
+  }
+
   // ============ Eventos ============
   fire(event: string, ctx: { actor: BattleEntity; target: BattleEntity; skillId?: string }): void {
     const now = Date.now();
@@ -278,7 +336,7 @@ export class Battle {
 
   private buildActionContext(actor: BattleEntity, target: BattleEntity, result: ActionResult, skillSlug: string): any {
     const playerStats = this.effectivePlayerStats();
-    const monsterStats = this.effectiveMonsterStats();
+    const monsterStats = this.multi && target !== this.monster ? this.effectiveEnemyStats(target) : this.effectiveMonsterStats();
     const actorStats = actor.isPlayer ? playerStats : monsterStats;
     const targetStats = target.isPlayer ? playerStats : monsterStats;
     return {
@@ -321,7 +379,12 @@ export class Battle {
         if (this.state !== "active" || target.hp > 0) return;
         target.hp = 0;
         if (actor.isPlayer) {
-          this.state = "won";
+          if (this.multi) {
+            this.syncFocus();
+            if (this.aliveEnemies().length === 0) this.state = "won";
+          } else {
+            this.state = "won";
+          }
         } else {
           this.state = "lost";
         }
@@ -346,8 +409,8 @@ export class Battle {
     return out;
   }
 
-  private pushEvent(target: "player" | "monster", kind: CombatEventKind, value: number): void {
-    this.events.push({ target, kind, value });
+  private pushEvent(target: "player" | "monster", kind: CombatEventKind, value: number, entityId?: string): void {
+    this.events.push({ target, kind, value, entityId });
     if (this.events.length > 30) this.events.splice(0, this.events.length - 30);
   }
 
@@ -358,17 +421,17 @@ export class Battle {
   }
 
   // Converte o resultado de uma skill/ataque em eventos visuais centralizados.
-  private emitResultEvents(result: { damage: number; healed: number; isCritical: boolean; isMissed?: boolean; isDodged: boolean }, side: "player" | "monster"): void {
+  private emitResultEvents(result: { damage: number; healed: number; isCritical: boolean; isMissed?: boolean; isDodged: boolean }, side: "player" | "monster", entityId?: string): void {
     const target = side === "player" ? "monster" : "player";
     if (result.isMissed) {
-      this.pushEvent(target, "miss", 0);
+      this.pushEvent(target, "miss", 0, entityId);
       return;
     }
     if (result.isDodged) {
-      this.pushEvent(target, "dodge", 0);
+      this.pushEvent(target, "dodge", 0, entityId);
       return;
     }
-    if (result.damage > 0) this.pushEvent(target, result.isCritical ? "crit" : "normal", result.damage);
+    if (result.damage > 0) this.pushEvent(target, result.isCritical ? "crit" : "normal", result.damage, entityId);
     if (result.healed > 0) this.pushEvent(side, "heal", result.healed);
   }
 
@@ -500,6 +563,7 @@ export class Battle {
   }
 
   private executeSkillFor(side: "player" | "monster", skill: SkillDef): SkillUseResult {
+    if (side === "player" && this.multi) return this.executeSkillMultiFor(skill);
     const { actor, target } = this.sideEntities(side);
     const result = emptyResult();
     const actions: Action[] = skill.conditions && skill.conditions.length > 0 ? skill.onConditionMet : skill.actions;
@@ -538,6 +602,73 @@ export class Battle {
       channelMs: 0,
       requirements: [],
       cooldownMs: this.getCooldownFor(side, skill.id),
+    };
+  }
+
+  // Execução de skill do jogador em modo multi-inimigo (raid):
+  // - ações com flag `area` atingem todos os inimigos vivos;
+  // - ações normais atingem o foco (primeiro inimigo vivo).
+  private executeSkillMultiFor(skill: SkillDef): SkillUseResult {
+    const actor = this.player;
+    const result = emptyResult();
+    const actions: Action[] = skill.conditions && skill.conditions.length > 0 ? skill.onConditionMet : skill.actions;
+    const list: Action[] = actions && actions.length > 0 ? actions : skill.actions;
+    const areaActions = list.filter((a) => (a as any).area);
+    const singleActions = list.filter((a) => !(a as any).area);
+
+    if (areaActions.length > 0) {
+      const targets = this.aliveEnemies().length > 0 ? this.aliveEnemies() : [this.focusEnemy()];
+      for (const t of targets) {
+        const sub = emptyResult();
+        const ctx = this.buildActionContext(actor, t, sub, skill.slug);
+        executeActions(areaActions, ctx, sub);
+        this.collectResult(sub, "");
+        this.emitResultEvents(sub, "player", t.id);
+        result.damage += sub.damage;
+        result.healed += sub.healed;
+        result.isCritical = result.isCritical || sub.isCritical;
+        result.isMissed = result.isMissed && sub.isMissed;
+        result.appliedEffects.push(...sub.appliedEffects);
+        if (sub.hit) this.fire("onHit", { actor, target: t, skillId: skill.id });
+        if (sub.isCritical) this.fire("onCrit", { actor, target: t, skillId: skill.id });
+        this.syncFocus();
+        if (this.state !== "active") break;
+      }
+    }
+
+    if (singleActions.length > 0 && this.state === "active") {
+      const t = this.focusEnemy();
+      const ctx = this.buildActionContext(actor, t, result, skill.slug);
+      executeActions(singleActions, ctx, result);
+      this.collectResult(result, "");
+      this.emitResultEvents(result, "player", t.id);
+      if (result.hit) this.fire("onHit", { actor, target: t, skillId: skill.id });
+      if (result.isCritical) this.fire("onCrit", { actor, target: t, skillId: skill.id });
+      this.syncFocus();
+    }
+
+    this.fire("onSkillUsed", { actor, target: this.focusEnemy(), skillId: skill.id });
+    if (result.damage > 0) {
+      const manaOnHit = Number(this.opts.classResource?.manaOnHit) || 0;
+      if (manaOnHit > 0) actor.mana = Math.min(actor.maxMana, actor.mana + manaOnHit);
+    }
+    this.effectsDirty = true;
+    return {
+      ok: true,
+      error: undefined,
+      damage: result.damage,
+      healed: result.healed,
+      isCritical: result.isCritical || areaActions.length > 0 && result.damage > 0,
+      isMissed: result.isMissed,
+      isDodged: result.isDodged,
+      appliedEffects: result.appliedEffects,
+      removedEffects: result.removedEffects,
+      consumedStacks: result.consumedStacks,
+      messages: result.messages,
+      channeling: false,
+      channelMs: 0,
+      requirements: [],
+      cooldownMs: this.getCooldownFor("player", skill.id),
     };
   }
 
@@ -689,6 +820,108 @@ export class Battle {
     }
   }
 
+  // ============ Ataques de inimigos individuais (multi-inimigo/raid) ============
+  private enemySkillKey(skillId: string, enemyId: string): string {
+    return `${enemyId}|${skillId}`;
+  }
+
+  private enemyUseSkill(enemy: BattleEntity): boolean {
+    if (this.monsterSkills.length === 0) return false;
+    const now = Date.now();
+    const ready = this.monsterSkills.filter((s) => {
+      const readyAt = this.monsterSkillCooldowns.get(this.enemySkillKey(s.id, enemy.id));
+      return !readyAt || now >= readyAt;
+    });
+    if (ready.length === 0) return false;
+    const skill = ready[Math.floor(Math.random() * ready.length)];
+    const cd = Math.max(1000, Math.floor(skill.cooldown || 2500));
+    this.monsterSkillCooldowns.set(this.enemySkillKey(skill.id, enemy.id), now + cd);
+
+    this.pushMessage(`${enemy.name} usou ${skill.name}!`);
+    const result = emptyResult();
+    const ctx = this.buildActionContext(enemy, this.player, result, skill.slug);
+    executeActions(skill.actions, ctx, result);
+    this.collectResult(result, `[${skill.name}]`);
+    this.emitResultEvents(result, "monster", enemy.id);
+    if (result.hit) this.fire("onHit", { actor: enemy, target: this.player, skillId: skill.id });
+    if (result.isCritical) this.fire("onCrit", { actor: enemy, target: this.player, skillId: skill.id });
+    if (this.player.hp <= 0 && this.state === "active") {
+      this.player.hp = 0;
+      this.state = "lost";
+    }
+    this.effectsDirty = true;
+    return true;
+  }
+
+  private enemyAttack(enemy: BattleEntity): void {
+    if (entityHasKind(enemy, "stun")) return;
+    const pStats = this.effectivePlayerStats();
+    const eStats = this.effectiveEnemyStats(enemy);
+    const pen = Math.min(80, Math.max(0, eStats.penetration || 0));
+    const effDef = Math.max(0, pStats.defense * (1 - pen / 100));
+    const reduction = Math.min(0.8, effDef / (effDef + 100));
+    let damage = Math.max(1, Math.floor(eStats.attack * (1 - reduction)));
+    const resist = Math.min(80, Math.max(0, (pStats.damageResistance || 0) + (pStats.physicalResistance || 0)));
+    if (resist > 0) damage = Math.max(1, Math.floor(damage * (1 - resist / 100)));
+
+    let crit = Math.random() * 100 < eStats.critChance;
+
+    const nukeStacks = nukeStacksOf(enemy);
+    if (nukeStacks > 0) {
+      const missChance = Math.min(100, nukeHitChancePenaltyOf(enemy));
+      if (Math.random() * 100 < missChance) {
+        this.pushEvent("player", "miss", 0);
+        this.pushMessage(`${enemy.name} errou o ataque (risco do Nuke)!`);
+        this.fire("onDodge", { actor: this.player, target: enemy });
+        return;
+      }
+      crit = true;
+      this.pushMessage(`${enemy.name} disparou um Nuke...`);
+    }
+    if (crit) damage = Math.floor(damage * (eStats.critDamage / 100));
+
+    if (Math.random() * 100 < Math.min(60, pStats.dodge)) {
+      this.pushEvent("player", "dodge", 0);
+      this.pushMessage(`Você esquivou do ataque do ${enemy.name}!`);
+      this.fire("onDodge", { actor: this.player, target: enemy });
+      return;
+    }
+
+    const { applied, absorbed } = absorbWithShield(this.player, damage);
+    if (absorbed > 0) this.pushMessage(`Seu escudo absorveu ${absorbed} de dano`);
+
+    if (applied > 0) {
+      this.player.hp = Math.max(0, this.player.hp - applied);
+      this.pushEvent("player", crit ? "crit" : "normal", applied);
+      this.pushMessage(`${enemy.name} causou ${applied} de dano em você${crit ? " (crítico)" : ""}`);
+    } else if (absorbed > 0) {
+      this.pushMessage(`O ataque foi totalmente absorvido pelo escudo`);
+    }
+
+    const reflected = Math.floor(applied * (reflectPercent(this.player) / 100));
+    if (reflected > 0) {
+      enemy.hp = Math.max(0, enemy.hp - reflected);
+      this.pushEvent("monster", "normal", reflected, enemy.id);
+      this.pushMessage(`Você refletiu ${reflected} de dano para ${enemy.name}`);
+      if (enemy.hp <= 0) {
+        enemy.hp = 0;
+        this.syncFocus();
+      }
+    }
+
+    const hk = hitkillChanceOf(enemy);
+    if (hk > 0 && Math.random() * 100 < hk) {
+      this.player.hp = 0;
+      this.pushMessage(`Golpe letal! ${enemy.name} aniquilou você de uma vez`);
+    }
+
+    this.fire("onDamageTaken", { actor: this.player, target: enemy });
+    if (this.player.hp <= 0) {
+      this.player.hp = 0;
+      this.state = "lost";
+    }
+  }
+
   // ============ Tick principal ============
   tick(): void {
     if (this.state !== "active") return;
@@ -705,6 +938,7 @@ export class Battle {
     const now = Date.now();
     this.lastTick = now;
     this.round++;
+    this.syncFocus();
 
     // Stats com buffs para o round atual
     const pStats = this.effectivePlayerStats();
@@ -763,15 +997,19 @@ export class Battle {
     if (this.state === "active") {
       this.summons = this.summons.filter((s) => s.expiresAt > now);
       for (const s of this.summons) {
+        const focus = this.focusEnemy();
         const reduction = Math.min(0.8, mStats.defense / (mStats.defense + 100));
         const dmg = Math.max(1, Math.floor(s.attack * (1 - reduction)));
-        this.monster.hp = Math.max(0, this.monster.hp - dmg);
-        this.pushEvent("monster", "normal", dmg);
+        focus.hp = Math.max(0, focus.hp - dmg);
+        this.pushEvent("monster", "normal", dmg, this.multi ? focus.id : undefined);
         this.pushMessage(`${s.name} causou ${dmg} de dano`);
-        if (this.monster.hp <= 0) {
-          this.monster.hp = 0;
-          this.state = "won";
-          break;
+        if (focus.hp <= 0) {
+          focus.hp = 0;
+          this.syncFocus();
+          if (this.multi && this.aliveEnemies().length === 0) {
+            this.state = "won";
+            break;
+          }
         }
       }
     }
@@ -781,6 +1019,16 @@ export class Battle {
       if (this.state === "active" && !entityHasKind(this.monster, "stun") && now - this.monster.lastAttackAt >= mStats.attackSpeedMs) {
         this.monster.lastAttackAt = now;
         this.monsterAutoAttack();
+      }
+    } else if (this.multi) {
+      for (const e of this.aliveEnemies()) {
+        if (this.state !== "active") break;
+        if (entityHasKind(e, "stun")) continue;
+        const eStats = this.effectiveEnemyStats(e);
+        if (now - e.lastAttackAt >= eStats.attackSpeedMs) {
+          e.lastAttackAt = now;
+          if (!this.enemyUseSkill(e)) this.enemyAttack(e);
+        }
       }
     } else if (this.state === "active" && !entityHasKind(this.monster, "stun") && now - this.monster.lastAttackAt >= mStats.attackSpeedMs) {
       this.monster.lastAttackAt = now;
@@ -804,7 +1052,12 @@ export class Battle {
       this.player.hp = 0;
       this.state = "lost";
     }
-    if (this.monster.hp <= 0 && this.state === "active") {
+    if (this.multi) {
+      this.syncFocus();
+      if (this.state === "active" && this.aliveEnemies().length === 0) {
+        this.state = "won";
+      }
+    } else if (this.monster.hp <= 0 && this.state === "active") {
       this.monster.hp = 0;
       this.state = "won";
     }
@@ -866,37 +1119,45 @@ export class Battle {
       }
     }
 
-    // Efeitos do monstro
-    const monsterStep = processEffectStep(this.monster.effects, TICK_MS, now);
-    this.monster.effects = monsterStep.effects;
+    // Efeitos dos inimigos (monstro único ou onda multi)
     const pStats = this.effectivePlayerStats();
-    for (const ev of monsterStep.events.ticked) {
-      if (ev.effect.kind === "dot" && ev.effect.tickDamage) {
-        const mods = this.effectModifiers.get(ev.effect.slug) || this.effectModifiers.get("*");
-        const raw = (ev.effect.tickDamage.base || 0) + (ev.effect.tickDamage.scaling || []).reduce((acc, s) => acc + (pStats[s.stat] || 0) * s.factor, 0);
-        const boosted = raw * (1 + (pStats.dotPercent + (mods?.damagePercent || 0)) / 100) * (1 + (mods?.tickPercent || 0) / 100);
-        const dmg = Math.max(1, Math.floor(boosted)) * stackGrowthMultiplier(ev.effect, ev.stacks);
-        this.monster.hp = Math.max(0, this.monster.hp - dmg);
-        this.pushEvent("monster", "dot", dmg);
-        this.pushMessage(`${ev.effect.name} causou ${dmg} de dano${ev.stacks > 1 ? ` (${ev.stacks} stacks)` : ""}`);
-        if (this.monster.hp <= 0) {
-          this.monster.hp = 0;
-          this.state = "won";
+    const enemiesToProcess = this.multi ? this.aliveEnemies().map((e) => e) : [this.monster];
+    for (const e of enemiesToProcess) {
+      const enemyStep = processEffectStep(e.effects, TICK_MS, now);
+      e.effects = enemyStep.effects;
+      for (const ev of enemyStep.events.ticked) {
+        if (ev.effect.kind === "dot" && ev.effect.tickDamage) {
+          const mods = this.effectModifiers.get(ev.effect.slug) || this.effectModifiers.get("*");
+          const raw = (ev.effect.tickDamage.base || 0) + (ev.effect.tickDamage.scaling || []).reduce((acc, s) => acc + (pStats[s.stat] || 0) * s.factor, 0);
+          const boosted = raw * (1 + (pStats.dotPercent + (mods?.damagePercent || 0)) / 100) * (1 + (mods?.tickPercent || 0) / 100);
+          const dmg = Math.max(1, Math.floor(boosted)) * stackGrowthMultiplier(ev.effect, ev.stacks);
+          e.hp = Math.max(0, e.hp - dmg);
+          this.pushEvent("monster", "dot", dmg, this.multi ? e.id : undefined);
+          this.pushMessage(`${ev.effect.name} causou ${dmg} de dano${ev.stacks > 1 ? ` (${ev.stacks} stacks)` : ""}`);
+          if (e.hp <= 0 && this.state === "active") {
+            e.hp = 0;
+            if (this.multi) {
+              this.syncFocus();
+              if (this.aliveEnemies().length === 0) this.state = "won";
+            } else {
+              this.state = "won";
+            }
+          }
+        }
+        if (ev.effect.onTick && ev.effect.onTick.length > 0) {
+          const result = emptyResult();
+          const ctx = this.buildActionContext(this.player, e, result, "");
+          executeActions(ev.effect.onTick, ctx, result);
+          this.collectResult(result, `[${ev.effect.name}]`);
         }
       }
-      if (ev.effect.onTick && ev.effect.onTick.length > 0) {
-        const result = emptyResult();
-        const ctx = this.buildActionContext(this.player, this.monster, result, "");
-        executeActions(ev.effect.onTick, ctx, result);
-        this.collectResult(result, `[${ev.effect.name}]`);
-      }
-    }
-    for (const ev of monsterStep.events.expired) {
-      if (ev.effect.onExpire && ev.effect.onExpire.length > 0) {
-        const result = emptyResult();
-        const ctx = this.buildActionContext(this.player, this.monster, result, "");
-        executeActions(ev.effect.onExpire, ctx, result);
-        this.collectResult(result, `[${ev.effect.name}]`);
+      for (const ev of enemyStep.events.expired) {
+        if (ev.effect.onExpire && ev.effect.onExpire.length > 0) {
+          const result = emptyResult();
+          const ctx = this.buildActionContext(this.player, e, result, "");
+          executeActions(ev.effect.onExpire, ctx, result);
+          this.collectResult(result, `[${ev.effect.name}]`);
+        }
       }
     }
   }
@@ -940,6 +1201,19 @@ export class Battle {
       monsterMaxHp: this.monster.maxHp,
       playerEffects: serializeEffects(this.player.effects),
       monsterEffects: serializeEffects(this.monster.effects),
+      enemies: this.multi
+        ? this.enemies.map((e) => ({
+            id: e.id,
+            name: e.name,
+            level: e.level,
+            isBoss: !!this.metaOf(e).isBoss,
+            isElite: !!this.metaOf(e).isElite,
+            imageUrl: this.metaOf(e).imageUrl ?? null,
+            hp: Math.max(0, e.hp),
+            maxHp: e.maxHp,
+            effects: serializeEffects(e.effects),
+          }))
+        : undefined,
       messages: this.takeMessages().map((m) => m.text),
       events: this.takeEvents(),
     };
@@ -976,6 +1250,15 @@ export class Battle {
         lastAttackAt: this.monster.lastAttackAt,
         effects: serializeRuntime(this.monster.effects),
       },
+      enemies: this.multi
+        ? this.enemies.map((e) => ({
+            id: e.id,
+            hp: e.hp,
+            mana: e.mana,
+            lastAttackAt: e.lastAttackAt,
+            effects: serializeRuntime(e.effects),
+          }))
+        : undefined,
       cooldowns: Array.from(this.cooldowns.entries()),
       monsterSkillCooldowns: Array.from(this.monsterSkillCooldowns.entries()),
       channeling: this.channeling ? { skillId: this.channeling.skill.id, until: this.channeling.until } : null,
@@ -1021,6 +1304,17 @@ export class Battle {
       this.monster.lastAttackAt = Number(save.monster.lastAttackAt) || Date.now();
       this.monster.effects = resolveRuntime(save.monster.effects);
     }
+    if (this.multi && Array.isArray(save.enemies)) {
+      for (const raw of save.enemies) {
+        const e = this.enemies.find((en) => en.id === raw?.id);
+        if (!e) continue;
+        e.hp = Number(raw.hp ?? e.hp);
+        e.mana = Number(raw.mana ?? e.mana);
+        e.lastAttackAt = Number(raw.lastAttackAt) || Date.now();
+        e.effects = resolveRuntime(raw.effects);
+      }
+    }
+    this.syncFocus();
 
     this.cooldowns = new Map(
       Array.isArray(save.cooldowns)

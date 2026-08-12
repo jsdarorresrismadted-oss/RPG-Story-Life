@@ -7,7 +7,7 @@ export type JsonFieldDef =
   | { mode: "string-array"; placeholder?: string; addLabel?: string }
   | {
       mode: "object-array";
-      fields: { name: string; label: string; type: "text" | "number" | "select" | "effect-slug"; options?: string[]; placeholder?: string; step?: string }[];
+      fields: { name: string; label: string; type: "text" | "number" | "select" | "effect-slug" | "boolean"; options?: string[]; placeholder?: string; step?: string }[];
       addLabel?: string;
     }
   | {
@@ -275,6 +275,20 @@ export default function JsonField({ schema, value, onChange }: JsonFieldProps) {
                       </option>
                     ))}
                   </select>
+                ) : f.type === "boolean" ? (
+                  <label className="flex items-center gap-2 cursor-pointer select-none pt-1">
+                    <input
+                      type="checkbox"
+                      checked={!!item?.[f.name]}
+                      onChange={(e) => {
+                        const next = [...list];
+                        next[idx] = { ...(item || {}), [f.name]: e.target.checked };
+                        onChange(next);
+                      }}
+                      className="w-4 h-4 accent-purple-500"
+                    />
+                    <span className="text-xs text-gray-400">{item?.[f.name] ? "Sim" : "Não"}</span>
+                  </label>
                 ) : (
                   <input
                     type={f.type === "number" ? "number" : "text"}
@@ -301,7 +315,7 @@ export default function JsonField({ schema, value, onChange }: JsonFieldProps) {
         type="button"
         onClick={() => {
           const empty: Record<string, any> = {};
-          for (const f of schema.fields) empty[f.name] = f.type === "number" ? 0 : "";
+          for (const f of schema.fields) empty[f.name] = f.type === "number" ? 0 : f.type === "boolean" ? false : "";
           onChange([...list, empty]);
         }}
         className={addBtnClass}

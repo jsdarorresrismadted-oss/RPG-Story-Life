@@ -145,7 +145,7 @@ interface ActiveCombat {
   monsterHp: number;
   startTime: number;
   tickInterval: NodeJS.Timeout;
-    raid?: { mapId: string; mapName: string; stage: number; wave: number; totalWaves: number; isBoss: boolean; boss?: boolean; monstersTotal: number; perMonsterHp: number; cleared?: boolean };
+    raid?: { mapId: string; mapName: string; stage: number; wave: number; totalWaves: number; isBoss: boolean; boss?: boolean; monstersTotal: number; cleared?: boolean };
   raidRunId?: string;
 }
 
@@ -261,9 +261,9 @@ export class CombatService {
     return (asActionArray(monster.skills) || []).slice(0, 4).map(parseSkill);
   }
 
-  // Monta o battle a partir de um objeto de monstro (normal do banco OU monstro
-  // agregado de raid com stats escaladas). Reutilizado em PvE, raids e resume.
-  private async createBattle(characterId: string, monster: any): Promise<{
+  // Monta o battle a partir do monstro de contexto (normal do banco OU onda de
+// raid). Em ondas multi-inimigo, `enemies` carrega as criaturas reais no campo.
+  private async createBattle(characterId: string, monster: any, enemies?: any[]): Promise<{
     character: any;
     gameClass: any;
     monster: any;
@@ -286,6 +286,7 @@ export class CombatService {
       passives,
       effects,
       monster,
+      enemies,
       monsterSkills,
       classResource: parseJson(gameClass.resource, {}),
       onEnd: (state) => {
@@ -312,16 +313,16 @@ export class CombatService {
         isBoss: !!r.isBoss,
         boss: !!r.isBoss,
         monstersTotal: Number(r.monstersTotal) || 1,
-        perMonsterHp: Number(r.perMonsterHp) || 1,
       };
     }
 
   private async loadCombatContext(characterId: string, monsterId: string): Promise<any> {
-    // Raid: monstro sintético raid:{mapId}:{stage} — montado com escala de onda.
+    // Raid: monstro sintético raid:{mapId}:{stage} — monta a onda do estágio.
     const raidStage = this.raidService?.parseMonsterId(monsterId);
     if (raidStage) {
-      const monster = await this.raidService!.buildMonster(raidStage.mapId, raidStage.stage);
-      const ctx = await this.createBattle(characterId, monster);
+      const wave = await this.raidService!.buildWaveFor(raidStage.mapId, raidStage.stage);
+      const monster = this.raidService!.buildContextMonster(wave);
+      const ctx = await this.createBattle(characterId, monster, wave.monsters.length > 1 ? wave.monsters : undefined);
       return { ...ctx, raid: this.raidContextFromMonster(monster), raidRunId: undefined };
     }
 
@@ -366,6 +367,7 @@ export class CombatService {
       monsterName: entry.monster.name,
       monsterLevel: entry.monster.level ?? 1,
       monsterMaxHp: entry.monster.hp,
+      enemies: snap.enemies || null,
       resumed,
       waveCleared,
       raid: entry.raid || null,
@@ -444,12 +446,13 @@ export class CombatService {
       }
     }
 
-    // Raid: inicia (ou retoma) a run e monta a onda atual do estágio.
+    // Raid: inicia (ou retoma) a run e monta a onda real do estágio.
     const raidInfo = await this.raidService?.resolveRaidFromMonster(monsterId);
     if (raidInfo) {
       const { run } = await this.raidService!.beginRun(characterId, raidInfo.mapId);
-      const monster = await this.raidService!.buildMonster(raidInfo.mapId, run.stage);
-      const ctx = await this.createBattle(characterId, monster);
+      const wave = await this.raidService!.buildWaveFor(raidInfo.mapId, run.stage);
+      const monster = this.raidService!.buildContextMonster(wave);
+      const ctx = await this.createBattle(characterId, monster, wave.monsters.length > 1 ? wave.monsters : undefined);
       const entry = this.buildEntry(ctx.battle, ctx.character, ctx.monster, ctx.skills, ctx.monsterSkills);
       entry.raid = this.raidContextFromMonster(monster);
       entry.raidRunId = run.id;
@@ -571,6 +574,7 @@ export class CombatService {
       playerEffects: snap.playerEffects,
       messages: snap.messages,
       events: snap.events,
+      enemies: snap.enemies || undefined,
       state: entry.state,
     };
 
@@ -652,15 +656,17 @@ export class CombatService {
         monsterHp: 0,
         monsterName: entry.monster.name,
         monsterMaxHp: snap.monsterMaxHp,
+        enemies: snap.enemies || undefined,
         messages: ["RAID CONCLUÍDO! Você derrotou todas as ondas e o boss final."],
         rewards,
       };
       return { type: "done", payload };
     }
 
-    const next = await this.createBattle(entry.characterId, adv.monster);
-    const newEntry = this.buildEntry(next.battle, next.character, adv.monster, next.skills, next.monsterSkills);
-    newEntry.raid = this.raidContextFromMonster(adv.monster);
+    const monster = this.raidService!.buildContextMonster(adv.wave!);
+    const next = await this.createBattle(entry.characterId, monster, adv.wave!.monsters.length > 1 ? adv.wave!.monsters : undefined);
+    const newEntry = this.buildEntry(next.battle, next.character, monster, next.skills, next.monsterSkills);
+    newEntry.raid = this.raidContextFromMonster(monster);
     newEntry.raidRunId = adv.run.id;
     const payload = this.buildStartedPayload(next.battle, newEntry, next.skills, next.character, false, true);
     payload.messages = [
@@ -720,6 +726,7 @@ export class CombatService {
       monsterMaxHp: snap.monsterMaxHp,
       monsterEffects: snap.monsterEffects,
       playerEffects: snap.playerEffects,
+      enemies: snap.enemies || undefined,
       state: entry.state,
     };
 

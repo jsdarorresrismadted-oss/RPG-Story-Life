@@ -87,6 +87,7 @@ export const adminApi = {
     create: (data: any) => api.post("/admin/maps", data),
     update: (id: string, data: any) => api.put(`/admin/maps/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/maps/${id}`, { params }),
+    generate: (prompt: string) => api.post("/admin/maps/generate", { prompt }),
   },
   quests: {
     list: () => api.get("/admin/quests"),

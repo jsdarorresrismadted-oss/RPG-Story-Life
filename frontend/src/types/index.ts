@@ -775,6 +775,20 @@ export interface CombatFloatEvent {
   target: "player" | "monster";
   kind: "normal" | "crit" | "dot" | "heal" | "hot" | "miss" | "dodge";
   value: number;
+  /** id do inimigo específico (onda multi-inimigo). Ausente = monstro único. */
+  entityId?: string;
+}
+
+export interface CombatEnemySnapshot {
+  id: string;
+  name: string;
+  level: number;
+  isBoss?: boolean;
+  isElite?: boolean;
+  imageUrl?: string | null;
+  hp: number;
+  maxHp: number;
+  effects: Array<{ slug: string; name: string; kind: string; stacks: number; remainingMs: number }>;
 }
 
 export interface CombatUpdate {
@@ -815,6 +829,7 @@ export interface CombatUpdate {
   messages?: string[];
   playerEffects?: CombatEffect[];
   monsterEffects?: CombatEffect[];
+  enemies?: CombatEnemySnapshot[] | null;
   raid?: RaidProgress | null;
   rewards?: { xpGain?: number; goldGain?: number; levelUps?: number; classXpGain?: number; drops?: { name: string; quantity: number }[] } | null;
 }
