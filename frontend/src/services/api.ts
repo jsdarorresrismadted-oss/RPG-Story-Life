@@ -80,6 +80,7 @@ export const inventoryApi = {
 export const mapsApi = {
   list: () => api.get("/maps"),
   get: (slug: string) => api.get(`/maps/${slug}`),
+  updatePin: (id: string, left: number, top: number) => api.put(`/maps/${id}/pin`, { left, top }),
 };
 
 export const monstersApi = {

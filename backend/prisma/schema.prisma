@@ -598,6 +598,8 @@ model Map {
   raidDifficulty  Float           @default(2.0) // multiplicador de força dos monstros do raid
   isActive        Boolean         @default(true)
   sortOrder       Int             @default(0)
+  pinLeft         Float? // posição do pino no mapa mundi (% horizontal de 0 a 100)
+  pinTop          Float? // posição do pino no mapa mundi (% vertical de 0 a 100)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   npcs            MapNpc[]

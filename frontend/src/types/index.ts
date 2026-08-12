@@ -722,6 +722,8 @@ export interface Map {
   maxRaidAttempts?: number | null;
   raidWaves?: number | null;
   raidDifficulty?: number | null;
+  pinLeft?: number | null;
+  pinTop?: number | null;
   npcs?: { id: string; npc: { id: string; name: string; type?: string } }[];
   monsters?: {
     id: string;

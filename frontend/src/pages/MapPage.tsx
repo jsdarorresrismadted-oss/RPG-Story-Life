@@ -346,39 +346,6 @@ function isQuestNpc(type?: string | null) {
 }
 
 const WORLD_MAP_IMG = "/map/bf9dcec3-5bf2-49d7-9a5f-3ead21ba4c2a.png";
-const PINS_STORAGE_KEY = "worldMapPins";
-
-const PIN_DEFAULTS: Record<string, { left: number; top: number }> = {
-  arcadia: { left: 25, top: 42 },
-  "floresta-sombria": { left: 52, top: 26 },
-  "caverna-do-dragao": { left: 74, top: 64 },
-};
-
-function loadWorldPins(slugs: string[]): Record<string, { left: number; top: number }> {
-  const result: Record<string, { left: number; top: number }> = {};
-  let extra = 0;
-  for (const s of slugs) {
-    if (PIN_DEFAULTS[s]) {
-      result[s] = PIN_DEFAULTS[s];
-    } else {
-      result[s] = { left: 14 + (extra % 3) * 33, top: 16 + Math.floor(extra / 3) * 38 };
-      extra += 1;
-    }
-  }
-  try {
-    const raw = localStorage.getItem(PINS_STORAGE_KEY);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      for (const key of Object.keys(result)) {
-        const pos = saved?.[key];
-        if (pos && typeof pos.left === "number" && typeof pos.top === "number") {
-          result[key] = { left: Math.min(100, Math.max(0, pos.left)), top: Math.min(100, Math.max(0, pos.top)) };
-        }
-      }
-    }
-  } catch { /* ignore */ }
-  return result;
-}
 
 export function MapPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -402,24 +369,19 @@ export function MapPage() {
   const [rolling, setRolling] = useState(false);
   const [buyingTicket, setBuyingTicket] = useState(false);
   const [lastRoll, setLastRoll] = useState<GachaRollResult | null>(null);
-  const [worldPins, setWorldPins] = useState<Record<string, { left: number; top: number }>>({});
   const [pinEditMode, setPinEditMode] = useState(false);
   const [pinEditingSlug, setPinEditingSlug] = useState<string | null>(null);
+  const isStaff = user?.role === "admin" || user?.role === "owner";
 
-  useEffect(() => {
-    if (slug) return;
-    setWorldPins((prev) => {
-      if (Object.keys(prev).length > 0) return prev;
-      return loadWorldPins(maps.map((m) => m.slug));
-    });
-  }, [maps, slug]);
-
-  const savePin = (mapSlug: string, left: number, top: number) => {
-    const next = { ...worldPins, [mapSlug]: { left, top } };
-    setWorldPins(next);
+  const savePin = async (mapSlug: string, left: number, top: number) => {
+    const map = maps.find((m) => m.slug === mapSlug);
+    if (!map) return;
     try {
-      localStorage.setItem(PINS_STORAGE_KEY, JSON.stringify(next));
-    } catch { /* ignore */ }
+      await mapsApi.updatePin(map.id, left, top);
+      setMaps((prev) => prev.map((mm) => (mm.id === map.id ? { ...mm, pinLeft: left, pinTop: top } : mm)));
+    } catch {
+      toast.error("Falha ao salvar a posição do pino.");
+    }
   };
 
   const doneQuests = new Set(
@@ -678,7 +640,7 @@ export function MapPage() {
             </h1>
             <p className="text-sm text-gray-400 mt-1">Escolha um local para explorar.</p>
           </div>
-          {maps.length > 0 && (
+          {isStaff && maps.length > 0 && (
             <button
               type="button"
               onClick={() => setPinEditMode((v) => !v)}
@@ -691,7 +653,8 @@ export function MapPage() {
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-6 items-start">
+        {maps.length === 0 && <p className="text-gray-500 text-sm">Nenhum mapa disponível.</p>}
+        {maps.length > 0 && (
           <div className="relative w-full rounded-xl overflow-hidden border border-dark-700 select-none">
             <img
               src={WORLD_MAP_IMG}
@@ -701,8 +664,7 @@ export function MapPage() {
               onDragStart={(e) => e.preventDefault()}
             />
             {maps.map((m) => {
-              const pin = worldPins[m.slug];
-              if (!pin) return null;
+              if (m.pinLeft == null || m.pinTop == null) return null;
               const isRaid = m.type === "raid";
               const editing = pinEditMode && pinEditingSlug === m.slug;
               const pinBody = (
@@ -732,7 +694,7 @@ export function MapPage() {
                     to={`/map/${m.slug}`}
                     title={m.name}
                     className="absolute z-10 group focus:outline-none"
-                    style={{ left: `${pin.left}%`, top: `${pin.top}%` }}
+                    style={{ left: `${m.pinLeft}%`, top: `${m.pinTop}%` }}
                   >
                     <span className="flex items-center -translate-x-1/2 -translate-y-1/2 group-hover:scale-110 transition-transform">
                       {pinBody}
@@ -749,7 +711,7 @@ export function MapPage() {
                     setPinEditingSlug(pinEditingSlug === m.slug ? null : m.slug);
                   }}
                   className="absolute z-10 focus:outline-none cursor-crosshair"
-                  style={{ left: `${pin.left}%`, top: `${pin.top}%` }}
+                  style={{ left: `${m.pinLeft}%`, top: `${m.pinTop}%` }}
                 >
                   <span className="flex items-center -translate-x-1/2 -translate-y-1/2">{pinBody}</span>
                 </button>
@@ -770,47 +732,12 @@ export function MapPage() {
               />
             )}
           </div>
-          <div className="flex flex-col gap-3">
-            {maps.length === 0 ? (
-              <p className="text-gray-500 text-sm">Nenhum mapa disponível.</p>
-            ) : (
-              maps.map((m) => {
-                const raid = raidStatus[m.id];
-                const isRaid = m.type === "raid";
-                return (
-                  <Link key={m.id} to={`/map/${m.slug}`} className="card-hover block p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-display font-bold text-sm flex items-center gap-2">
-                          {m.name}
-                          {isRaid && <Swords size={12} className="text-red-400" />}
-                        </h3>
-                        <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{m.description}</p>
-                      </div>
-                      <span className="text-[10px] px-2 py-1 bg-yellow-500/10 text-yellow-400 rounded-md whitespace-nowrap shrink-0">Lv.{m.requiredLevel}+</span>
-                    </div>
-                    {isRaid && raid && (
-                      <div className="mt-2 flex items-center gap-2 text-[11px]">
-                        <span className="text-red-400">Tentativas: {raid.attemptsUsed}/{raid.maxAttempts}</span>
-                        <span className="text-gray-500">• Reset em {formatRaidReset(raid.resetsInMs)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-500">
-                      <span className="px-1.5 py-0.5 bg-dark-700 rounded-md capitalize">{m.region}</span>
-                      <span className="flex items-center gap-1"><Skull size={11} /> {m.monsters?.length || 0} monstros</span>
-                      <span className="flex items-center gap-1"><ScrollText size={11} /> {m.npcs?.length || 0} NPCs</span>
-                    </div>
-                  </Link>
-                );
-              })
-            )}
-            {pinEditMode && (
-              <p className="text-[11px] text-purple-300/80 leading-relaxed bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
-                Clique em um pino para selecionar e depois clique no mapa para movê-lo. As posições ficam salvas neste navegador.
-              </p>
-            )}
-          </div>
-        </div>
+        )}
+        {pinEditMode && (
+          <p className="text-[11px] text-purple-300/80 leading-relaxed bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
+            Clique em um pino para selecionar e depois clique no mapa para movê-lo. A nova posição vale para todos os jogadores.
+          </p>
+        )}
       </div>
     );
   }
