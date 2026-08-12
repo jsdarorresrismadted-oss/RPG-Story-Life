@@ -9,6 +9,7 @@ import {
   UserPlus, Gauge, Wind, Brain, Crown,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { EntityIcon } from "../components/EntityIcon";
 
 function formatMs(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
@@ -164,6 +165,14 @@ export function ClassPage() {
             : "bg-gradient-to-br from-purple-600 to-blue-600"
           }`}>
             {locked ? <Lock size={16} className="text-gray-300" />
+              : skill.icon ? (
+                <div className="relative w-10 h-10 flex items-center justify-center">
+                  <EntityIcon src={skill.icon} size={22} className="text-white" imgClassName="w-8 h-8 object-contain" />
+                  {skill.iconSecondary && (
+                    <EntityIcon src={skill.iconSecondary} size={12} className="absolute -bottom-0.5 -right-0.5 rounded bg-dark-800 border border-dark-600" imgClassName="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 object-contain rounded bg-dark-800 border border-dark-600" />
+                  )}
+                </div>
+              )
               : isUlt ? <Zap size={18} className="text-white" />
               : isAuto ? <Swords size={16} className="text-white" />
               : skill.kind === "heal" ? <Heart size={18} className="text-white" />
@@ -367,6 +376,14 @@ export function ClassPage() {
           <div className="flex items-start justify-between mb-3">
             <div>
               <div className="flex items-center gap-2">
+                {selectedSkill.icon && (
+                  <div className="relative w-8 h-8 shrink-0">
+                    <EntityIcon src={selectedSkill.icon} size={22} className="text-white" imgClassName="w-full h-full object-contain" />
+                    {selectedSkill.iconSecondary && (
+                      <EntityIcon src={selectedSkill.iconSecondary} size={10} className="absolute -bottom-0.5 -right-0.5 rounded bg-dark-800 border border-dark-600" imgClassName="absolute -bottom-0.5 -right-0.5 w-3 h-3 object-contain rounded bg-dark-800 border border-dark-600" />
+                    )}
+                  </div>
+                )}
                 <h3 className="text-lg font-display font-bold">{selectedSkill.name}</h3>
                 <span className="text-[10px] text-gray-500 bg-dark-700 px-2 py-0.5 rounded uppercase">{selectedSkill.kind}</span>
               </div>

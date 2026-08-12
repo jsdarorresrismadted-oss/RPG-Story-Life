@@ -422,7 +422,12 @@ export function ArenaPage() {
                         </span>
                       )}
                       {skill.icon ? (
-                        <EntityIcon src={skill.icon} size={22} className="mx-auto mb-1" imgClassName="w-6 h-6 mx-auto mb-1 object-contain" />
+                        <div className="relative w-6 h-6 mx-auto mb-1">
+                          <EntityIcon src={skill.icon} size={22} className="mx-auto" imgClassName="w-full h-full object-contain" />
+                          {skill.iconSecondary && (
+                            <EntityIcon src={skill.iconSecondary} size={12} className="absolute -bottom-1 -right-1 rounded bg-dark-800 border border-dark-600" imgClassName="absolute -bottom-1 -right-1 w-3.5 h-3.5 object-contain rounded bg-dark-800 border border-dark-600" />
+                          )}
+                        </div>
                       ) : skill.trigger === "ultimate" ? (
                         <Zap size={18} className="mx-auto mb-1 text-yellow-400" />
                       ) : skill.kind === "heal" ? (

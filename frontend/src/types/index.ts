@@ -185,6 +185,7 @@ export interface Skill {
   slug: string;
   description: string;
   icon: string | null;
+  iconSecondary?: string | null;
   kind: string;
   trigger: 'auto' | 'active' | 'ultimate';
   target: string;
