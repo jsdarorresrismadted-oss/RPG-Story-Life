@@ -167,6 +167,14 @@ export interface BattleLogLine {
   type?: string;
 }
 
+export type CombatEventKind = "normal" | "crit" | "dot" | "heal" | "hot" | "miss" | "dodge";
+
+export interface CombatEvent {
+  target: "player" | "monster";
+  kind: CombatEventKind;
+  value: number;
+}
+
 export interface BattleSnapshot {
   characterHp: number;
   characterMana: number;
@@ -177,4 +185,5 @@ export interface BattleSnapshot {
   playerEffects: Array<{ slug: string; name: string; kind: string; stacks: number; remainingMs: number }>;
   monsterEffects: Array<{ slug: string; name: string; kind: string; stacks: number; remainingMs: number }>;
   messages: string[];
+  events: CombatEvent[];
 }

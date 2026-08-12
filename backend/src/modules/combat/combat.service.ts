@@ -570,6 +570,7 @@ export class CombatService {
       monsterEffects: snap.monsterEffects,
       playerEffects: snap.playerEffects,
       messages: snap.messages,
+      events: snap.events,
       state: entry.state,
     };
 
@@ -699,12 +700,14 @@ export class CombatService {
       damage: result.damage,
       healed: result.healed,
       isCritical: result.isCritical,
+      isMissed: result.isMissed ?? false,
       isDodged: result.isDodged,
       appliedBuffs: result.appliedEffects,
       appliedEffects: result.appliedEffects,
       removedEffects: result.removedEffects,
       consumedStacks: result.consumedStacks,
       messages: [...result.messages, ...snap.messages],
+      events: snap.events,
       channeling: result.channeling,
       channelMs: result.channelMs,
       cooldowns: entry.battle.cooldownInfo(),
@@ -772,6 +775,7 @@ export class CombatService {
       monsterName: entry.monster.name,
       monsterMaxHp: snap.monsterMaxHp,
       fled: escaped,
+      events: snap.events,
       messages: [],
     };
 
@@ -800,6 +804,7 @@ export class CombatService {
       const s2 = entry.battle.snapshot();
       payload.characterHp = s2.characterHp;
       payload.monsterHp = s2.monsterHp;
+      payload.events = s2.events;
       payload.messages = s2.messages;
       if (entry.battle.state === "lost") {
         entry.state = "lost";
@@ -892,6 +897,7 @@ export class CombatService {
       monsterMaxHp: snap.monsterMaxHp,
       playerEffects: snap.playerEffects,
       monsterEffects: snap.monsterEffects,
+      events: snap.events,
       state: entry.state,
     };
 

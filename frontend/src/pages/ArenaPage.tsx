@@ -25,6 +25,22 @@ interface PvpPotion {
   icon?: string | null;
 }
 
+interface Floater {
+  id: number;
+  target: "me" | "them";
+  text: string;
+  kind: "normal" | "crit" | "dot" | "heal" | "hot" | "miss" | "dodge";
+  dx: number;
+  dy: number;
+}
+
+// Linhas do log que agora são representadas pelos números flutuantes (não duplicar).
+const FLOATER_DUPLICATES = /causou \d+ de dano|dano crítico de \d+!|curou \d+ de vida|foi esquivado|esquivou do ataque|errou o ataque|errou!/i;
+
+function stripFloaterDuplicates(msgs: string[]): string[] {
+  return msgs.filter((m) => !FLOATER_DUPLICATES.test(m));
+}
+
 function itemEffects(item: any): { heal: number; manaRestore: number } {
   let heal = 0;
   let manaRestore = 0;
@@ -62,6 +78,22 @@ export function ArenaPage() {
   const [potionsLeft, setPotionsLeft] = useState(3);
   const myCharIdRef = useRef(selectedCharacter?.id);
   myCharIdRef.current = selectedCharacter?.id;
+  const [floaters, setFloaters] = useState<Floater[]>([]);
+  const floaterSeq = useRef(0);
+
+  // Sistema central de feedback visual (mesmo CSS do combate PvE).
+  const emitEvent = (target: "me" | "them", kind: Floater["kind"], value: number) => {
+    if (kind !== "miss" && kind !== "dodge" && value <= 0) return;
+    const id = ++floaterSeq.current;
+    const col = id % 7;
+    const dx = (col - 3) * 26;
+    const dy = (col % 3) * 12;
+    const text = kind === "miss" ? "MISS!" : kind === "dodge" ? "DODGE!" : kind === "heal" || kind === "hot" ? `+${value}` : `-${value}`;
+    setFloaters((prev) => [...prev.slice(-7), { id, target, text, kind, dx, dy }]);
+    window.setTimeout(() => {
+      setFloaters((prev) => prev.filter((f) => f.id !== id));
+    }, 1100);
+  };
 
   const refreshAuth = () => {
     authApi.me().then(({ data }) => data && setUser(data)).catch(() => {});
@@ -118,6 +150,7 @@ export function ArenaPage() {
 
     const onUpdate = (data: any) => {
       if (!data?.matchId) return;
+      const mySideNow = data.challengerCharacterId === myCharIdRef.current ? "challenger" : "opponent";
       if (data.type === "started") {
         setResult(null);
         setPotionsLeft(3);
@@ -152,9 +185,15 @@ export function ArenaPage() {
       };
       setMatch((prev) => (prev ? { ...prev, ...next } : next));
 
+      if (data.events && data.events.length > 0) {
+        for (const ev of data.events) {
+          const targetMe = (ev.target === "player") === (mySideNow === "challenger");
+          emitEvent(targetMe ? "me" : "them", ev.kind, ev.value);
+        }
+      }
+
       if (data.type === "tick") {
-        const mySide = data.challengerCharacterId === myCharIdRef.current ? "challenger" : "opponent";
-        const cds = mySide === "challenger" ? data.challengerCooldowns : data.opponentCooldowns;
+        const cds = mySideNow === "challenger" ? data.challengerCooldowns : data.opponentCooldowns;
         if (cds) {
           const map: Record<string, number> = {};
           for (const c of cds) map[c.skillId] = Date.now() + c.remaining;
@@ -163,7 +202,8 @@ export function ArenaPage() {
       }
 
       if (data.messages && data.messages.length > 0) {
-        setLog((prev) => [...prev.slice(-29), ...data.messages]);
+        const msgs = stripFloaterDuplicates(data.messages);
+        if (msgs.length > 0) setLog((prev) => [...prev.slice(-29), ...msgs]);
       }
 
       if (data.type === "ended") {
@@ -184,8 +224,21 @@ export function ArenaPage() {
     };
 
     const onSkillUsed = (data: any) => {
+      const mySideNow = data.side === "player" ? "challenger" : "opponent";
+      if (data.events && data.events.length > 0) {
+        for (const ev of data.events) {
+          const targetMe = (ev.target === "player") === (mySideNow === "challenger");
+          emitEvent(targetMe ? "me" : "them", ev.kind, ev.value);
+        }
+      } else {
+        if (data.isMissed) emitEvent(mySideNow === "challenger" ? "them" : "me", "miss", 0);
+        if (data.isDodged) emitEvent(mySideNow === "challenger" ? "them" : "me", "dodge", 0);
+        if ((data.damage ?? 0) > 0) emitEvent(mySideNow === "challenger" ? "them" : "me", data.isCritical ? "crit" : "normal", data.damage);
+        if ((data.healed ?? 0) > 0) emitEvent(mySideNow === "challenger" ? "me" : "them", "heal", data.healed);
+      }
       if (data.messages && data.messages.length > 0) {
-        setLog((prev) => [...prev.slice(-29), ...data.messages]);
+        const msgs = stripFloaterDuplicates(data.messages);
+        if (msgs.length > 0) setLog((prev) => [...prev.slice(-29), ...msgs]);
       }
       if (data.cooldowns) {
         const map: Record<string, number> = {};
@@ -198,6 +251,7 @@ export function ArenaPage() {
       const parts: string[] = [];
       if ((data.healed ?? 0) > 0) parts.push(`${data.healed} de vida`);
       if ((data.manaRestored ?? 0) > 0) parts.push(`${data.manaRestored} de mana`);
+      if ((data.healed ?? 0) > 0) emitEvent("me", "heal", data.healed);
       if (parts.length) setLog((prev) => [...prev.slice(-29), `Você usou uma poção (+${parts.join(", ")})`]);
       setPotionsLeft((p) => Math.max(0, p - 1));
     };
@@ -331,7 +385,10 @@ export function ArenaPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-dark-700 bg-[#12141a] p-4">
+          <div className="rounded-xl border border-dark-700 bg-[#12141a] p-4 relative">
+            {floaters.filter((f) => f.target === "me").map((f) => (
+              <span key={f.id} className={`combat-floater ${f.kind}`} style={{ left: `calc(50% + ${f.dx}px)`, top: `calc(40% + ${f.dy}px)` }}>{f.text}</span>
+            ))}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-sm font-bold text-purple-300">
@@ -358,7 +415,10 @@ export function ArenaPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-dark-700 bg-[#12141a] p-4">
+          <div className="rounded-xl border border-dark-700 bg-[#12141a] p-4 relative">
+            {floaters.filter((f) => f.target === "them").map((f) => (
+              <span key={f.id} className={`combat-floater ${f.kind}`} style={{ left: `calc(50% + ${f.dx}px)`, top: `calc(40% + ${f.dy}px)` }}>{f.text}</span>
+            ))}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-sm font-bold text-red-300">

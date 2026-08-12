@@ -97,6 +97,7 @@ export interface ActionResult {
   damage: number;
   healed: number;
   isCritical: boolean;
+  isMissed: boolean;
   isDodged: boolean;
   appliedEffects: string[];
   removedEffects: string[];
@@ -106,7 +107,7 @@ export interface ActionResult {
 }
 
 export function emptyResult(): ActionResult {
-  return { damage: 0, healed: 0, isCritical: false, isDodged: false, appliedEffects: [], removedEffects: [], consumedStacks: 0, messages: [], hit: false };
+  return { damage: 0, healed: 0, isCritical: false, isMissed: false, isDodged: false, appliedEffects: [], removedEffects: [], consumedStacks: 0, messages: [], hit: false };
 }
 
 function scaleValue(base: number, scaling: Scaling[] | undefined, stats: DerivedStats): number {
@@ -133,7 +134,7 @@ export function computeDamageAmount(
   target: BattleEntity,
   targetStats: DerivedStats,
   ctx: ActionContext
-): { amount: number; isCritical: boolean; isDodged: boolean } {
+): { amount: number; isCritical: boolean; isMissed: boolean; isDodged: boolean } {
   const raw = scaleValue(action.amount ?? 0, action.scaling, actorStats);
 
   // Nuke: cada stack ativo garante crítico (usa Critical Multiplier, ignora Critical Chance)
@@ -148,7 +149,7 @@ export function computeDamageAmount(
   }
 
   if (Math.random() * 100 >= hitChance) {
-    return { amount: 0, isCritical: false, isDodged: true };
+    return { amount: 0, isCritical: false, isMissed: true, isDodged: false };
   }
 
   const critRoll = Math.random() * 100;
@@ -156,7 +157,7 @@ export function computeDamageAmount(
   const isDodged = action.crit !== false && rollDodge(target, targetStats);
 
   if (isDodged) {
-    return { amount: 0, isCritical: false, isDodged: true };
+    return { amount: 0, isCritical: false, isMissed: false, isDodged: true };
   }
 
   const critMult = isCritical ? actorStats.critDamage / 100 : 1;
@@ -189,7 +190,7 @@ export function computeDamageAmount(
   resistance = Math.min(80, Math.max(0, resistance));
   if (resistance > 0) amount *= 1 - resistance / 100;
 
-  return { amount: Math.max(1, Math.floor(amount)), isCritical, isDodged: false };
+  return { amount: Math.max(1, Math.floor(amount)), isCritical, isMissed: false, isDodged: false };
 }
 
 // Executa uma lista de ações dentro de um contexto de batalha.
@@ -197,7 +198,12 @@ export function executeActions(actions: Action[], ctx: ActionContext, result: Ac
   for (const action of actions) {
     switch (action.action) {
       case "damage": {
-        const { amount, isCritical, isDodged } = computeDamageAmount(action, ctx.actor, ctx.actorStats, ctx.target, ctx.targetStats, ctx);
+        const { amount, isCritical, isMissed, isDodged } = computeDamageAmount(action, ctx.actor, ctx.actorStats, ctx.target, ctx.targetStats, ctx);
+        if (isMissed) {
+          result.isMissed = true;
+          result.messages.push(`O ataque errou!`);
+          continue;
+        }
         if (isDodged) {
           result.isDodged = true;
           result.messages.push(`O ataque foi esquivado!`);

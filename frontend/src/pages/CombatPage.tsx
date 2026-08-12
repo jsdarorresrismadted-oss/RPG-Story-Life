@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { getSocket } from "../services/socket";
 import { useGameStore } from "../store/gameStore";
 import { useAuthStore } from "../store/authStore";
-import { CombatUpdate, InventoryItem } from "../types";
+import { CombatUpdate, CombatFloatEvent, InventoryItem } from "../types";
 import { authApi, charactersApi, inventoryApi, monstersApi } from "../services/api";
 import { ArrowLeft, Sword, Shield, Zap, Skull, Heart, Sparkles, Coins, Lock, Star, DoorOpen, FlaskConical, HeartPulse, Droplets } from "lucide-react";
 import toast from "react-hot-toast";
@@ -23,7 +23,16 @@ interface Floater {
   id: number;
   target: "player" | "monster";
   text: string;
-  kind: "damage" | "heal" | "crit" | "dodge";
+  kind: "normal" | "crit" | "dot" | "heal" | "hot" | "miss" | "dodge";
+  dx: number;
+  dy: number;
+}
+
+// Linhas do log que agora são representadas pelos números flutuantes (não duplicar).
+const FLOATER_DUPLICATES = /causou \d+ de dano|dano crítico de \d+!|curou \d+ de vida|foi esquivado|esquivou do ataque|errou o ataque|errou!/i;
+
+function stripFloaterDuplicates(msgs: string[]): string[] {
+  return msgs.filter((m) => !FLOATER_DUPLICATES.test(m));
 }
 
 function logClass(line: string): string {
@@ -82,10 +91,24 @@ export function CombatPage() {
 
   const pushFloater = (target: "player" | "monster", text: string, kind: Floater["kind"]) => {
     const id = ++floaterSeq.current;
-    setFloaters((prev) => [...prev.slice(-5), { id, target, text, kind }]);
+    const col = id % 7;
+    const dx = (col - 3) * 26;
+    const dy = (col % 3) * 12;
+    setFloaters((prev) => [...prev.slice(-7), { id, target, text, kind, dx, dy }]);
     window.setTimeout(() => {
       setFloaters((prev) => prev.filter((f) => f.id !== id));
-    }, 1000);
+    }, 1100);
+  };
+
+  // Sistema central de feedback: eventos do servidor viram números flutuantes.
+  const emitEvents = (events?: CombatFloatEvent[]) => {
+    if (!events || events.length === 0) return;
+    for (const ev of events) {
+      if (ev.kind === "miss") pushFloater(ev.target, "MISS!", "miss");
+      else if (ev.kind === "dodge") pushFloater(ev.target, "DODGE!", "dodge");
+      else if (ev.kind === "heal" || ev.kind === "hot") pushFloater(ev.target, `+${ev.value}`, ev.kind);
+      else if (ev.value > 0) pushFloater(ev.target, `-${ev.value}`, ev.kind);
+    }
   };
 
   // Refresh user data (gold/XP) after a victory without needing F5
@@ -192,8 +215,14 @@ export function CombatPage() {
 
     socket.on("combat:skillUsed", (data: CombatUpdate) => {
       setCombat((prev) => (prev ? { ...prev, ...data } : data));
-      if ((data.damage ?? 0) > 0) pushFloater("monster", `-${data.damage}`, data.isCritical ? "crit" : "damage");
-      if ((data.healed ?? 0) > 0) pushFloater("player", `+${data.healed}`, "heal");
+      if (data.events && data.events.length > 0) {
+        emitEvents(data.events);
+      } else {
+        if (data.isMissed) pushFloater("monster", "MISS!", "miss");
+        if (data.isDodged) pushFloater("monster", "DODGE!", "dodge");
+        if ((data.damage ?? 0) > 0) pushFloater("monster", `-${data.damage}`, data.isCritical ? "crit" : "normal");
+        if ((data.healed ?? 0) > 0) pushFloater("player", `+${data.healed}`, "heal");
+      }
       if (data.state === "won") {
         setInCombat(false);
         toast.success("Vitória!");
@@ -212,14 +241,11 @@ export function CombatPage() {
         setCooldowns((prev) => ({ ...prev, [data.skillId as string]: Date.now() }));
       }
       const log: string[] = [];
-      if (data.isCritical) log.push("Acerto crítico!");
-      if (data.isDodged) log.push("O ataque foi esquivado!");
-      if ((data.damage ?? 0) > 0) log.push(`Você causou ${data.damage} de dano`);
-      if ((data.healed ?? 0) > 0) log.push(`Você curou ${data.healed} de vida`);
       if (data.appliedBuffs?.length) log.push(`Buff aplicado: ${data.appliedBuffs.join(", ")}`);
-      if (data.messages && data.messages.length > 0) log.push(...data.messages);
+      if (data.messages && data.messages.length > 0) log.push(...stripFloaterDuplicates(data.messages));
       if (data.state === "won" && data.rewards) {
-        log.push(`Recompensas: +${data.rewards.xpGain ?? 0} XP, +${data.rewards.goldGain ?? 0} gold${data.rewards.levelUps ? `, LEVEL UP x${data.rewards.levelUps}!` : ""}`);
+        const r = data.rewards;
+        log.push(`Recompensas: +${r.xpGain ?? 0} XP • +${r.classXpGain ?? 0} CXP • +${r.goldGain ?? 0} gold${r.levelUps ? `, LEVEL UP x${r.levelUps}!` : ""}`);
         if (data.rewards.drops && data.rewards.drops.length > 0) {
           log.push(`Drops: ${data.rewards.drops.map((d) => `${d.quantity}x ${d.name}`).join(", ")}`);
         }
@@ -231,15 +257,19 @@ export function CombatPage() {
       const prev = combatRef.current;
       const waveChanged = prev?.raid?.wave !== undefined && data.raid?.wave !== undefined && prev.raid.wave !== data.raid.wave;
       if (prev && data.state === "active" && !waveChanged) {
-        if (typeof data.monsterHp === "number" && typeof prev.monsterHp === "number") {
-          const delta = prev.monsterHp - data.monsterHp;
-          if (delta > 0) pushFloater("monster", `-${delta}`, "damage");
-          else if (delta < 0) pushFloater("monster", `+${-delta}`, "heal");
-        }
-        if (typeof data.characterHp === "number" && typeof prev.characterHp === "number") {
-          const delta = prev.characterHp - data.characterHp;
-          if (delta > 0) pushFloater("player", `-${delta}`, "damage");
-          else if (delta < 0) pushFloater("player", `+${-delta}`, "heal");
+        if (data.events && data.events.length > 0) {
+          emitEvents(data.events);
+        } else {
+          if (typeof data.monsterHp === "number" && typeof prev.monsterHp === "number") {
+            const delta = prev.monsterHp - data.monsterHp;
+            if (delta > 0) pushFloater("monster", `-${delta}`, "normal");
+            else if (delta < 0) pushFloater("monster", `+${-delta}`, "heal");
+          }
+          if (typeof data.characterHp === "number" && typeof prev.characterHp === "number") {
+            const delta = prev.characterHp - data.characterHp;
+            if (delta > 0) pushFloater("player", `-${delta}`, "normal");
+            else if (delta < 0) pushFloater("player", `+${-delta}`, "heal");
+          }
         }
       }
       setCombat((prev) => {
@@ -247,13 +277,13 @@ export function CombatPage() {
         return { ...prev, ...data };
       });
       if (data.messages && data.messages.length > 0) {
-        const msgs = data.messages;
-        setCombatLog(prev => [...prev.slice(-19), ...msgs]);
+        const msgs = stripFloaterDuplicates(data.messages);
+        if (msgs.length > 0) setCombatLog(prev => [...prev.slice(-19), ...msgs]);
       }
       if (data.state === "won") {
         setInCombat(false);
         const r = data.rewards;
-        let line = `Vitória! +${r?.xpGain ?? 0} XP, +${r?.goldGain ?? 0} gold${r?.levelUps ? `, LEVEL UP x${r.levelUps}!` : ""}`;
+        let line = `Vitória! +${r?.xpGain ?? 0} XP • +${r?.classXpGain ?? 0} CXP • +${r?.goldGain ?? 0} gold${r?.levelUps ? `, LEVEL UP x${r.levelUps}!` : ""}`;
         if (r?.drops && r.drops.length > 0) line += ` • Drops: ${r.drops.map((d) => `${d.quantity}x ${d.name}`).join(", ")}`;
         setCombatLog(prev => [...prev.slice(-19), line]);
         refreshUser();
@@ -287,7 +317,11 @@ export function CombatPage() {
           toast.success("Você fugiu do combate!");
           setCombatLog(prev => [...prev.slice(-19), "Você conseguiu fugir!"]);
         } else {
-          if ((data.damage ?? 0) > 0) pushFloater("player", `-${data.damage}`, "damage");
+          if (data.events && data.events.length > 0) {
+            emitEvents(data.events);
+          } else if ((data.damage ?? 0) > 0) {
+            pushFloater("player", `-${data.damage}`, "normal");
+          }
           toast.error("A fuga falhou!");
           setCombatLog(prev => [...prev.slice(-19), "A fuga falhou! O monstro atacou você."]);
         }
@@ -295,6 +329,7 @@ export function CombatPage() {
         const parts: string[] = [];
         if ((data.healed ?? 0) > 0) parts.push(`${data.healed} de vida`);
         if ((data.manaRestored ?? 0) > 0) parts.push(`${data.manaRestored} de mana`);
+        if ((data.healed ?? 0) > 0) pushFloater("player", `+${data.healed}`, "heal");
         setCombatLog(prev => [...prev.slice(-19), `Você usou ${data.itemName || "poção"} (+${parts.join(", ")})`]);
         loadPotions();
       }
@@ -398,7 +433,7 @@ export function CombatPage() {
         {/* Player */}
         <div className="panel p-5 relative">
           {floaters.filter((f) => f.target === "player").map((f) => (
-            <span key={f.id} className={`combat-floater ${f.kind}`}>{f.text}</span>
+            <span key={f.id} className={`combat-floater ${f.kind}`} style={{ left: `calc(50% + ${f.dx}px)`, top: `calc(38% + ${f.dy}px)` }}>{f.text}</span>
           ))}
           <div className="flex items-center gap-3 mb-4">
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center ${playerHasBuff ? "ring-2 ring-blue-400/70 shadow-[0_0_14px_rgba(96,165,250,0.45)]" : ""}`}>
@@ -453,7 +488,7 @@ export function CombatPage() {
         {/* Monster */}
         <div className="panel p-5 relative">
           {floaters.filter((f) => f.target === "monster").map((f) => (
-            <span key={f.id} className={`combat-floater ${f.kind}`}>{f.text}</span>
+            <span key={f.id} className={`combat-floater ${f.kind}`} style={{ left: `calc(50% + ${f.dx}px)`, top: `calc(38% + ${f.dy}px)` }}>{f.text}</span>
           ))}
           <div className="flex items-center gap-3 mb-4">
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-orange-600 flex items-center justify-center ${monsterHasDebuff ? "ring-2 ring-red-500/70 shadow-[0_0_14px_rgba(239,68,68,0.45)]" : ""}`}>
@@ -503,8 +538,9 @@ export function CombatPage() {
                 <p className="text-xs text-red-300">Você derrotou todas as ondas e o chefe final do raid.</p>
               )}
               {combat.rewards && (
-                <p className="text-sm text-gray-300 flex items-center justify-center gap-3">
+                <p className="text-sm text-gray-300 flex items-center justify-center gap-3 flex-wrap">
                   <span className="flex items-center gap-1"><Sparkles size={14} className="text-purple-400" /> +{combat.rewards.xpGain ?? 0} XP</span>
+                  <span className="flex items-center gap-1"><Star size={14} className="text-amber-400" /> +{combat.rewards.classXpGain ?? 0} CXP</span>
                   <span className="flex items-center gap-1"><Coins size={14} className="text-yellow-400" /> +{combat.rewards.goldGain ?? 0} gold</span>
                 </p>
               )}

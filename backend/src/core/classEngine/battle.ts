@@ -5,6 +5,8 @@ import {
   BattleEntity,
   BattleLogLine,
   BattleSnapshot,
+  CombatEvent,
+  CombatEventKind,
   Condition,
   DerivedStats,
   EffectDef,
@@ -66,6 +68,7 @@ export interface SkillUseResult {
   damage: number;
   healed: number;
   isCritical: boolean;
+  isMissed?: boolean;
   isDodged: boolean;
   appliedEffects: string[];
   removedEffects: string[];
@@ -111,6 +114,7 @@ export class Battle {
   private passiveHandlers: EventHandler[] = [];
   private skillHandlers: EventHandler[] = [];
   private messages: BattleLogLine[] = [];
+  private events: CombatEvent[] = [];
   private effectsDirty = false;
   private monsterSkills: SkillDef[];
   private monsterSkillCooldowns: Map<string, number> = new Map();
@@ -342,6 +346,32 @@ export class Battle {
     return out;
   }
 
+  private pushEvent(target: "player" | "monster", kind: CombatEventKind, value: number): void {
+    this.events.push({ target, kind, value });
+    if (this.events.length > 30) this.events.splice(0, this.events.length - 30);
+  }
+
+  takeEvents(): CombatEvent[] {
+    const out = this.events;
+    this.events = [];
+    return out;
+  }
+
+  // Converte o resultado de uma skill/ataque em eventos visuais centralizados.
+  private emitResultEvents(result: { damage: number; healed: number; isCritical: boolean; isMissed?: boolean; isDodged: boolean }, side: "player" | "monster"): void {
+    const target = side === "player" ? "monster" : "player";
+    if (result.isMissed) {
+      this.pushEvent(target, "miss", 0);
+      return;
+    }
+    if (result.isDodged) {
+      this.pushEvent(target, "dodge", 0);
+      return;
+    }
+    if (result.damage > 0) this.pushEvent(target, result.isCritical ? "crit" : "normal", result.damage);
+    if (result.healed > 0) this.pushEvent(side, "heal", result.healed);
+  }
+
   // ============ Ações de skill ============
   getSkillModifiersFor(slug: string): { damagePercent?: number; healPercent?: number } | null {
     return this.skillModifiers.get(slug) || this.skillModifiers.get("*") || null;
@@ -422,6 +452,7 @@ export class Battle {
         damage: 0,
         healed: 0,
         isCritical: false,
+        isMissed: false,
         isDodged: false,
         appliedEffects: [],
         removedEffects: [],
@@ -452,6 +483,7 @@ export class Battle {
         damage: 0,
         healed: 0,
         isCritical: false,
+        isMissed: false,
         isDodged: false,
         appliedEffects: [],
         removedEffects: [],
@@ -474,6 +506,7 @@ export class Battle {
     const ctx = this.buildActionContext(actor, target, result, skill.slug);
     executeActions(actions && actions.length > 0 ? actions : skill.actions, ctx, result);
     this.collectResult(result, "");
+    this.emitResultEvents(result, side);
 
     // Eventos reativos da própria skill
     for (const e of skill.events || []) {
@@ -495,6 +528,7 @@ export class Battle {
       damage: result.damage,
       healed: result.healed,
       isCritical: result.isCritical,
+      isMissed: result.isMissed,
       isDodged: result.isDodged,
       appliedEffects: result.appliedEffects,
       removedEffects: result.removedEffects,
@@ -514,6 +548,7 @@ export class Battle {
     const result = emptyResult();
     const ctx = this.buildActionContext(this.player, this.monster, result, autoSkill.slug);
     executeActions(autoSkill.actions, ctx, result);
+    this.emitResultEvents(result, "player");
     if (result.messages.length > 0) {
       this.pushMessage(`[${autoSkill.name}] ${result.messages.join(" • ")}`);
     }
@@ -534,6 +569,7 @@ export class Battle {
     const result = emptyResult();
     const ctx = this.buildActionContext(this.monster, this.player, result, autoSkill.slug);
     executeActions(autoSkill.actions, ctx, result);
+    this.emitResultEvents(result, "monster");
     if (result.messages.length > 0) {
       this.pushMessage(`[${autoSkill.name}] ${result.messages.join(" • ")}`);
     }
@@ -567,6 +603,7 @@ export class Battle {
     const ctx = this.buildActionContext(this.monster, this.player, result, skill.slug);
     executeActions(skill.actions, ctx, result);
     this.collectResult(result, `[${skill.name}]`);
+    this.emitResultEvents(result, "monster");
     if (result.hit) this.fire("onHit", { actor: this.monster, target: this.player, skillId: skill.id });
     if (result.isCritical) this.fire("onCrit", { actor: this.monster, target: this.player, skillId: skill.id });
     if (this.player.hp <= 0 && this.state === "active") {
@@ -597,6 +634,7 @@ export class Battle {
     if (nukeStacks > 0) {
       const missChance = Math.min(100, nukeHitChancePenaltyOf(this.monster));
       if (Math.random() * 100 < missChance) {
+        this.pushEvent("player", "miss", 0);
         this.pushMessage(`${this.monster.name} errou o ataque (risco do Nuke)!`);
         this.fire("onDodge", { actor: this.player, target: this.monster });
         return;
@@ -607,6 +645,7 @@ export class Battle {
     if (crit) damage = Math.floor(damage * (mStats.critDamage / 100));
 
     if (Math.random() * 100 < Math.min(60, pStats.dodge)) {
+      this.pushEvent("player", "dodge", 0);
       this.pushMessage(`Você esquivou do ataque do ${this.monster.name}!`);
       this.fire("onDodge", { actor: this.player, target: this.monster });
       return;
@@ -618,6 +657,7 @@ export class Battle {
 
     if (applied > 0) {
       this.player.hp = Math.max(0, this.player.hp - applied);
+      this.pushEvent("player", crit ? "crit" : "normal", applied);
       this.pushMessage(`${this.monster.name} causou ${applied} de dano em você${crit ? " (crítico)" : ""}`);
     } else if (absorbed > 0) {
       this.pushMessage(`O ataque foi totalmente absorvido pelo escudo`);
@@ -627,6 +667,7 @@ export class Battle {
     const reflected = Math.floor(applied * (reflectPercent(this.player) / 100));
     if (reflected > 0) {
       this.monster.hp = Math.max(0, this.monster.hp - reflected);
+      this.pushEvent("monster", "normal", reflected);
       this.pushMessage(`Você refletiu ${reflected} de dano para ${this.monster.name}`);
       if (this.monster.hp <= 0) {
         this.monster.hp = 0;
@@ -694,7 +735,10 @@ export class Battle {
       this.player.mana = Math.min(this.player.maxMana, this.player.mana + pStats.manaRegenPerTick);
     }
     if (pStats.healthRegenPerTick > 0) {
+      const hpBefore = this.player.hp;
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + pStats.healthRegenPerTick);
+      const gained = this.player.hp - hpBefore;
+      if (gained > 0) this.pushEvent("player", "hot", gained);
     }
     if (this.opts.pvp && mStats.manaRegenPerTick > 0) {
       this.monster.mana = Math.min(this.monster.maxMana, this.monster.mana + mStats.manaRegenPerTick);
@@ -722,6 +766,7 @@ export class Battle {
         const reduction = Math.min(0.8, mStats.defense / (mStats.defense + 100));
         const dmg = Math.max(1, Math.floor(s.attack * (1 - reduction)));
         this.monster.hp = Math.max(0, this.monster.hp - dmg);
+        this.pushEvent("monster", "normal", dmg);
         this.pushMessage(`${s.name} causou ${dmg} de dano`);
         if (this.monster.hp <= 0) {
           this.monster.hp = 0;
@@ -783,6 +828,7 @@ export class Battle {
         const applied = Math.min(cap, Math.floor(this.player.hp + amount)) - this.player.hp;
         if (applied > 0) {
           this.player.hp += applied;
+          this.pushEvent("player", "hot", applied);
           this.pushMessage(`${ev.effect.name} curou ${applied} de vida${ev.stacks > 1 ? ` (${ev.stacks} stacks)` : ""}`);
         }
       }
@@ -795,6 +841,7 @@ export class Battle {
         const { applied, absorbed } = absorbWithShield(this.player, dmg);
         if (absorbed > 0) this.pushMessage(`Seu escudo absorveu ${absorbed} do dano de ${ev.effect.name}`);
         this.player.hp = Math.max(0, this.player.hp - applied);
+        this.pushEvent("player", "dot", applied);
         this.pushMessage(`${ev.effect.name} causou ${applied} de dano em você${ev.stacks > 1 ? ` (${ev.stacks} stacks)` : ""}`);
         if (this.player.hp <= 0 && this.state === "active") {
           this.player.hp = 0;
@@ -830,6 +877,7 @@ export class Battle {
         const boosted = raw * (1 + (pStats.dotPercent + (mods?.damagePercent || 0)) / 100) * (1 + (mods?.tickPercent || 0) / 100);
         const dmg = Math.max(1, Math.floor(boosted)) * stackGrowthMultiplier(ev.effect, ev.stacks);
         this.monster.hp = Math.max(0, this.monster.hp - dmg);
+        this.pushEvent("monster", "dot", dmg);
         this.pushMessage(`${ev.effect.name} causou ${dmg} de dano${ev.stacks > 1 ? ` (${ev.stacks} stacks)` : ""}`);
         if (this.monster.hp <= 0) {
           this.monster.hp = 0;
@@ -861,8 +909,11 @@ export class Battle {
   useItemFor(side: "player" | "monster", heal: number, manaRestore: number): void {
     if (this.state !== "active") return;
     const actor = side === "player" ? this.player : this.monster;
+    const hpBefore = actor.hp;
     actor.hp = Math.min(actor.maxHp, actor.hp + Math.max(0, heal));
     actor.mana = Math.min(actor.maxMana, actor.mana + Math.max(0, manaRestore));
+    const appliedHeal = actor.hp - hpBefore;
+    if (appliedHeal > 0) this.pushEvent(side, "heal", appliedHeal);
   }
 
   // ============ Persistência ============
@@ -890,6 +941,7 @@ export class Battle {
       playerEffects: serializeEffects(this.player.effects),
       monsterEffects: serializeEffects(this.monster.effects),
       messages: this.takeMessages().map((m) => m.text),
+      events: this.takeEvents(),
     };
   }
 

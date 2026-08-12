@@ -373,11 +373,13 @@ async challenge(userId: string): Promise<any> {
       damage: result.damage,
       healed: result.healed,
       isCritical: result.isCritical,
+      isMissed: result.isMissed ?? false,
       isDodged: result.isDodged,
       appliedEffects: result.appliedEffects,
       removedEffects: result.removedEffects,
       consumedStacks: result.consumedStacks,
       messages: result.messages,
+      events: entry.battle.takeEvents(),
       channeling: result.channeling,
       channelMs: result.channelMs,
       cooldownMs: result.cooldownMs,
@@ -395,7 +397,7 @@ async challenge(userId: string): Promise<any> {
 
     const side = this.sideOf(entry, characterId);
     entry.battle.useItemFor(side, heal, mana);
-    return { matchId, side, ok: true, healed: heal, manaRestored: mana };
+    return { matchId, side, ok: true, healed: heal, manaRestored: mana, events: entry.battle.takeEvents() };
   }
 
   async flee(characterId: string, matchId: string): Promise<any> {
@@ -465,6 +467,7 @@ async challenge(userId: string): Promise<any> {
       challengerCooldowns: entry.battle.cooldownInfoFor("player"),
       opponentCooldowns: entry.battle.cooldownInfoFor("monster"),
       messages: snap.messages,
+      events: snap.events,
       state: entry.battle.state === "active" ? "active" : entry.battle.state,
     };
 

@@ -75,29 +75,66 @@
 .text-damage { color: var(--color-damage); }
 .text-heal { color: var(--color-heal); }
 
-/* Números flutuantes do combate (dano/cura flutuando sobre os painéis). */
+/* Números flutuantes do combate — sistema central de feedback visual:
+   branco = dano normal, laranja grande = crítico, laranja pequeno = DOT,
+   verde = cura/HOT, MISS!/DODGE! = ataque não acertou. */
 .combat-floater {
   position: absolute;
-  top: 1rem;
   left: 50%;
+  top: 38%;
   transform: translateX(-50%);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 700;
   font-size: 1.05rem;
   line-height: 1;
   pointer-events: none;
-  animation: combat-float-up 1s ease-out forwards;
-  z-index: 30;
   white-space: nowrap;
+  z-index: 30;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  animation: combat-float-up 1.05s ease-out forwards;
 }
 
-.combat-floater.damage { color: var(--color-damage); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
-.combat-floater.crit { color: #fde047; font-size: 1.3rem; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
-.combat-floater.heal { color: var(--color-heal); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
-.combat-floater.dodge { color: #7dd3fc; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+.combat-floater.normal { color: #f1f5f9; }
+.combat-floater.crit {
+  color: #fb923c;
+  font-size: 1.6rem;
+  font-weight: 900;
+  text-shadow: 0 0 10px rgba(251, 146, 60, 0.55), 0 1px 3px rgba(0, 0, 0, 0.9);
+  animation: combat-crit-pop 1.15s ease-out forwards;
+}
+.combat-floater.dot {
+  color: #fb923c;
+  font-size: 0.88rem;
+  opacity: 0.92;
+  animation: combat-float-up 0.9s ease-out forwards;
+}
+.combat-floater.heal { color: #4ade80; }
+.combat-floater.hot {
+  color: #4ade80;
+  font-size: 0.85rem;
+  opacity: 0.9;
+  animation: combat-float-up 0.9s ease-out forwards;
+}
+.combat-floater.miss {
+  color: #94a3b8;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+}
+.combat-floater.dodge {
+  color: #7dd3fc;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+}
 
 @keyframes combat-float-up {
-  0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
-  15% { opacity: 1; transform: translateX(-50%) translateY(4px); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-30px); }
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.9); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(4px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-34px) scale(1); }
+}
+
+@keyframes combat-crit-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(14px) scale(0.5); }
+  18% { opacity: 1; transform: translateX(-50%) translateY(4px) scale(1.25); }
+  40% { transform: translateX(-50%) translateY(0px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-38px) scale(1.08); }
 }

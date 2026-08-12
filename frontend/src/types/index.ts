@@ -769,6 +769,12 @@ export interface CombatSkill {
   healModifier?: number;
 }
 
+export interface CombatFloatEvent {
+  target: "player" | "monster";
+  kind: "normal" | "crit" | "dot" | "heal" | "hot" | "miss" | "dodge";
+  value: number;
+}
+
 export interface CombatUpdate {
   combatId: string;
   skillId?: string;
@@ -786,6 +792,7 @@ export interface CombatUpdate {
   monsterLevel?: number;
   skills?: CombatSkill[];
   stats?: Partial<ClassStats>;
+  events?: CombatFloatEvent[];
   damage?: number;
   playerDamage?: number;
   playerSkillName?: string;
@@ -795,6 +802,7 @@ export interface CombatUpdate {
   appliedEffects?: string[];
   consumedStacks?: number;
   isCritical?: boolean;
+  isMissed?: boolean;
   isDodged?: boolean;
   attacker?: string;
   action?: string;
