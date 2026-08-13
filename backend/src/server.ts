@@ -11,6 +11,7 @@ import rateLimit from "express-rate-limit";
 import { Server as SocketIOServer } from "socket.io";
 import { config } from "./core/config";
 import { prisma, redis } from "./core/database";
+import { runBackup } from "./core/backup";
 import { errorHandler } from "./core/middleware/errorHandler";
 import { createAuthModule } from "./modules/auth/auth.module";
 import { createGateway } from "./gateway/gateway";
@@ -114,6 +115,13 @@ app.use(errorHandler);
 server.listen(config.port, () => {
   console.log(`[RPG Story Life] Server running on port ${config.port}`);
   console.log(`[RPG Story Life] Environment: ${config.nodeEnv}`);
+  // Snapshot ao iniciar (produção): garante um backup recente a cada deploy.
+  // Em dev a DATABASE_URL é o túnel local (127.0.0.1) — o backup falha de forma
+  // silenciosa sem túnel aberto, então não executamos nesse caso.
+  const dbUrl = process.env.DATABASE_URL || "";
+  if (!/127\.0\.0\.1|localhost/.test(dbUrl)) {
+    runBackup().catch((err) => console.error("[auto-backup] falha no backup inicial:", (err as Error).message));
+  }
 });
 
 process.on("SIGTERM", async () => {
