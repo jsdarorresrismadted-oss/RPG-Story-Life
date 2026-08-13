@@ -7,7 +7,7 @@
 //   Ex.: Sorte Nv.1 = +2 nos demais e +4 em Sorte; Sorte Nv.2 = +4/+6; Nv.3 = +6/+8; etc.
 // - A Combat Engine usa os valores calculados aqui (o encantamento SUBSTITUI o item).
 
-export const ENCHANT_MAX_LEVEL = 100;
+export const ENCHANT_MAX_LEVEL = 150;
 export const ENCHANT_MIN_LEVEL = 1;
 
 // Aumento por nível de cada atributo (linear).

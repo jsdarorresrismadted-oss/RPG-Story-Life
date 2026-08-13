@@ -5,7 +5,7 @@
 // Progressão LINEAR: cada atributo cresce +2 por nível; no nível 1 o
 // atributo principal vale o dobro dos secundários (ex.: Sorte Nv.1 +2/+4).
 
-export const ENCHANT_MAX_LEVEL = 100;
+export const ENCHANT_MAX_LEVEL = 150;
 export const ENCHANT_MIN_LEVEL = 1;
 export const ENCHANT_STEP_PER_LEVEL = 2;
 

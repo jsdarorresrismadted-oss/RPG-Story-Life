@@ -4,7 +4,7 @@
 // Progressão LINEAR: cada atributo cresce +ENCHANT_STEP_PER_LEVEL por nível;
 // no Nv.1 o atributo principal vale o dobro dos secundários (ex.: +2/+4).
 
-export const ENCHANT_MAX_LEVEL = 100;
+export const ENCHANT_MAX_LEVEL = 150;
 export const ENCHANT_MIN_LEVEL = 1;
 export const ENCHANT_STEP_PER_LEVEL = 2;
 
