@@ -116,8 +116,10 @@ export const guildApi = {
   shop: (id: string) => api.get(`/guilds/${id}/shop`),
   addShopItem: (id: string, data: { itemId: string; price: number }) => api.post(`/guilds/${id}/shop`, data),
   removeShopItem: (id: string, shopItemId: string) => api.delete(`/guilds/${id}/shop/${shopItemId}`),
-  buyShopItem: (id: string, shopItemId: string) => api.post(`/guilds/${id}/shop/${shopItemId}/buy`),
-};
+buyShopItem: (id: string, shopItemId: string) => api.post(`/guilds/${id}/shop/${shopItemId}/buy`),
+    quests: (id: string) => api.get(`/guilds/${id}/quests`),
+    claimQuest: (id: string, questId: string) => api.post(`/guilds/${id}/quests/${questId}/claim`),
+  };
 
 export const marketApi = {
   list: (params?: any) => api.get("/market", { params }),

@@ -14,7 +14,7 @@ export function createLeaderboardModule(app: Express): void {
       const characters = await prisma.character.findMany({
         orderBy: [{ level: "desc" }, { experience: "desc" }],
         include: {
-          user: { select: { id: true, username: true, displayName: true, gold: true, diamonds: true, vipUntil: true } },
+          user: { select: { id: true, username: true, displayName: true, gold: true, sfCoins: true, vipUntil: true } },
           class: { select: { name: true, slug: true, icon: true, statModel: true } },
           equipment: {
             include: {
@@ -64,7 +64,7 @@ export function createLeaderboardModule(app: Express): void {
           ),
         }),
         gold: Number(c.user.gold),
-        diamonds: c.user.diamonds,
+        sfCoins: c.user.sfCoins,
         isVip: !!(c.user.vipUntil && new Date(c.user.vipUntil).getTime() > Date.now()),
       }));
 

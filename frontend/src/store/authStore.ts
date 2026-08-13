@@ -12,7 +12,9 @@ export interface AuthUser {
   avatar?: string | null;
   level?: number;
   gold?: number;
-  diamonds?: number;
+  sfCoins?: number;
+  pvpCoins?: number;
+  gc?: number;
   vipUntil?: string | null;
   vipOwned?: boolean;
   experience?: number;

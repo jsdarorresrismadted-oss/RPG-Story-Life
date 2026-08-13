@@ -425,7 +425,7 @@ export default function ShopsPage() {
         <label className={labelClass}>Moeda</label>
         <select value={form.currency ?? "gold"} onChange={(e) => setForm({ ...form, currency: e.target.value })} className={inputClass}>
           <option value="gold">Gold</option>
-          <option value="gems">Gems</option>
+          <option value="sf_coins">SF Coins</option>
         </select>
       </div>
       <div>

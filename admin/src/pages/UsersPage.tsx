@@ -12,7 +12,9 @@ interface AdminUser {
   level: number;
   experience?: string | number;
   gold: string | number;
-  diamonds: number;
+  sfCoins: number;
+  pvpCoins: number;
+  gc: number;
   isOnline: boolean;
   isBanned: boolean;
   createdAt: string;
@@ -121,7 +123,9 @@ export default function UsersPage() {
         level: Number(editing.level),
         experience: Number(editing.experience ?? 0),
         gold: Number(editing.gold),
-        diamonds: Number(editing.diamonds),
+        sfCoins: Number(editing.sfCoins),
+        pvpCoins: Number(editing.pvpCoins),
+        gc: Number(editing.gc),
         isBanned: editing.isBanned,
       });
       toast.success("User updated");
@@ -233,7 +237,9 @@ export default function UsersPage() {
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Role</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Level</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Gold</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Diamonds</th>
+                <th className="text-left py-3 px-4 text-gray-400 font-medium">SF Coins</th>
+                <th className="text-left py-3 px-4 text-gray-400 font-medium">PVP</th>
+                <th className="text-left py-3 px-4 text-gray-400 font-medium">GC</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Characters</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Joined</th>
@@ -262,7 +268,9 @@ export default function UsersPage() {
                   </td>
                   <td className="py-2.5 px-4">{u.level}</td>
                   <td className="py-2.5 px-4 font-mono">{Number(u.gold).toLocaleString()}</td>
-                  <td className="py-2.5 px-4 font-mono">{u.diamonds}</td>
+                  <td className="py-2.5 px-4 font-mono">{u.sfCoins}</td>
+                  <td className="py-2.5 px-4 font-mono">{u.pvpCoins}</td>
+                  <td className="py-2.5 px-4 font-mono">{u.gc}</td>
                   <td className="py-2.5 px-4">{u._count?.characters ?? 0}</td>
                   <td className="py-2.5 px-4">
                     <span className="flex items-center gap-1.5 text-xs">
@@ -398,13 +406,33 @@ export default function UsersPage() {
                 />
               </label>
               <label className="block text-xs text-gray-400">
-                Diamonds
+                SF Coins
                 <input
                   type="number"
                   min={0}
                   className="input-rpg mt-1 w-full"
-                  value={editing.diamonds}
-                  onChange={(e) => setEditing({ ...editing, diamonds: Number(e.target.value) })}
+                  value={editing.sfCoins}
+                  onChange={(e) => setEditing({ ...editing, sfCoins: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block text-xs text-gray-400">
+                PVP Coins
+                <input
+                  type="number"
+                  min={0}
+                  className="input-rpg mt-1 w-full"
+                  value={editing.pvpCoins}
+                  onChange={(e) => setEditing({ ...editing, pvpCoins: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block text-xs text-gray-400">
+                GC
+                <input
+                  type="number"
+                  min={0}
+                  className="input-rpg mt-1 w-full"
+                  value={editing.gc}
+                  onChange={(e) => setEditing({ ...editing, gc: Number(e.target.value) })}
                 />
               </label>
             </div>
@@ -432,7 +460,7 @@ export default function UsersPage() {
               <h2 className="text-lg font-bold">
                 {detail.username}
                 <span className="text-sm font-normal text-gray-500 ml-3">
-                  Level {detailData?.level ?? detail.level} - {Number(detailData?.gold ?? detail.gold).toLocaleString()} gold - {detailData?.diamonds ?? detail.diamonds} diamonds
+                  Level {detailData?.level ?? detail.level} - {Number(detailData?.gold ?? detail.gold).toLocaleString()} gold - {detailData?.sfCoins ?? detail.sfCoins} SF Coins - {detailData?.pvpCoins ?? detail.pvpCoins} PVP - {detailData?.gc ?? detail.gc} GC
                 </span>
               </h2>
               <button type="button" onClick={() => setDetail(null)} className="text-gray-400 hover:text-white">

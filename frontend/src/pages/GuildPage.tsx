@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
-import { guildApi, itemsApi } from "../services/api";
+import { guildApi, itemsApi, authApi } from "../services/api";
 import { Guild, GuildShopItem, Item } from "../types";
-import { Users, Shield, Plus, LogOut, Trophy, Star, Coins, Crown, ChevronUp, ChevronDown, Trash2, ShoppingCart, Gem } from "lucide-react";
+import { Users, Shield, Plus, LogOut, Trophy, Star, Coins, Crown, ChevronUp, ChevronDown, Trash2, ShoppingCart, Gem, Swords } from "lucide-react";
 import { EntityIcon } from "../components/EntityIcon";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
 import { getSocket } from "../services/socket";
+import { GuildQuest } from "../types";
 
 interface FullGuild extends Guild {
   members?: any[];
@@ -14,7 +15,7 @@ interface FullGuild extends Guild {
 }
 
 export function GuildPage() {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const [guilds, setGuilds] = useState<any[]>([]);
   const [myGuild, setMyGuild] = useState<any>(null);
   const [guild, setGuild] = useState<FullGuild | null>(null);
@@ -22,11 +23,13 @@ export function GuildPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", tag: "", description: "" });
-  const [tab, setTab] = useState<"members" | "shop" | "info">("members");
+  const [tab, setTab] = useState<"members" | "shop" | "quests" | "info">("members");
   const [depositAmt, setDepositAmt] = useState("");
   const [shopItemId, setShopItemId] = useState("");
   const [shopPrice, setShopPrice] = useState("");
   const [allItems, setAllItems] = useState<Item[]>([]);
+  const [quests, setQuests] = useState<GuildQuest[]>([]);
+  const [claiming, setClaiming] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +42,7 @@ export function GuildPage() {
       if (myRes.data?.guildId) {
         const detail = await guildApi.get(myRes.data.guildId).catch(() => null);
         setGuild(detail?.data || null);
+        loadQuests(myRes.data.guildId);
       } else {
         setGuild(null);
       }
@@ -64,7 +68,9 @@ export function GuildPage() {
     if (detail) setGuild(detail.data);
     const my = await guildApi.mine().catch(() => null);
     if (my) setMyGuild(my.data);
+    loadQuests(guildId);
     getSocket()?.emit("chat:refresh");
+    authApi.me().then(({ data }) => data && setUser(data)).catch(() => {});
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -182,6 +188,29 @@ export function GuildPage() {
     }
   };
 
+  const loadQuests = async (guildId: string) => {
+    try {
+      const { data } = await guildApi.quests(guildId);
+      setQuests(Array.isArray(data) ? data : []);
+    } catch {
+      setQuests([]);
+    }
+  };
+
+  const handleClaimQuest = async (questId: string) => {
+    setClaiming(questId);
+    try {
+      const { data } = await guildApi.claimQuest(guild!.id, questId);
+      toast.success(`Recompensa recebida! +${Number(data.gcGain).toLocaleString()} GC, +${Number(data.xpGain).toLocaleString()} XP, +${Number(data.goldGain).toLocaleString()} ouro`);
+      await loadQuests(guild!.id);
+      window.dispatchEvent(new Event("profile-changed"));
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha ao resgatar");
+    } finally {
+      setClaiming(null);
+    }
+  };
+
   const handleBuyShop = async (shopItemId: string) => {
     try {
       const { data } = await guildApi.buyShopItem(guild!.id, shopItemId);
@@ -221,7 +250,7 @@ export function GuildPage() {
               <div className="bg-dark-800 border border-amber-500/30 rounded-lg p-3 text-sm">
                 <p className="text-amber-300 font-medium mb-1">Requisitos para criar guilda:</p>
                 <p className="text-gray-300">
-                  Nível {requirements.requiredLevel} • {Number(requirements.requiredGold).toLocaleString()} Ouro • {Number(requirements.requiredDiamonds).toLocaleString()} Diamantes
+                  Nível {requirements.requiredLevel} • {Number(requirements.requiredGold).toLocaleString()} Ouro • {Number(requirements.requiredSfCoins).toLocaleString()} SF Coins
                 </p>
               </div>
             )}
@@ -278,7 +307,7 @@ export function GuildPage() {
 
       {/* Resumo */}
       <div className="panel p-4 border-cyan-500/30 bg-cyan-500/5">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
             <p className="text-xs text-gray-400">Nível</p>
             <p className="font-display font-bold text-xl flex items-center gap-2"><Trophy size={16} className="text-amber-400" /> {guild.level}</p>
@@ -294,6 +323,10 @@ export function GuildPage() {
           <div>
             <p className="text-xs text-gray-400">Minha contribuição</p>
             <p className="font-display font-bold text-xl flex items-center gap-2"><Gem size={16} className="text-cyan-400" /> {myContribution.toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Meus GC</p>
+            <p className="font-display font-bold text-xl flex items-center gap-2"><Swords size={16} className="text-emerald-400" /> {(user?.gc ?? 0).toLocaleString()}</p>
           </div>
         </div>
 
@@ -315,6 +348,7 @@ export function GuildPage() {
       <div className="flex gap-2">
         <button onClick={() => setTab("members")} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "members" ? "bg-purple-600 text-white" : "bg-dark-800 text-gray-400 hover:bg-dark-700"}`}>Membros</button>
         <button onClick={() => setTab("shop")} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "shop" ? "bg-purple-600 text-white" : "bg-dark-800 text-gray-400 hover:bg-dark-700"}`}>Shop da Guilda</button>
+        <button onClick={() => setTab("quests")} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "quests" ? "bg-purple-600 text-white" : "bg-dark-800 text-gray-400 hover:bg-dark-700"}`}>Quests</button>
         <button onClick={() => setTab("info")} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "info" ? "bg-purple-600 text-white" : "bg-dark-800 text-gray-400 hover:bg-dark-700"}`}>Sobre</button>
       </div>
 
@@ -372,7 +406,7 @@ export function GuildPage() {
       {tab === "shop" && (
         <div className="panel p-4 space-y-4">
           <h2 className="font-display font-bold text-lg flex items-center gap-2"><ShoppingCart size={18} className="text-cyan-400" /> Shop da Guilda</h2>
-          <p className="text-xs text-gray-400">Compre itens usando seus pontos de contribuição. O líder e oficiais adicionam itens ao shop.</p>
+          <p className="text-xs text-gray-400">Compre itens usando GC (Guild Coins) — ganhe GC completando as quests da guilda. O líder e oficiais adicionam itens ao shop.</p>
 
           {canManage && (
             <form onSubmit={handleAddShop} className="flex flex-col sm:flex-row gap-2 bg-dark-800/50 border border-dark-600 rounded-lg p-3">
@@ -382,7 +416,7 @@ export function GuildPage() {
                   <option key={it.id} value={it.id}>{it.name} (Nv {it.level})</option>
                 ))}
               </select>
-              <input value={shopPrice} onChange={e => setShopPrice(e.target.value)} type="number" min={1} className="input-rpg w-36" placeholder="Preço (contribuição)" required />
+              <input value={shopPrice} onChange={e => setShopPrice(e.target.value)} type="number" min={1} className="input-rpg w-36" placeholder="Preço (GC)" required />
               <button type="submit" className="btn-primary text-sm shrink-0"><Plus size={14} /> Adicionar</button>
             </form>
           )}
@@ -398,7 +432,7 @@ export function GuildPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-300 flex items-center gap-1"><Gem size={12} /> {Number(s.price).toLocaleString()}</span>
+                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-1"><Swords size={12} /> {Number(s.price).toLocaleString()} GC</span>
                   <div className="flex gap-1">
                     <button onClick={() => handleBuyShop(s.id)} className="btn-primary text-xs px-3 py-1">Comprar</button>
                     {canManage && (
@@ -417,11 +451,58 @@ export function GuildPage() {
         </div>
       )}
 
+      {tab === "quests" && (
+        <div className="panel p-4 space-y-3">
+          <h2 className="font-display font-bold text-lg flex items-center gap-2"><Trophy size={18} className="text-emerald-400" /> Quests da Guilda</h2>
+          <p className="text-xs text-gray-400">As quests são geradas pelo sistema para sua guilda. Mate mobs específicos, colete drops e vença PvP para concluí-las — cada uma dá GC, XP e ouro.</p>
+          {quests.length === 0 ? (
+            <p className="text-sm text-gray-500">Nenhuma quest ativa no momento.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {quests.map((q) => (
+                <div key={q.id} className="card p-3 flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium text-sm">{q.title}</p>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider bg-dark-700 text-gray-300 shrink-0">
+                      {q.type === "kill" ? "Caçada" : q.type === "collect" ? "Coleta" : "PvP"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400">{q.description}</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-300">
+                      Progresso: <span className={`font-mono ${q.completed ? "text-emerald-400" : "text-gray-200"}`}>{q.count}/{q.targetCount}</span>
+                    </span>
+                    <div className="flex items-center gap-2 text-gray-400">
+                      <span className="flex items-center gap-0.5"><Swords size={11} className="text-emerald-400" /> {Number(q.gcReward).toLocaleString()}</span>
+                      <span className="flex items-center gap-0.5"><Star size={11} className="text-purple-400" /> {Number(q.xpReward).toLocaleString()}</span>
+                      <span className="flex items-center gap-0.5"><Coins size={11} className="text-yellow-400" /> {Number(q.goldReward).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  {q.claimed ? (
+                    <p className="text-[10px] text-emerald-400/80 text-center">Recompensa recebida</p>
+                  ) : q.completed ? (
+                    <button
+                      onClick={() => handleClaimQuest(q.id)}
+                      disabled={claiming === q.id}
+                      className="btn-primary text-xs px-3 py-1.5 disabled:opacity-50"
+                    >
+                      {claiming === q.id ? "Resgatando..." : "Receber recompensa"}
+                    </button>
+                  ) : (
+                    <p className="text-[10px] text-gray-500 text-center">Ainda em andamento</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === "info" && (
         <div className="panel p-4 space-y-3">
           <h2 className="font-display font-bold text-lg">Sobre a guilda</h2>
           <p className="text-gray-300">{guild.description}</p>
-          <p className="text-sm text-gray-500">Criada para aventureiros unidos. Contribua com ouro para subir de rank e ganhar pontos no shop.</p>
+          <p className="text-sm text-gray-500">Criada para aventureiros unidos. Contribua com ouro para subir de rank. Complete as quests da guilda para ganhar GC e comprar no shop.</p>
         </div>
       )}
     </div>

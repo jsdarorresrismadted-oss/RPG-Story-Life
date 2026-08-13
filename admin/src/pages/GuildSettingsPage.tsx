@@ -6,11 +6,11 @@ import { Save, RefreshCw, Swords } from "lucide-react";
 interface GuildSettings {
   requiredLevel: number;
   requiredGold: number;
-  requiredDiamonds: number;
+  requiredSfCoins: number;
 }
 
 export default function GuildSettingsPage() {
-  const [settings, setSettings] = useState<GuildSettings>({ requiredLevel: 2, requiredGold: 200, requiredDiamonds: 0 });
+  const [settings, setSettings] = useState<GuildSettings>({ requiredLevel: 2, requiredGold: 200, requiredSfCoins: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -21,7 +21,7 @@ export default function GuildSettingsPage() {
       setSettings({
         requiredLevel: Number(data.requiredLevel ?? 2),
         requiredGold: Number(data.requiredGold ?? 200),
-        requiredDiamonds: Number(data.requiredDiamonds ?? 0),
+        requiredSfCoins: Number(data.requiredSfCoins ?? 0),
       });
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to load settings");
@@ -41,7 +41,7 @@ export default function GuildSettingsPage() {
       await adminApi.settings.updateGuild({
         requiredLevel: Number(settings.requiredLevel),
         requiredGold: Number(settings.requiredGold),
-        requiredDiamonds: Number(settings.requiredDiamonds),
+        requiredSfCoins: Number(settings.requiredSfCoins),
       });
       toast.success("Guild requirements saved");
     } catch (err: any) {
@@ -100,16 +100,16 @@ export default function GuildSettingsPage() {
             <p className="text-xs text-gray-500 mt-1">Gold required to create a guild</p>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1.5">Required Diamonds</label>
+            <label className="block text-sm text-gray-400 mb-1.5">Required SF Coins</label>
             <input
               type="number"
               min={0}
-              value={settings.requiredDiamonds}
-              onChange={(e) => setSettings({ ...settings, requiredDiamonds: Number(e.target.value) })}
+              value={settings.requiredSfCoins}
+              onChange={(e) => setSettings({ ...settings, requiredSfCoins: Number(e.target.value) })}
               className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white focus:border-accent-500 focus:outline-none"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">Premium currency requirement</p>
+            <p className="text-xs text-gray-500 mt-1">SF Coins required to create a guild</p>
           </div>
         </div>
 

@@ -45,6 +45,7 @@ const CONTENT_MODELS = new Set([
   "SystemConfig",
   "RedeemCode",
   "ShopProduct",
+  "GuildQuest",
 ]);
 
 const MUTATION_ACTIONS = new Set(["create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany"]);

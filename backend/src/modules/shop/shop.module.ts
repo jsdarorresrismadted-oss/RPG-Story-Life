@@ -22,12 +22,12 @@ async function applyProduct(
   userId: string,
   product: any
 ): Promise<{ amount: number; message: string }> {
-  if (product.type === "diamond_pack") {
+  if (product.type === "sf_coins_pack") {
     await tx.user.update({
       where: { id: userId },
-      data: { diamonds: { increment: product.diamondAmount } },
+      data: { sfCoins: { increment: product.sfCoinAmount } },
     });
-    return { amount: product.diamondAmount, message: `+${product.diamondAmount} diamantes` };
+    return { amount: product.sfCoinAmount, message: `+${product.sfCoinAmount} SF Coins` };
   }
 
   if (product.type === "vip") {
@@ -119,7 +119,7 @@ export function createShopModule(app: Express): void {
     }
   });
 
-  // Compra: custo em diamantes (deduz na hora) ou em dinheiro (mock até integrar gateway).
+  // Compra: custo em SF Coins / PVP Coins (deduz na hora) ou em dinheiro (mock até integrar gateway).
   app.post("/api/shop/purchase/:productId", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const product = await prisma.shopProduct.findUnique({
@@ -140,18 +140,18 @@ export function createShopModule(app: Express): void {
         requiredQuestIds: product.requiredQuestIds,
       });
 
-      if (product.currency === "diamond") {
+      if (product.currency === "sf_coins") {
         const user = await prisma.user.findUnique({
           where: { id: req.user!.userId },
-          select: { diamonds: true },
+          select: { sfCoins: true },
         });
-        if (!user || user.diamonds < product.price) {
-          throw new AppError(400, `Saldo insuficiente — custa ${product.price} diamantes`);
+        if (!user || user.sfCoins < product.price) {
+          throw new AppError(400, `Saldo insuficiente — custa ${product.price} SF Coins`);
         }
         await prisma.$transaction(async (tx) => {
           await tx.user.update({
             where: { id: req.user!.userId },
-            data: { diamonds: { decrement: product.price } },
+            data: { sfCoins: { decrement: product.price } },
           });
           await applyProduct(tx, req.user!.userId, product);
           await tx.shopOrder.create({
@@ -159,9 +159,39 @@ export function createShopModule(app: Express): void {
               userId: req.user!.userId,
               productId: product.id,
               type: product.type,
-              amount: product.type === "vip" ? product.vipDays : product.type === "diamond_pack" ? product.diamondAmount : product.type === "item" ? Math.max(1, product.quantity || 1) : 1,
+              amount: product.type === "vip" ? product.vipDays : product.type === "sf_coins_pack" ? product.sfCoinAmount : product.type === "item" ? Math.max(1, product.quantity || 1) : 1,
               price: product.price,
-              currency: "diamond",
+              currency: "sf_coins",
+              status: "paid",
+            },
+          });
+        });
+        res.json({ message: "Compra realizada!", detail: product.name });
+        return;
+      }
+
+      if (product.currency === "pvp_coins") {
+        const user = await prisma.user.findUnique({
+          where: { id: req.user!.userId },
+          select: { pvpCoins: true },
+        });
+        if (!user || user.pvpCoins < product.price) {
+          throw new AppError(400, `Saldo insuficiente — custa ${product.price} PVP Coins`);
+        }
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: req.user!.userId },
+            data: { pvpCoins: { decrement: product.price } },
+          });
+          await applyProduct(tx, req.user!.userId, product);
+          await tx.shopOrder.create({
+            data: {
+              userId: req.user!.userId,
+              productId: product.id,
+              type: product.type,
+              amount: product.type === "item" ? Math.max(1, product.quantity || 1) : 1,
+              price: product.price,
+              currency: "pvp_coins",
               status: "paid",
             },
           });
@@ -200,7 +230,7 @@ export function createShopModule(app: Express): void {
         return;
       }
 
-      // Produtos em dinheiro real (diamond packs, VIP, premium): checkout simulado.
+      // Produtos em dinheiro real (SF Coins packs, VIP, premium): checkout simulado.
       const config = await getShopConfig();
       if (!config.mockPayments) {
         throw new AppError(400, "Pagamentos ainda não configurados — tente de novo mais tarde");
@@ -212,7 +242,7 @@ export function createShopModule(app: Express): void {
             userId: req.user!.userId,
             productId: product.id,
             type: product.type,
-            amount: product.type === "vip" ? product.vipDays : product.type === "diamond_pack" ? product.diamondAmount : product.type === "item" ? Math.max(1, product.quantity || 1) : 1,
+            amount: product.type === "vip" ? product.vipDays : product.type === "sf_coins_pack" ? product.sfCoinAmount : product.type === "item" ? Math.max(1, product.quantity || 1) : 1,
             price: product.price,
             currency: "money",
             status: "paid",

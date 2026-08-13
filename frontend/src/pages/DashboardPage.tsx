@@ -26,7 +26,7 @@ interface RankEntry {
   experience: number;
   pvpKills: number;
   gold: number;
-  diamonds: number;
+  sfCoins: number;
   isVip: boolean;
 }
 
@@ -61,13 +61,13 @@ export function DashboardPage() {
 
   const pvpKills = (character as any)?.pvpKills ?? 0;
   const gold = Number(user?.gold ?? 0);
-  const diamonds = user?.diamonds ?? 0;
+  const sfCoins = user?.sfCoins ?? 0;
   const level = character?.level ?? user?.level ?? 1;
 
   const rankCards = [
     { label: t("rank_level"), value: level.toLocaleString(), icon: Trophy, color: "from-purple-500 to-purple-600" },
     { label: t("rank_gold"), value: gold.toLocaleString(), icon: TrendingUp, color: "from-yellow-500 to-yellow-600" },
-    { label: t("rank_diamonds"), value: diamonds.toLocaleString(), icon: Zap, color: "from-cyan-500 to-cyan-600" },
+    { label: t("rank_sf_coins"), value: sfCoins.toLocaleString(), icon: Zap, color: "from-cyan-500 to-cyan-600" },
     { label: t("rank_pvp"), value: pvpKills.toLocaleString(), icon: Skull, color: "from-red-500 to-orange-500" },
   ];
 

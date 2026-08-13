@@ -3,14 +3,14 @@ import { prisma } from "./database";
 export interface GameLimits {
   maxLevel: number;
   maxGold: number;
-  maxDiamonds: number;
+  maxSfCoins: number;
   xpPerLevel: number;
 }
 
 export const DEFAULT_GAME_LIMITS: GameLimits = {
   maxLevel: 150,
   maxGold: 50_000_000,
-  maxDiamonds: 1_000_000,
+  maxSfCoins: 1_000_000,
   xpPerLevel: 1250,
 };
 

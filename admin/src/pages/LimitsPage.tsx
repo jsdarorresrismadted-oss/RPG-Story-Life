@@ -6,12 +6,12 @@ import { Save, RefreshCw, Scale } from "lucide-react";
 interface GameLimits {
   maxLevel: number;
   maxGold: number;
-  maxDiamonds: number;
+  maxSfCoins: number;
   xpPerLevel: number;
 }
 
 export default function LimitsPage() {
-  const [limits, setLimits] = useState<GameLimits>({ maxLevel: 150, maxGold: 50000000, maxDiamonds: 1000000, xpPerLevel: 1250 });
+  const [limits, setLimits] = useState<GameLimits>({ maxLevel: 150, maxGold: 50000000, maxSfCoins: 1000000, xpPerLevel: 1250 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -22,7 +22,7 @@ export default function LimitsPage() {
       setLimits({
         maxLevel: Number(data.maxLevel ?? 150),
         maxGold: Number(data.maxGold ?? 50000000),
-        maxDiamonds: Number(data.maxDiamonds ?? 1000000),
+        maxSfCoins: Number(data.maxSfCoins ?? 1000000),
         xpPerLevel: Number(data.xpPerLevel ?? 1250),
       });
     } catch (err: any) {
@@ -43,7 +43,7 @@ export default function LimitsPage() {
       await adminApi.settings.updateLimits({
         maxLevel: Number(limits.maxLevel),
         maxGold: Number(limits.maxGold),
-        maxDiamonds: Number(limits.maxDiamonds),
+        maxSfCoins: Number(limits.maxSfCoins),
         xpPerLevel: Number(limits.xpPerLevel),
       });
       toast.success("Limits saved — applied immediately");
@@ -63,7 +63,7 @@ export default function LimitsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Limites do Jogo</h1>
-            <p className="text-sm text-gray-500">Level, gold, diamonds e curva de XP</p>
+            <p className="text-sm text-gray-500">Level, gold, SF Coins e curva de XP</p>
           </div>
         </div>
         <button
@@ -115,16 +115,16 @@ export default function LimitsPage() {
             <p className="text-xs text-gray-500 mt-1">O ouro não passa deste valor</p>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1.5">Diamantes máximo</label>
+            <label className="block text-sm text-gray-400 mb-1.5">SF Coins máximo</label>
             <input
               type="number"
               min={0}
-              value={limits.maxDiamonds}
-              onChange={(e) => setLimits({ ...limits, maxDiamonds: Number(e.target.value) })}
+              value={limits.maxSfCoins}
+              onChange={(e) => setLimits({ ...limits, maxSfCoins: Number(e.target.value) })}
               className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white focus:border-accent-500 focus:outline-none"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">Os diamantes não passam deste valor</p>
+            <p className="text-xs text-gray-500 mt-1">As SF Coins não passam deste valor</p>
           </div>
         </div>
 

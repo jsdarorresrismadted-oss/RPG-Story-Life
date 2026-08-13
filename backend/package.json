@@ -16,6 +16,7 @@
     "db:backup": "node scripts/db-backup.js",
     "db:pull": "node scripts/db-pull.js",
     "db:restore": "node scripts/db-restore.js",
+    "db:exec": "node scripts/db-exec.js",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },

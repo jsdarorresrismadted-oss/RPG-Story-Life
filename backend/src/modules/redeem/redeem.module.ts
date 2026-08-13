@@ -5,7 +5,7 @@ import { AppError } from "../../core/middleware/errorHandler";
 import { addItemsToInventory } from "../../core/progression";
 
 export function createRedeemModule(app: Express): void {
-  // Redeem a promo code: gold, diamonds, xp and/or items
+  // Redeem a promo code: gold, SF Coins, xp and/or items
   app.post("/api/redeem", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const rawCode = typeof req.body.code === "string" ? req.body.code.trim().toUpperCase() : "";
@@ -39,7 +39,7 @@ export function createRedeemModule(app: Express): void {
           where: { id: req.user!.userId },
           data: {
             gold: { increment: Number(code.gold) },
-            diamonds: { increment: code.diamonds },
+            sfCoins: { increment: code.sfCoins },
             experience: { increment: Number(code.experience) },
           },
         });
@@ -112,7 +112,7 @@ export function createRedeemModule(app: Express): void {
 
         return {
           gold: Number(code.gold),
-          diamonds: code.diamonds,
+          sfCoins: code.sfCoins,
           experience: Number(code.experience),
           classes: grantedClasses,
           warnings,

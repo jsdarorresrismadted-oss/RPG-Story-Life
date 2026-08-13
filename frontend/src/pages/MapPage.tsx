@@ -587,7 +587,7 @@ export function MapPage() {
           ? { classId: offer.classId!, quantity: 1 }
           : { itemId: offer.itemId!, quantity: 1 };
       const { data } = await npcApi.buy(npc.id, payload);
-      const currency = data.currency === "diamond" ? "diamantes" : "gold";
+      const currency = data.currency === "sf_coins" ? "SF Coins" : "gold";
       toast.success(isClass ? `Classe ${data.item} desbloqueada e equipada!` : `${data.quantity}x ${data.item} comprado (${data.totalPrice} ${currency})`);
       refreshUser();
       loadInventory();
@@ -912,7 +912,7 @@ export function MapPage() {
                   const entries = buildShopEntries();
                   const charLevel = user?.characters?.[0]?.level ?? user?.level ?? 0;
                   const gold = Number(user?.gold ?? 0);
-                  const diamonds = Number(user?.diamonds ?? 0);
+                  const sfCoins = Number(user?.sfCoins ?? 0);
                   if (entries.length === 0) {
                     return <p className="text-sm text-gray-500">Nenhum item à venda neste vendedor.</p>;
                   }
@@ -959,15 +959,15 @@ export function MapPage() {
                           <span className="font-mono text-yellow-300">{gold.toLocaleString("pt-BR")}</span>
                         </div>
                         <div className="flex items-center justify-between text-[11px] text-gray-500">
-                          <span className="flex items-center gap-1.5"><Gem size={12} className="text-cyan-400" /> Diamantes</span>
-                          <span className="font-mono text-cyan-300">{diamonds.toLocaleString("pt-BR")}</span>
+                          <span className="flex items-center gap-1.5"><Gem size={12} className="text-cyan-400" /> SF Coins</span>
+                          <span className="font-mono text-cyan-300">{sfCoins.toLocaleString("pt-BR")}</span>
                         </div>
 
                         {selected.buyOffer && (() => {
                           const offer = selected.buyOffer!;
                           const price = Number(offer.price);
-                          const isDiamond = offer.currency === "diamond";
-                          const enough = isDiamond ? diamonds >= price : gold >= price;
+                          const isSfCoins = offer.currency === "sf_coins";
+                          const enough = isSfCoins ? sfCoins >= price : gold >= price;
                           const questIds = parseQuestIdList(offer.requiredQuestIds);
                           const questLocked = questIds.length > 0 && !questIds.every((id) => doneQuests.has(id));
                           const vipLocked = !!(offer.requiredVip || offer.item?.requiredVip) && !vipActive;
@@ -978,10 +978,10 @@ export function MapPage() {
                             <div className="rounded-lg border border-dark-700 bg-dark-800/60 p-3">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-gray-400 flex items-center gap-1.5">
-                                  {isDiamond ? <Gem size={13} className="text-cyan-400" /> : <Coins size={13} className="text-yellow-400" />}
-                                  {isDiamond ? "Diamantes" : "Ouro"}
+                                  {isSfCoins ? <Gem size={13} className="text-cyan-400" /> : <Coins size={13} className="text-yellow-400" />}
+                                  {isSfCoins ? "SF Coins" : "Ouro"}
                                 </span>
-                                <span className={`font-mono text-base ${isDiamond ? "text-cyan-200" : "text-yellow-200"}`}>{price.toLocaleString("pt-BR")}</span>
+                                <span className={`font-mono text-base ${isSfCoins ? "text-cyan-200" : "text-yellow-200"}`}>{price.toLocaleString("pt-BR")}</span>
                               </div>
                               <button
                                 onClick={() => buyItem(offer)}
@@ -994,7 +994,7 @@ export function MapPage() {
                                     : "bg-gradient-to-r from-yellow-600 to-amber-500 text-black hover:opacity-90"
                                 }`}
                               >
-                                {busy ? "..." : locked ? (questLocked ? "Quest bloqueada" : vipLocked ? "Requer VIP" : `Requer Nv. ${offer.requiredLevel}`) : !enough ? (isDiamond ? "Diamantes insuficientes" : "Ouro insuficiente") : "COMPRAR"}
+                                {busy ? "..." : locked ? (questLocked ? "Quest bloqueada" : vipLocked ? "Requer VIP" : `Requer Nv. ${offer.requiredLevel}`) : !enough ? (isSfCoins ? "SF Coins insuficientes" : "Ouro insuficiente") : "COMPRAR"}
                               </button>
                             </div>
                           );
@@ -1234,10 +1234,10 @@ export function MapPage() {
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-sm text-yellow-400">
-                              {Number(offer.price).toLocaleString()} {offer.currency === "diamond" ? "💎" : "gold"}
+                              {Number(offer.price).toLocaleString()} {offer.currency === "sf_coins" ? "♦" : "gold"}
                             </p>
-                            {offer.currency === "diamond" && (
-                              <p className="text-[10px] text-cyan-400/80">diamantes</p>
+                            {offer.currency === "sf_coins" && (
+                              <p className="text-[10px] text-cyan-400/80">SF Coins</p>
                             )}
                             <button
                               onClick={() => buyItem(offer)}

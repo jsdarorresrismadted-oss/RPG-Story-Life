@@ -71,7 +71,7 @@ export function ArenaPage() {
   const [loading, setLoading] = useState(true);
   const [challenging, setChallenging] = useState(false);
   const [cooldownLeft, setCooldownLeft] = useState(0);
-  const [result, setResult] = useState<{ won: boolean; ratingDelta: number; goldReward: number; fled?: boolean } | null>(null);
+  const [result, setResult] = useState<{ won: boolean; ratingDelta: number; goldReward: number; pvpCoinReward: number; fled?: boolean } | null>(null);
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   const [now, setNow] = useState(Date.now());
   const [potions, setPotions] = useState<PvpPotion[]>([]);
@@ -211,6 +211,7 @@ export function ArenaPage() {
           won: !!data.won,
           ratingDelta: data.ratingDelta ?? 0,
           goldReward: data.goldReward ?? 0,
+          pvpCoinReward: data.pvpCoinReward ?? 0,
           fled: data.fled,
         });
         if (data.won) toast.success("Vitória na arena!");
@@ -453,7 +454,7 @@ export function ArenaPage() {
               {result.won ? "VITÓRIA!" : result.fled ? "VOCÊ ABANDONOU!" : "DERROTA!"}
             </p>
             <p className="text-sm text-gray-300 mt-1">
-              {result.won ? "+" : ""}{result.ratingDelta} rating{result.won && result.goldReward > 0 ? ` • +${result.goldReward} ouro` : ""}
+              {result.won ? "+" : ""}{result.ratingDelta} rating{result.won && result.goldReward > 0 ? ` • +${result.goldReward} ouro` : ""}{result.won && result.pvpCoinReward > 0 ? ` • +${result.pvpCoinReward} PVP Coin` : ""}
             </p>
             <button onClick={resetMatch} className="mt-3 px-4 py-2 rounded-lg bg-purple-500/20 border border-purple-500/40 text-sm font-semibold text-purple-200 hover:bg-purple-500/30 transition-colors">
               Voltar para a arena

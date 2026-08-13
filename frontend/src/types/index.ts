@@ -9,7 +9,7 @@ export interface Player {
   mana: number;
   maxMana: number;
   gold: number;
-  diamonds: number;
+  sfCoins: number;
   classId: string | null;
   className: string;
   title: string;
@@ -570,7 +570,7 @@ export interface LeaderboardEntry {
   pvpKills: number;
   force: number;
   gold: number;
-  diamonds: number;
+  sfCoins: number;
   isVip: boolean;
 }
 
@@ -614,12 +614,17 @@ export interface GuildSettings {
 
 export interface GuildQuest {
   id: string;
-  name: string;
+  title: string;
   description: string;
-  objectives: QuestObjective[];
-  rewards: QuestRewards;
-  contributedBy: Record<string, number>;
-  deadline: number;
+  type: 'kill' | 'collect' | 'pvp';
+  targetName: string | null;
+  targetCount: number;
+  xpReward: string;
+  goldReward: string;
+  gcReward: string;
+  expiresAt: string | null;
+  count: number;
+  claimed: boolean;
   completed: boolean;
 }
 
@@ -632,7 +637,7 @@ export interface MarketListing {
   quantity?: number;
   price?: number;
   pricePerUnit?: number;
-  currency?: 'gold' | 'diamonds';
+  currency?: 'gold' | 'sf_coins';
   listedAt?: number;
   expiresAt?: number;
   status?: 'active' | 'sold' | 'cancelled';
@@ -667,7 +672,9 @@ export interface User {
   avatar?: string | null;
   level?: number;
   gold?: number;
-  diamonds?: number;
+  sfCoins?: number;
+  pvpCoins?: number;
+  gc?: number;
   vipUntil?: string | null;
   vipOwned?: boolean;
   experience?: number;
@@ -695,7 +702,7 @@ export interface Character {
   currentStamina?: number;
   maxStamina?: number;
   gold?: number;
-  diamonds?: number;
+  sfCoins?: number;
   classProgress?: CharacterClass[];
 }
 
@@ -706,7 +713,7 @@ export interface CharacterIndex {
 export interface GameLimits {
   maxLevel: number;
   maxGold: number;
-  maxDiamonds: number;
+  maxSfCoins: number;
   xpPerLevel: number;
 }
 

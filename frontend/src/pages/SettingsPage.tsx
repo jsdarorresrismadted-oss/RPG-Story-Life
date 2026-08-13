@@ -76,7 +76,7 @@ export function SettingsPage() {
     try {
       const { data } = await redeemApi.redeem(code.trim().toUpperCase());
       if (user) {
-        setUser({ ...user, gold: data.gold, diamonds: data.diamonds });
+        setUser({ ...user, gold: data.gold, sfCoins: data.sfCoins });
       }
       const classesGranted = Array.isArray(data.classes) && data.classes.length > 0
         ? t("classes_unlocked", { classes: data.classes.join(", ") })
@@ -84,7 +84,7 @@ export function SettingsPage() {
       const warnings = Array.isArray(data.warnings) && data.warnings.length > 0
         ? t("warnings", { warnings: data.warnings.join(" | ") })
         : "";
-      toast.success(t("code_redeemed", { gold: Number(data.gold).toLocaleString(), diamonds: data.diamonds, xp: Number(data.experience).toLocaleString(), extra: `${classesGranted}${warnings}` }));
+      toast.success(t("code_redeemed", { gold: Number(data.gold).toLocaleString(), sfCoins: data.sfCoins, xp: Number(data.experience).toLocaleString(), extra: `${classesGranted}${warnings}` }));
       setCode("");
     } catch (err: any) {
       toast.error(err.response?.data?.error || t("invalid_code"));
@@ -99,7 +99,9 @@ export function SettingsPage() {
     { icon: Crown, label: t("role"), value: user?.role },
     { icon: Star, label: t("level"), value: user?.level || 1 },
     { icon: TrendingUp, label: t("gold"), value: (user?.gold ?? 0).toLocaleString() },
-    { icon: Zap, label: t("diamonds"), value: user?.diamonds || 0 },
+    { icon: Zap, label: t("sf_coins"), value: user?.sfCoins || 0 },
+    { icon: Star, label: t("pvp_coins"), value: user?.pvpCoins || 0 },
+    { icon: Crown, label: t("gc"), value: user?.gc || 0 },
     { icon: Calendar, label: t("member_since"), value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-" },
   ];
 

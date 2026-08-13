@@ -66,10 +66,10 @@ interface ShopProduct {
   slug: string;
   name: string;
   description: string;
-  type: "diamond_pack" | "vip" | "pass_premium" | "enchantment" | "item" | "class";
-  currency: "diamond" | "money" | "gold";
+  type: "sf_coins_pack" | "vip" | "pass_premium" | "enchantment" | "item" | "class";
+  currency: "sf_coins" | "money" | "gold" | "pvp_coins";
   price: number;
-  diamondAmount: number;
+  sfCoinAmount: number;
   vipDays: number;
   quantity: number;
   requiredLevel?: number;
@@ -84,12 +84,13 @@ interface ShopProduct {
   icon?: string | null;
 }
 
-type TabKey = "items" | "classes" | "offers";
+type TabKey = "items" | "classes" | "offers" | "pvp";
 
 const TABS: { key: TabKey; label: string; icon: any }[] = [
   { key: "items", label: "Itens", icon: Package },
   { key: "classes", label: "Classes", icon: Swords },
   { key: "offers", label: "Ofertas", icon: Layers },
+  { key: "pvp", label: "Loja PvP", icon: Trophy },
 ];
 
 const rarityColor: Record<string, string> = {
@@ -218,22 +219,29 @@ export function ShopPage() {
   const byTab = (key: TabKey) => {
     if (key === "items") return products.filter((p) => p.type === "item");
     if (key === "classes") return products.filter((p) => p.type === "class");
-    return products.filter((p) => ["diamond_pack", "vip", "pass_premium"].includes(p.type));
+    if (key === "pvp") return products.filter((p) => p.currency === "pvp_coins");
+    return products.filter((p) => ["sf_coins_pack", "vip", "pass_premium"].includes(p.type));
   };
 
-  const currencyLabel = (currency: string) =>
-    currency === "diamond" ? "diamantes" : currency === "gold" ? "de ouro" : "R$";
-
   const priceLabel = (product: ShopProduct) => {
-    if (product.currency === "diamond") return `${product.price} 💎`;
+    if (product.currency === "sf_coins") return `${product.price} SF Coins`;
+    if (product.currency === "pvp_coins") return `${product.price} PVP Coins`;
     if (product.currency === "gold") return `${product.price} de ouro`;
     return `R$ ${(product.price / 100).toFixed(2)}`;
   };
 
   const enoughFor = (product: ShopProduct) => {
-    if (product.currency === "diamond") return (user?.diamonds ?? 0) >= product.price;
+    if (product.currency === "sf_coins") return (user?.sfCoins ?? 0) >= product.price;
+    if (product.currency === "pvp_coins") return (user?.pvpCoins ?? 0) >= product.price;
     if (product.currency === "gold") return (user?.gold ?? 0) >= product.price;
     return true;
+  };
+
+  const currencyIcon = (currency: string, size = 14) => {
+    if (currency === "sf_coins") return <Gem size={size} className="text-cyan-300" />;
+    if (currency === "pvp_coins") return <Swords size={size} className="text-orange-400" />;
+    if (currency === "gold") return <Coins size={size} className="text-yellow-400" />;
+    return <Coins size={size} className="text-gray-400" />;
   };
 
   const productIcon = (product: ShopProduct) => {
@@ -275,7 +283,7 @@ export function ShopPage() {
     const recipe = craftRecipeOf(item);
     const enough = enoughFor(product);
     const locked = productLocked(product);
-    const inGameCurrency = product.currency === "diamond" || product.currency === "gold";
+    const inGameCurrency = product.currency === "sf_coins" || product.currency === "gold" || product.currency === "pvp_coins";
     return (
       <div className="panel p-4 space-y-3 lg:sticky lg:top-4">
         <div className="flex items-start gap-3">
@@ -361,7 +369,7 @@ export function ShopPage() {
         <div className="flex items-center justify-between bg-dark-800/50 rounded-lg p-3">
           <span className="text-xs text-gray-400">Valor</span>
           <span className="text-sm font-bold text-yellow-300 flex items-center gap-1.5">
-            {product.currency === "diamond" ? <Gem size={14} className="text-cyan-300" /> : <Coins size={14} className="text-yellow-400" />}
+            {currencyIcon(product.currency)}
             {priceLabel(product)}
           </span>
         </div>
@@ -387,7 +395,7 @@ export function ShopPage() {
               </>
             ) : (
               <>
-                {product.currency === "diamond" ? <Gem size={14} className="text-cyan-300" /> : <Coins size={14} className="text-yellow-400" />}
+                {currencyIcon(product.currency)}
                 Comprar por {priceLabel(product)}
               </>
             )}
@@ -408,7 +416,13 @@ export function ShopPage() {
             <Coins size={14} className="text-yellow-400" /> {(user?.gold ?? 0).toLocaleString()}
           </span>
           <span className="flex items-center gap-1.5 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5">
-            <Gem size={14} className="text-cyan-400" /> {user?.diamonds ?? 0}
+            <Gem size={14} className="text-cyan-400" /> {user?.sfCoins ?? 0}
+          </span>
+          <span className="flex items-center gap-1.5 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5">
+            <Swords size={14} className="text-orange-400" /> {user?.pvpCoins ?? 0}
+          </span>
+          <span className="flex items-center gap-1.5 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5">
+            <Crown size={14} className="text-emerald-400" /> {user?.gc ?? 0} GC
           </span>
           {vipActive ? (
             <span className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 rounded-lg px-3 py-1.5">
@@ -469,7 +483,7 @@ export function ShopPage() {
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-xs text-yellow-300 font-medium flex items-center gap-1">
-                        {product.currency === "diamond" ? <Gem size={12} className="text-cyan-300" /> : <Coins size={12} className="text-yellow-400" />}
+                        {currencyIcon(product.currency, 12)}
                         {priceLabel(product)}
                       </span>
                       <span className="text-[10px] text-gray-500">Detalhes ›</span>
@@ -486,7 +500,7 @@ export function ShopPage() {
             const isVip = productVip(product);
             const subtitle = productSubtitle(product);
             const enough = enoughFor(product);
-            const inGameCurrency = product.currency === "diamond" || product.currency === "gold";
+const inGameCurrency = product.currency === "sf_coins" || product.currency === "gold" || product.currency === "pvp_coins";
             const locked = productLocked(product);
             return (
               <div key={product.id} className="panel p-4 flex flex-col">
@@ -546,7 +560,7 @@ export function ShopPage() {
                       </>
                     ) : (
                       <>
-                        {product.currency === "diamond" ? <Gem size={14} className="text-cyan-300" /> : <Coins size={14} className="text-yellow-400" />}
+                        {currencyIcon(product.currency)}
                         {priceLabel(product)}
                       </>
                     )}
@@ -580,8 +594,8 @@ export function ShopPage() {
               {confirm.type === "vip" && (
                 <p className="text-yellow-300 flex items-center gap-1.5"><Crown size={14} /> {confirm.vipDays} dias de VIP (bônus ativos durante o período)</p>
               )}
-              {confirm.type === "diamond_pack" && (
-                <p className="text-cyan-300 flex items-center gap-1.5"><Gem size={14} /> +{confirm.diamondAmount} diamantes</p>
+              {confirm.type === "sf_coins_pack" && (
+                <p className="text-cyan-300 flex items-center gap-1.5"><Gem size={14} /> +{confirm.sfCoinAmount} SF Coins</p>
               )}
               {confirm.type === "pass_premium" && (
                 <p className="text-purple-300 flex items-center gap-1.5"><Trophy size={14} /> Passe Premium da temporada</p>
@@ -596,11 +610,14 @@ export function ShopPage() {
                 <p className="text-red-300 flex items-center gap-1.5"><Swords size={14} /> {confirm.gameClass?.name || confirm.name} — desbloqueada para seus personagens.</p>
               )}
               <p className="text-gray-400 mt-2 flex items-center gap-1.5">
-                {confirm.currency === "diamond" ? <Gem size={14} /> : <Coins size={14} />}
-                Custo: {confirm.currency === "diamond" ? `${confirm.price} diamantes` : confirm.currency === "gold" ? `${confirm.price} de ouro` : `R$ ${(confirm.price / 100).toFixed(2)}`}
+                {currencyIcon(confirm.currency)}
+                Custo: {priceLabel(confirm)}
               </p>
-              {confirm.currency === "diamond" && (user?.diamonds ?? 0) < confirm.price && (
-                <p className="text-red-400 text-xs mt-2">Saldo insuficiente de diamantes.</p>
+              {confirm.currency === "sf_coins" && (user?.sfCoins ?? 0) < confirm.price && (
+                <p className="text-red-400 text-xs mt-2">Saldo insuficiente de SF Coins.</p>
+              )}
+              {confirm.currency === "pvp_coins" && (user?.pvpCoins ?? 0) < confirm.price && (
+                <p className="text-red-400 text-xs mt-2">Saldo insuficiente de PVP Coins — vença lutas na Arena para ganhar.</p>
               )}
               {confirm.currency === "gold" && (user?.gold ?? 0) < confirm.price && (
                 <p className="text-red-400 text-xs mt-2">Ouro insuficiente.</p>
@@ -610,7 +627,7 @@ export function ShopPage() {
               <button onClick={() => setConfirm(null)} className="btn-secondary flex-1">Cancelar</button>
               <button
                 onClick={handlePurchase}
-                disabled={buying || ((confirm.currency === "diamond" && (user?.diamonds ?? 0) < confirm.price) || (confirm.currency === "gold" && (user?.gold ?? 0) < confirm.price))}
+                disabled={buying || ((confirm.currency === "sf_coins" && (user?.sfCoins ?? 0) < confirm.price) || (confirm.currency === "pvp_coins" && (user?.pvpCoins ?? 0) < confirm.price) || (confirm.currency === "gold" && (user?.gold ?? 0) < confirm.price))}
                 className="btn-primary flex-1 disabled:opacity-50"
               >
                 {buying ? "Comprando..." : `Comprar por ${priceLabel(confirm)}`}

@@ -3,12 +3,14 @@ import { Battle, TICK_MS } from "../../core/classEngine/battle";
 import { SkillDef } from "../../core/classEngine/types";
 import { computeStats } from "../../core/classEngine/stat-calculator";
 import { clampGold } from "../../core/progression";
+import { updateGuildQuestProgress } from "../../core/guildQuests";
 import { CombatService, serializeSkillForClient } from "../combat/combat.service";
 
 const COOLDOWN_MS = 30 * 1000; // cooldown entre desafios na arena
 const CHALLENGE_TTL_MS = 30 * 1000; // tempo para o desafiado aceitar/recusar
 const SESSION_TTL_MS = 15 * 60 * 1000; // sessão PvE órfã expira após 15 min sem atualizações
 const K_FACTOR = 32;
+const PVP_COIN_REWARD = 1; // 1 PVP Coin por vitória (1 player morto)
 
 function parseJson(value: any, fallback: any = null): any {
   if (value === null || value === undefined) return fallback;
@@ -532,7 +534,7 @@ async challenge(userId: string): Promise<any> {
         const actual = clampGold(user.gold, goldReward, BigInt(10_000_000_000));
         await tx.user.update({
           where: { id: winner.userId },
-          data: { gold: { increment: actual } },
+          data: { gold: { increment: actual }, pvpCoins: { increment: PVP_COIN_REWARD } },
         });
       }
 
@@ -547,10 +549,18 @@ async challenge(userId: string): Promise<any> {
       });
     });
 
+    if (winnerId) {
+      const winnerChar = await this.prisma.character.findUnique({ where: { id: winnerId } });
+      if (winnerChar) {
+        await updateGuildQuestProgress(winnerChar.userId, "pvp", null);
+      }
+    }
+
     return {
       won: winnerIsChallenger,
       ratingDelta: delta,
       goldReward,
+      pvpCoinReward: PVP_COIN_REWARD,
       challengerRating: winnerIsChallenger ? winnerRating + delta : winnerRating - delta,
       opponentRating: winnerIsChallenger ? loserRating - delta : loserRating + delta,
       fled: isFlee,

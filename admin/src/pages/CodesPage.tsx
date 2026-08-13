@@ -9,7 +9,7 @@ interface RedeemCode {
   code: string;
   description: string | null;
   gold: string | number;
-  diamonds: number;
+  sfCoins: number;
   experience: string | number;
   items: any;
   maxUses: number;
@@ -22,7 +22,7 @@ const emptyForm = {
   code: "",
   description: "",
   gold: 0,
-  diamonds: 0,
+  sfCoins: 0,
   experience: 0,
   items: [] as any[],
   maxUses: 500,
@@ -53,7 +53,7 @@ export default function CodesPage() {
 
   const openNew = () => {
     setForm(emptyForm);
-    setEditing({ id: "", code: "", description: null, gold: 0, diamonds: 0, experience: 0, items: [], maxUses: 500, uses: 0, isActive: true, expiresAt: null });
+    setEditing({ id: "", code: "", description: null, gold: 0, sfCoins: 0, experience: 0, items: [], maxUses: 500, uses: 0, isActive: true, expiresAt: null });
   };
 
   const openEdit = (code: RedeemCode) => {
@@ -62,7 +62,7 @@ export default function CodesPage() {
       code: code.code,
       description: code.description || "",
       gold: Number(code.gold),
-      diamonds: code.diamonds,
+      sfCoins: code.sfCoins,
       experience: Number(code.experience),
       items: Array.isArray(code.items) ? code.items : [],
       maxUses: code.maxUses,
@@ -91,7 +91,7 @@ export default function CodesPage() {
       code: form.code.trim().toUpperCase(),
       description: form.description || null,
       gold: Number(form.gold) || 0,
-      diamonds: Number(form.diamonds) || 0,
+      sfCoins: Number(form.sfCoins) || 0,
       experience: Number(form.experience) || 0,
       items: form.items.filter((i: any) => i.itemName || i.quantity),
       maxUses: Math.max(1, Number(form.maxUses) || 1),
@@ -153,7 +153,7 @@ export default function CodesPage() {
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Code</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Description</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Gold</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Diamonds</th>
+                <th className="text-left py-3 px-4 text-gray-400 font-medium">SF Coins</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">XP</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Items</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Uses</th>
@@ -170,7 +170,7 @@ export default function CodesPage() {
                   <td className="py-2.5 px-4 font-mono font-medium text-yellow-300">{c.code}</td>
                   <td className="py-2.5 px-4 text-gray-400 max-w-xs truncate">{c.description || "-"}</td>
                   <td className="py-2.5 px-4 font-mono">{Number(c.gold).toLocaleString()}</td>
-                  <td className="py-2.5 px-4 font-mono">{c.diamonds}</td>
+                  <td className="py-2.5 px-4 font-mono">{c.sfCoins}</td>
                   <td className="py-2.5 px-4 font-mono">{Number(c.experience).toLocaleString()}</td>
                   <td className="py-2.5 px-4 text-xs text-gray-400">
                     {(c.items || []).length > 0
@@ -259,13 +259,13 @@ export default function CodesPage() {
                 />
               </label>
               <label className="block text-xs text-gray-400">
-                Diamonds
+                SF Coins
                 <input
                   type="number"
                   min={0}
                   className="input-rpg mt-1 w-full"
-                  value={form.diamonds}
-                  onChange={(e) => setForm({ ...form, diamonds: e.target.value })}
+                  value={form.sfCoins}
+                  onChange={(e) => setForm({ ...form, sfCoins: e.target.value })}
                 />
               </label>
               <label className="block text-xs text-gray-400">

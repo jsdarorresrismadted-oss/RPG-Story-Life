@@ -2,24 +2,25 @@ import { Express, Request, Response, NextFunction } from "express";
 import { prisma } from "../../core/database";
 import { authenticate } from "../../core/middleware/auth";
 import { AppError } from "../../core/middleware/errorHandler";
+import { ensureGuildQuests, claimGuildQuest } from "../../core/guildQuests";
 import { io } from "../../server";
 
 const DEFAULT_GUILD_REQUIREMENTS = {
   requiredLevel: 2,
   requiredGold: 200,
-  requiredDiamonds: 0,
+  requiredSfCoins: 0,
 };
 
 const ROLE_HIERARCHY: Record<string, number> = { member: 0, officer: 1, leader: 2 };
 
-async function getGuildRequirements(): Promise<{ requiredLevel: number; requiredGold: number; requiredDiamonds: number }> {
+async function getGuildRequirements(): Promise<{ requiredLevel: number; requiredGold: number; requiredSfCoins: number }> {
   const config = await prisma.systemConfig.findUnique({ where: { key: "guild" } });
   if (!config) return DEFAULT_GUILD_REQUIREMENTS;
   const v = config.value as Record<string, unknown>;
   return {
     requiredLevel: typeof v.requiredLevel === "number" ? v.requiredLevel : DEFAULT_GUILD_REQUIREMENTS.requiredLevel,
     requiredGold: typeof v.requiredGold === "number" ? v.requiredGold : DEFAULT_GUILD_REQUIREMENTS.requiredGold,
-    requiredDiamonds: typeof v.requiredDiamonds === "number" ? v.requiredDiamonds : DEFAULT_GUILD_REQUIREMENTS.requiredDiamonds,
+    requiredSfCoins: typeof v.requiredSfCoins === "number" ? v.requiredSfCoins : DEFAULT_GUILD_REQUIREMENTS.requiredSfCoins,
   };
 }
 
@@ -125,7 +126,7 @@ export function createGuildModule(app: Express): void {
 
       const user = await prisma.user.findUnique({
         where: { id: req.user!.userId },
-        select: { level: true, gold: true, diamonds: true },
+        select: { level: true, gold: true, sfCoins: true },
       });
       if (!user) throw new AppError(404, "User not found");
 
@@ -133,7 +134,7 @@ export function createGuildModule(app: Express): void {
       const missing: string[] = [];
       if (user.level < requirements.requiredLevel) missing.push(`Level ${requirements.requiredLevel}`);
       if (user.gold < BigInt(requirements.requiredGold)) missing.push(`${requirements.requiredGold} Gold`);
-      if (user.diamonds < requirements.requiredDiamonds) missing.push(`${requirements.requiredDiamonds} Diamonds`);
+      if (user.sfCoins < requirements.requiredSfCoins) missing.push(`${requirements.requiredSfCoins} SF Coins`);
       if (missing.length > 0) {
         throw new AppError(400, `Requirements not met: ${missing.join(", ")}`);
       }
@@ -412,10 +413,10 @@ export function createGuildModule(app: Express): void {
     }
   });
 
-  // Compra um item do shop usando pontos de contribuição.
+  // Compra um item do shop usando GC (Guild Coins).
   app.post("/api/guilds/:id/shop/:shopItemId/buy", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const membership = await requireGuildRole(req.user!.userId, req.params.id, "member");
+      await requireGuildRole(req.user!.userId, req.params.id, "member");
       const entry = await prisma.guildShopItem.findUnique({
         where: { id: req.params.shopItemId },
         include: { item: true },
@@ -424,14 +425,18 @@ export function createGuildModule(app: Express): void {
         throw new AppError(404, "Item não encontrado no shop da guilda");
       }
 
-      if (membership.contribution < entry.price) {
-        throw new AppError(400, "Pontos de contribuição insuficientes");
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.userId },
+        select: { gc: true },
+      });
+      if (!user || user.gc < Number(entry.price)) {
+        throw new AppError(400, "GC insuficientes — ganhe GC completando quests da guilda");
       }
 
       await prisma.$transaction(async (tx) => {
-        await tx.guildMember.update({
-          where: { id: membership.id },
-          data: { contribution: { decrement: entry.price } },
+        await tx.user.update({
+          where: { id: req.user!.userId },
+          data: { gc: { decrement: Number(entry.price) } },
         });
         // Entrega o item no inventário (acumula se empilhável)
         const existing = await tx.inventory.findFirst({
@@ -450,6 +455,57 @@ export function createGuildModule(app: Express): void {
       });
 
       res.json({ message: "Compra realizada", item: entry.item.name });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ===== Quests de guilda (geradas pelo sistema: matar mobs, coletar drops, PvP) =====
+
+  app.get("/api/guilds/:id/quests", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const guild = await prisma.guild.findUnique({ where: { id: req.params.id } });
+      if (!guild) throw new AppError(404, "Guilda não encontrada");
+      await requireGuildRole(req.user!.userId, req.params.id, "member");
+
+      await ensureGuildQuests(guild.id, guild.level);
+      const quests = await prisma.guildQuest.findMany({
+        where: { guildId: guild.id, isActive: true },
+        orderBy: { createdAt: "asc" },
+      });
+
+      const userId = req.user!.userId;
+      res.json(
+        quests.map((q) => {
+          const progress = (q.progress as Record<string, any>) ?? {};
+          const me = progress[userId] ?? { count: 0, claimed: false };
+          return {
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            type: q.type,
+            targetName: q.targetName,
+            targetCount: q.targetCount,
+            xpReward: q.xpReward.toString(),
+            goldReward: q.goldReward.toString(),
+            gcReward: q.gcReward.toString(),
+            expiresAt: q.expiresAt,
+            count: me.count ?? 0,
+            claimed: !!me.claimed,
+            completed: (me.count ?? 0) >= q.targetCount,
+          };
+        })
+      );
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post("/api/guilds/:id/quests/:questId/claim", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await requireGuildRole(req.user!.userId, req.params.id, "member");
+      const result = await claimGuildQuest(req.user!.userId, req.params.id, req.params.questId);
+      res.json({ message: "Recompensa recebida!", ...result });
     } catch (err) {
       next(err);
     }

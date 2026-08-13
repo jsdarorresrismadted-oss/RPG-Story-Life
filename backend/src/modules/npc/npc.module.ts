@@ -125,7 +125,7 @@ export function createNpcModule(app: Express): void {
 
       const user = await prisma.user.findUnique({
         where: { id: req.user!.userId },
-        select: { id: true, gold: true, diamonds: true, vipUntil: true },
+        select: { id: true, gold: true, sfCoins: true, vipUntil: true },
       });
       if (!user) throw new AppError(404, "User not found");
 
@@ -149,11 +149,11 @@ export function createNpcModule(app: Express): void {
         }
       }
 
-      const currency = shopOffer.currency === "diamond" ? "diamond" : "gold";
+      const currency = shopOffer.currency === "sf_coins" ? "sf_coins" : "gold";
       const totalPrice = Number(shopOffer.price) * qty;
-      if (currency === "diamond") {
-        if (Number(user.diamonds) < totalPrice) {
-          throw new AppError(400, `Not enough diamonds (need ${totalPrice})`);
+      if (currency === "sf_coins") {
+        if (Number(user.sfCoins) < totalPrice) {
+          throw new AppError(400, `Not enough SF Coins (need ${totalPrice})`);
         }
       } else if (Number(user.gold) < totalPrice) {
         throw new AppError(400, `Not enough gold (need ${totalPrice})`);
@@ -165,10 +165,10 @@ export function createNpcModule(app: Express): void {
       });
 
       await prisma.$transaction(async (tx) => {
-        if (currency === "diamond") {
+        if (currency === "sf_coins") {
           await tx.user.update({
             where: { id: user.id },
-            data: { diamonds: { decrement: totalPrice } },
+            data: { sfCoins: { decrement: totalPrice } },
           });
         } else {
           await tx.user.update({
@@ -223,7 +223,7 @@ export function createNpcModule(app: Express): void {
         totalPrice,
         currency,
         isClass: !!shopOffer.classId,
-        [currency === "diamond" ? "diamondsLeft" : "goldLeft"]: Math.max(0, Number(currency === "diamond" ? user.diamonds : user.gold) - totalPrice),
+        [currency === "sf_coins" ? "sfCoinsLeft" : "goldLeft"]: Math.max(0, Number(currency === "sf_coins" ? user.sfCoins : user.gold) - totalPrice),
       });
     } catch (err) {
       next(err);

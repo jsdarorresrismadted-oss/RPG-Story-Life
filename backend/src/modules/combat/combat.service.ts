@@ -11,6 +11,7 @@ import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStat
 import { grantPassXp } from "../seasons/seasons.module";
 import { isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "../../core/progression";
 import { getTotalBoosterBonuses } from "../../core/boosters";
+import { updateGuildQuestProgress } from "../../core/guildQuests";
 import { RaidService } from "../raid/raid.service";
 
 function parseJson(value: any, fallback: any = null): any {
@@ -977,6 +978,7 @@ export class CombatService {
     }
 
     await this.updateQuestKillProgress(character.userId, monster);
+    await updateGuildQuestProgress(character.userId, "kill", monster.id);
 
     // Raid: registra clear se o monstro pertence a um mapa raid
     const raidLink = await this.prisma.mapMonster.findFirst({
@@ -998,7 +1000,7 @@ export class CombatService {
       where: { monsterId: monster.id, item: { isActive: true } },
       include: { item: true },
     });
-    const rolled: { itemName: string; quantity: number }[] = [];
+    const rolled: { itemName: string; quantity: number; itemId: string }[] = [];
     for (const d of dropRows) {
       if (d.minLevel && character.level < d.minLevel) continue;
       if (d.maxLevel && character.level > d.maxLevel) continue;
@@ -1007,11 +1009,14 @@ export class CombatService {
       const min = Math.max(1, d.minQuantity || 1);
       const max = Math.max(min, d.maxQuantity || min);
       const qty = min === max ? min : min + Math.floor(Math.random() * (max - min + 1));
-      rolled.push({ itemName: d.item.name, quantity: qty });
+      rolled.push({ itemName: d.item.name, quantity: qty, itemId: d.item.id });
       drops.push({ name: d.item.name, quantity: qty });
     }
     if (rolled.length > 0) {
       await addItemsToInventory(this.prisma, character.userId, rolled);
+      for (const r of rolled) {
+        await updateGuildQuestProgress(character.userId, "collect", r.itemId, r.quantity);
+      }
     }
 
     return { xpGain, goldGain, levelUps, classXpGain, drops };

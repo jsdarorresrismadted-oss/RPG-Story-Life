@@ -64,9 +64,17 @@ export function TopBar({ user, sidebarOpen, onToggleSidebar, onToggleChat, onLog
               <span className="text-yellow-400 font-mono text-xs sm:text-sm">{(user.gold ?? 0).toLocaleString()}</span>
               <span className="text-yellow-500">G</span>
             </div>
-            <div className="hidden sm:flex items-center gap-1 px-2 py-1 bg-cyan-500/10 rounded-md">
-              <span className="text-cyan-400 font-mono text-xs sm:text-sm">{user.diamonds ?? 0}</span>
+            <div className="hidden sm:flex items-center gap-1 px-2 py-1 bg-cyan-500/10 rounded-md" title="SF Coins">
+              <span className="text-cyan-400 font-mono text-xs sm:text-sm">{user.sfCoins ?? 0}</span>
               <span className="text-cyan-500">♦</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 px-2 py-1 bg-orange-500/10 rounded-md" title="PVP Coins">
+              <span className="text-orange-400 font-mono text-xs sm:text-sm">{user.pvpCoins ?? 0}</span>
+              <span className="text-orange-500">⚔</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 px-2 py-1 bg-emerald-500/10 rounded-md" title="Guild Coins">
+              <span className="text-emerald-400 font-mono text-xs sm:text-sm">{user.gc ?? 0}</span>
+              <span className="text-emerald-500">GC</span>
             </div>
             <div className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-md">
               <span className="text-purple-400 font-mono text-xs sm:text-sm">Lv.{user.level ?? 1}</span>

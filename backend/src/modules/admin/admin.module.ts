@@ -119,7 +119,7 @@ const BULK_MODELS: Record<string, { model: any; entity: string }> = {
 const DEFAULT_GUILD_SETTINGS = {
   requiredLevel: 2,
   requiredGold: 200,
-  requiredDiamonds: 0,
+  requiredSfCoins: 0,
 };
 
 // Regras do sistema de encantamentos:
@@ -248,14 +248,14 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/settings/guild", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { requiredLevel, requiredGold, requiredDiamonds } = req.body;
+      const { requiredLevel, requiredGold, requiredSfCoins } = req.body;
       const value = {
         requiredLevel:
           typeof requiredLevel === "number" && requiredLevel >= 0 ? Math.floor(requiredLevel) : DEFAULT_GUILD_SETTINGS.requiredLevel,
         requiredGold:
           typeof requiredGold === "number" && requiredGold >= 0 ? Math.floor(requiredGold) : DEFAULT_GUILD_SETTINGS.requiredGold,
-        requiredDiamonds:
-          typeof requiredDiamonds === "number" && requiredDiamonds >= 0 ? Math.floor(requiredDiamonds) : DEFAULT_GUILD_SETTINGS.requiredDiamonds,
+        requiredSfCoins:
+          typeof requiredSfCoins === "number" && requiredSfCoins >= 0 ? Math.floor(requiredSfCoins) : DEFAULT_GUILD_SETTINGS.requiredSfCoins,
       };
       const config = await prisma.systemConfig.upsert({
         where: { key: "guild" },
@@ -268,7 +268,7 @@ export function createAdminModule(app: Express): void {
     }
   });
 
-  // Game economy limits (level, gold, diamonds, XP curve)
+  // Game economy limits (level, gold, SF Coins, XP curve)
   app.get("/api/admin/settings/limits", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const row = await prisma.systemConfig.findUnique({ where: { key: "limits" } });
@@ -280,14 +280,14 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/settings/limits", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { maxLevel, maxGold, maxDiamonds, xpPerLevel } = req.body;
+      const { maxLevel, maxGold, maxSfCoins, xpPerLevel } = req.body;
       const value = {
         maxLevel:
           typeof maxLevel === "number" && maxLevel > 0 ? Math.floor(maxLevel) : DEFAULT_GAME_LIMITS.maxLevel,
         maxGold:
           typeof maxGold === "number" && maxGold >= 0 ? Math.floor(maxGold) : DEFAULT_GAME_LIMITS.maxGold,
-        maxDiamonds:
-          typeof maxDiamonds === "number" && maxDiamonds >= 0 ? Math.floor(maxDiamonds) : DEFAULT_GAME_LIMITS.maxDiamonds,
+        maxSfCoins:
+          typeof maxSfCoins === "number" && maxSfCoins >= 0 ? Math.floor(maxSfCoins) : DEFAULT_GAME_LIMITS.maxSfCoins,
         xpPerLevel:
           typeof xpPerLevel === "number" && xpPerLevel > 0 ? Math.floor(xpPerLevel) : DEFAULT_GAME_LIMITS.xpPerLevel,
       };
@@ -330,7 +330,7 @@ export function createAdminModule(app: Express): void {
       const users = await prisma.user.findMany({
         select: {
           id: true, username: true, displayName: true, email: true, role: true,
-          level: true, gold: true, diamonds: true, isOnline: true, isBanned: true,
+          level: true, gold: true, sfCoins: true, pvpCoins: true, gc: true, isOnline: true, isBanned: true,
           createdAt: true, _count: { select: { characters: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -341,7 +341,7 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { displayName, email, role, level, experience, gold, diamonds, isBanned, isOnline } = req.body;
+      const { displayName, email, role, level, experience, gold, sfCoins, pvpCoins, gc, isBanned, isOnline } = req.body;
       const data: Record<string, any> = {};
       if (typeof displayName === "string") data.displayName = displayName.slice(0, 50);
       if (typeof email === "string" || email === null) data.email = email;
@@ -349,13 +349,15 @@ export function createAdminModule(app: Express): void {
       if (typeof level === "number" && level >= 1) data.level = Math.floor(level);
       if (typeof experience === "number" && experience >= 0) data.experience = BigInt(Math.floor(experience));
       if (typeof gold === "number" && gold >= 0) data.gold = BigInt(Math.floor(gold));
-      if (typeof diamonds === "number" && diamonds >= 0) data.diamonds = Math.floor(diamonds);
+      if (typeof sfCoins === "number" && sfCoins >= 0) data.sfCoins = Math.floor(sfCoins);
+      if (typeof pvpCoins === "number" && pvpCoins >= 0) data.pvpCoins = Math.floor(pvpCoins);
+      if (typeof gc === "number" && gc >= 0) data.gc = Math.floor(gc);
       if (typeof isBanned === "boolean") data.isBanned = isBanned;
       if (typeof isOnline === "boolean") data.isOnline = isOnline;
       const user = await prisma.user.update({
         where: { id: req.params.id },
         data,
-        select: { id: true, username: true, displayName: true, role: true, level: true, gold: true, diamonds: true },
+        select: { id: true, username: true, displayName: true, role: true, level: true, gold: true, sfCoins: true, pvpCoins: true, gc: true },
       });
       res.json(user);
     } catch (err) { next(err); }
@@ -548,13 +550,13 @@ export function createAdminModule(app: Express): void {
 
   app.post("/api/admin/codes", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { code, description, gold, diamonds, experience, items, maxUses, expiresAt, isActive } = req.body;
+      const { code, description, gold, sfCoins, experience, items, maxUses, expiresAt, isActive } = req.body;
       if (!code || typeof code !== "string" || !code.trim()) throw new AppError(400, "Code required");
       const data: Record<string, any> = {
         code: code.trim().toUpperCase(),
         description: typeof description === "string" ? description : null,
         gold: BigInt(Math.max(0, Math.floor(Number(gold) || 0))),
-        diamonds: Math.max(0, Math.floor(Number(diamonds) || 0)),
+        sfCoins: Math.max(0, Math.floor(Number(sfCoins) || 0)),
         experience: BigInt(Math.max(0, Math.floor(Number(experience) || 0))),
         maxUses: Math.max(1, Math.floor(Number(maxUses) || 1000)),
       };
@@ -567,12 +569,12 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/codes/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { code, description, gold, diamonds, experience, items, maxUses, expiresAt, isActive } = req.body;
+      const { code, description, gold, sfCoins, experience, items, maxUses, expiresAt, isActive } = req.body;
       const data: Record<string, any> = {};
       if (typeof code === "string" && code.trim()) data.code = code.trim().toUpperCase();
       if (typeof description === "string" || description === null) data.description = description;
       if (typeof gold === "number" && gold >= 0) data.gold = BigInt(Math.floor(gold));
-      if (typeof diamonds === "number" && diamonds >= 0) data.diamonds = Math.floor(diamonds);
+      if (typeof sfCoins === "number" && sfCoins >= 0) data.sfCoins = Math.floor(sfCoins);
       if (typeof experience === "number" && experience >= 0) data.experience = BigInt(Math.floor(experience));
       if (Array.isArray(items)) data.items = items;
       if (typeof maxUses === "number" && maxUses >= 1) data.maxUses = Math.floor(maxUses);
@@ -1439,7 +1441,7 @@ export function createAdminModule(app: Express): void {
     try { const r = await deleteWithSoftFallback(prisma.patchNote, req, "patch-note"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
   });
 
-  // ShopProducts CRUD (loja do game: diamond packs, VIP, pass, encantamentos, itens de moeda real)
+  // ShopProducts CRUD (loja do game: SF Coins packs, VIP, pass, encantamentos, itens de moeda real/PVP)
   app.get("/api/admin/shop-products", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(await prisma.shopProduct.findMany({
@@ -1451,12 +1453,12 @@ export function createAdminModule(app: Express): void {
 
   app.post("/api/admin/shop-products", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { slug, name, description, type, currency, price, diamondAmount, vipDays, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder } = req.body;
+      const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder } = req.body;
       if (!slug || !name || !type) throw new AppError(400, "slug, name e type são obrigatórios");
       res.status(201).json(await prisma.shopProduct.create({
         data: {
-          slug, name, description: description || "", type, currency: currency || "diamond",
-          price: Number(price) || 0, diamondAmount: Number(diamondAmount) || 0,
+          slug, name, description: description || "", type, currency: currency || "sf_coins",
+          price: Number(price) || 0, sfCoinAmount: Number(sfCoinAmount) || 0,
           vipDays: Number(vipDays) || 0, enchantmentId: enchantmentId || null,
           itemId: itemId || null, classId: classId || null, quantity: Math.max(1, Number(quantity) || 1),
           icon: icon || null, isActive: isActive !== false, sortOrder: Number(sortOrder) || 0,
@@ -1467,12 +1469,12 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/shop-products/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { slug, name, description, type, currency, price, diamondAmount, vipDays, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder } = req.body;
+      const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder } = req.body;
       res.json(await prisma.shopProduct.update({
         where: { id: req.params.id },
         data: {
           slug, name, description, type, currency,
-          price: Number(price), diamondAmount: Number(diamondAmount), vipDays: Number(vipDays),
+          price: Number(price), sfCoinAmount: Number(sfCoinAmount), vipDays: Number(vipDays),
           enchantmentId: enchantmentId || null, itemId: itemId || null, classId: classId || null,
           quantity: Math.max(1, Number(quantity) || 1),
           icon: icon || null, isActive, sortOrder: Number(sortOrder),
