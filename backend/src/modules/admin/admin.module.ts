@@ -880,7 +880,21 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/monsters/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { const r = await deleteWithSoftFallback(prisma.monster, req, "monster"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+    try {
+      await prisma.$transaction([
+        prisma.dropItem.deleteMany({ where: { monsterId: req.params.id } }),
+        prisma.mapMonster.deleteMany({ where: { monsterId: req.params.id } }),
+        prisma.monster.delete({ where: { id: req.params.id } }),
+      ]);
+      res.json({ message: "Deleted" });
+    } catch {
+      try {
+        await prisma.monster.update({ where: { id: req.params.id }, data: { isActive: false } });
+        res.json({ message: "Desativado (estava referenciado)" });
+      } catch (err) {
+        next(new AppError(400, "Registro referenciado por outros dados e não pôde ser excluído"));
+      }
+    }
   });
 
   // ===== Drops de monstro (itens + taxa de drop) =====
@@ -1016,7 +1030,26 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/maps/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { const r = await deleteWithSoftFallback(prisma.map, req, "map"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+    try {
+      await prisma.$transaction([
+        prisma.mapMonster.deleteMany({ where: { mapId: req.params.id } }),
+        prisma.mapNpc.deleteMany({ where: { mapId: req.params.id } }),
+        prisma.mapConnection.deleteMany({
+          where: { OR: [{ fromMapId: req.params.id }, { toMapId: req.params.id }] },
+        }),
+        prisma.quest.deleteMany({ where: { mapId: req.params.id, progress: { none: {} } } }),
+        prisma.raidRun.deleteMany({ where: { mapId: req.params.id } }),
+        prisma.map.delete({ where: { id: req.params.id } }),
+      ]);
+      res.json({ message: "Deleted" });
+    } catch {
+      try {
+        await prisma.map.update({ where: { id: req.params.id }, data: { isActive: false } });
+        res.json({ message: "Desativado (ainda referenciado por jogadores)" });
+      } catch (err) {
+        next(new AppError(400, "Registro referenciado por outros dados e não pôde ser excluído"));
+      }
+    }
   });
 
   // Events CRUD
