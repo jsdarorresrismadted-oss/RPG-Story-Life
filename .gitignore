@@ -21,3 +21,6 @@ Icons/64x64/px-*.png
 Icons/64x64/Elmo/px-*.png
 Icons/64x64/Armaduras/px-*.png
 Icons/64x64/Capas/px-*.png
+
+# Backups do banco (nao vao para o git)
+backend/backups/

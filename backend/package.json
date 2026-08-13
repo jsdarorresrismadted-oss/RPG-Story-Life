@@ -13,6 +13,8 @@
     "seed": "tsx scripts/seed.ts",
     "db:tunnel": "railway connect Postgres --tunnel-only -P 15432",
     "db:push": "node scripts/db-push.js",
+    "db:backup": "node scripts/db-backup.js",
+    "db:restore": "node scripts/db-restore.js",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
