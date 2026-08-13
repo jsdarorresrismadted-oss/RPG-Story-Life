@@ -14,6 +14,7 @@
     "db:tunnel": "railway connect Postgres --tunnel-only -P 15432",
     "db:push": "node scripts/db-push.js",
     "db:backup": "node scripts/db-backup.js",
+    "db:pull": "node scripts/db-pull.js",
     "db:restore": "node scripts/db-restore.js",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
