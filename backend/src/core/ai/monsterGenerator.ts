@@ -9,8 +9,10 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 export interface GeneratedMonster {
-  monster: any;
-  drops: any[];
+  monster: any; // primeiro monstro (compatibilidade)
+  monsters: any[]; // todos os monstros gerados
+  drops: any[]; // drops do primeiro (compatibilidade)
+  allDrops: any[][]; // drops de cada monstro
   preview: Record<string, number>;
   errors?: string[];
 }
@@ -19,6 +21,8 @@ export const VALID_ELEMENTS = ["fire", "water", "nature", "light", "dark", "thun
 const VALID_DAMAGE_TYPES = ["physical", "magic", "true"];const VALID_TRIGGERS = ["auto", "active"];
 const VALID_SKILL_KINDS = ["attack", "buff", "debuff", "heal", "utility"];
 const VALID_ACTIONS = ["damage", "heal", "applyEffect", "mana"];
+
+const MAX_MONSTERS = 8;
 
 function slugify(s: any): string {
   return String(s || "")
@@ -39,45 +43,52 @@ export function clamp(v: number, min: number, max: number): number {
 }
 
 function buildPrompt(idea: string): string {
-  return `Você é um designer de monstros de um MMORPG de texto. Gere UM monstro completo seguindo EXATAMENTE o contrato abaixo.
+  return `Você é um designer de monstros de um MMORPG de texto. Gere UM OU VÁRIOS monstros (o usuário pode pedir uma quantidade, ex.: "6 monstros") seguindo EXATAMENTE o contrato abaixo.
 
 CONTRATO (responda apenas com JSON válido, sem markdown):
 
 {
-  "monster": {
-    "name": "Nome pt-BR do monstro",
-    "description": "Uma frase curta.",
-    "level": 1,
-    "isElite": false,
-    "isBoss": false,
-    "faction": "ex: Floresta, Masmorra, Abismo, Vila, Deserto",
-    "element": "fire|water|nature|light|dark|thunder|ice|earth|arcane|none",
-    "hp": 50,
-    "mana": 20,
-    "attack": 10,
-    "defense": 5,
-    "magic": 5,
-    "magicDefense": 5,
-    "speed": 10,
-    "criticalChance": 2,
-    "criticalDamage": 150,
-    "dodge": 1,
-    "accuracy": 90,
-    "attackSpeed": 2000,
-    "xpReward": 10,
-    "goldReward": 5,
-    "behavior": "Frase curta sobre o comportamento do monstro em combate.",
-    "skills": [ ... ],
-    "drops": [ ... ]
-  }
+  "monsters": [
+    {
+      "name": "Nome pt-BR do monstro",
+      "description": "Uma frase curta.",
+      "level": 1,
+      "isElite": false,
+      "isBoss": false,
+      "faction": "ex: Floresta, Masmorra, Abismo, Vila, Deserto",
+      "element": "fire|water|nature|light|dark|thunder|ice|earth|arcane|none",
+      "hp": 50,
+      "mana": 20,
+      "attack": 10,
+      "defense": 5,
+      "magic": 5,
+      "magicDefense": 5,
+      "speed": 10,
+      "criticalChance": 2,
+      "criticalDamage": 150,
+      "dodge": 1,
+      "accuracy": 90,
+      "attackSpeed": 2000,
+      "xpReward": 10,
+      "goldReward": 5,
+      "behavior": "Frase curta sobre o comportamento do monstro em combate.",
+      "skills": [ ... ],
+      "drops": [ ... ]
+    }
+  ]
 }
 
-REGRAS DE STATS:
+REGRAS DE QUANTIDADE:
+- Se o usuário pedir uma quantidade (ex.: "6 monstros"), gere EXATAMENTE essa quantidade (máximo 8).
+- Se não pedir quantidade, gere 1 monstro.
+- Nomes e temas coerentes entre si (um grupo do mesmo habitat/fantasia), variando nível quando o usuário pedir faixa (ex.: "nível 10 a 15" → distribua os níveis nessa faixa).
+
+REGRAS DE STATS (por monstro):
 - level 1 a 99. hp 30 a 500000 (bosses podem ter muito mais), attack 2 a 5000.
 - criticalChance 0 a 50 (%), criticalDamage 100 a 300 (%), dodge 0 a 30 (%), accuracy 70 a 100 (%).
 - attackSpeed 1200 a 5000 (ms entre ataques).
 
-REGRAS DE SKILLS (1 a 4 skills):
+REGRAS DE SKILLS (1 a 4 skills por monstro):
 - A PRIMEIRA é o ataque automático: trigger "auto", kind "attack", cooldown 2000, actions: [{ action: "damage", amount: <n>, scaling: [{ stat: "attack"|"magic", factor: 0.8-1.2 }], damageType: "physical"|"magic" }].
 - Demais: trigger "active", cooldown 3000-20000, actions válidas:
   • { action: "damage", amount: <n>, scaling: [{ stat: "attack"|"magic", factor: <0.5-2> }], damageType: "physical"|"magic" }
@@ -86,7 +97,7 @@ REGRAS DE SKILLS (1 a 4 skills):
   • { action: "mana", amount: <n>, restore: true }
 - Cada skill: { name, description, kind, trigger, target: "enemy"|"self", cooldown, manaCost, rankRequired: 1, sortOrder, actions }.
 
-REGRAS DE DROPS (2 a 5 itens):
+REGRAS DE DROPS (2 a 5 itens por monstro):
 - drops: [{ "itemName": "Nome EXATO do item existente no jogo (ex: Espada de Ferro, Poção de Vida, Fragmento do Abismo)", "dropChance": <1-100 %>, "minQuantity": 1, "maxQuantity": 1, "minLevel": 1, "maxLevel": 99, "guaranteed": false }]
 - Distribua dropChance de forma coerente: itens fracos mais comuns (30-70%), raros mais raros (1-10%).
 
@@ -153,14 +164,13 @@ export function extractJson(text: string): any {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-function normalize(raw: any, errors: string[]): GeneratedMonster {
-  const m = raw?.monster || raw;
+function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } {
   if (!m || !m.name) throw new Error("JSON inválido: campo monster.name ausente");
 
   const level = clamp(Math.round(num(m.level, 1)), 1, 99);
   const skills = Array.isArray(m.skills) ? m.skills : [];
-  if (skills.length === 0) errors.push("Nenhuma skill gerada");
-  if (!skills.some((s: any) => s.trigger === "auto")) errors.push("Falta o ataque automático (trigger 'auto')");
+  if (skills.length === 0) errors.push(`"${m.name}": nenhuma skill gerada`);
+  if (!skills.some((s: any) => s.trigger === "auto")) errors.push(`"${m.name}": falta o ataque automático (trigger 'auto')`);
 
   const normalizedSkills = skills.map((s: any, i: number) => {
     const actions = (s.actions || []).map((a: any) => {
@@ -233,13 +243,41 @@ function normalize(raw: any, errors: string[]): GeneratedMonster {
       skills: normalizedSkills,
     },
     drops,
+  };
+}
+
+function normalize(raw: any, errors: string[]): GeneratedMonster {
+  // Aceita: { "monsters": [...] }, { "monster": {...} }, objeto único ou array puro
+  let arr: any[];
+  if (Array.isArray(raw)) arr = raw;
+  else if (Array.isArray(raw?.monsters)) arr = raw.monsters;
+  else arr = [raw?.monster || raw];
+
+  const entries: { monster: any; drops: any[] }[] = [];
+  for (const item of arr.slice(0, MAX_MONSTERS)) {
+    try {
+      entries.push(normalizeOne(item, errors));
+    } catch (err: any) {
+      errors.push(err?.message?.includes("name ausente") ? "Monstro sem nome ignorado" : err.message);
+    }
+  }
+  if (entries.length === 0) throw new Error("JSON inválido: campo monster.name ausente (nenhum monstro válido na resposta)");
+
+  const first = entries[0];
+
+  return {
+    monster: first.monster,
+    monsters: entries.map((e) => e.monster),
+    drops: first.drops,
+    allDrops: entries.map((e) => e.drops),
     preview: {
-      level,
-      hp: clamp(Math.round(num(m.hp, 50)), 1, 5000000),
-      attack: clamp(Math.round(num(m.attack, 10)), 1, 50000),
-      defense: clamp(Math.round(num(m.defense, 5)), 0, 50000),
-      speed: clamp(Math.round(num(m.speed, 10)), 1, 500),
-      drops: drops.length,
+      level: first.monster.level,
+      hp: first.monster.hp,
+      attack: first.monster.attack,
+      defense: first.monster.defense,
+      speed: first.monster.speed,
+      drops: first.drops.length,
+      count: entries.length,
     },
     errors,
   };
@@ -271,14 +309,26 @@ export async function generateMonster(idea: string, providerLog: string[]): Prom
 }
 
 export async function persistGeneratedMonster(gen: GeneratedMonster): Promise<any> {
-  const { id, warnings } = await persistMonsterData(gen.monster, gen.drops);
+  const warnings: string[] = [];
+  const monsters: any[] = [];
+  for (let i = 0; i < gen.monsters.length; i++) {
+    const { id, warnings: w } = await persistMonsterData(gen.monsters[i], gen.allDrops[i] || []);
+    warnings.push(...w);
+    monsters.push({
+      id,
+      name: gen.monsters[i].name,
+      level: gen.monsters[i].level,
+      isBoss: gen.monsters[i].isBoss,
+      isElite: gen.monsters[i].isElite,
+      drops: (gen.allDrops[i] || []).length,
+    });
+  }
+  if (monsters.length === 1) {
+    return { ...monsters[0], warnings, errors: (gen as any).errors || [] };
+  }
   return {
-    id,
-    name: gen.monster.name,
-    level: gen.monster.level,
-    isBoss: gen.monster.isBoss,
-    isElite: gen.monster.isElite,
-    drops: gen.drops.length,
+    monsters,
+    count: monsters.length,
     warnings,
     errors: (gen as any).errors || [],
   };

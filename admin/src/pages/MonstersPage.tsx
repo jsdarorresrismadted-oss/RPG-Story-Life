@@ -278,10 +278,18 @@ export default function MonstersPage() {
     try {
       const res = await adminApi.ai.generateMonster(aiPrompt.trim());
       const saved = res.data?.data;
-      toast.success(`Monstro "${saved?.name ?? "?"}" gerado e salvo no banco!`);
+      if (saved?.monsters?.length) {
+        toast.success(`${saved.monsters.length} monstros gerados e salvos: ${saved.monsters.map((m: any) => m.name).join(", ")}`);
+      } else {
+        toast.success(`Monstro "${saved?.name ?? "?"}" gerado e salvo no banco!`);
+      }
       setAiOpen(false);
       await load(false);
-      if (saved?.id) selectMonster(saved.id);
+      if (saved?.monsters?.[0]?.id) selectMonster(saved.monsters[0].id);
+      else if (saved?.id) selectMonster(saved.id);
+      if (saved?.warnings && saved.warnings.length > 0) {
+        saved.warnings.forEach((w: string) => toast(w, { icon: "⚠️" }));
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.response?.data?.error || "Falha ao gerar");
     } finally {
@@ -571,10 +579,10 @@ export default function MonstersPage() {
               </button>
             </div>
             <p className="text-xs text-gray-500 mb-3">
-              Gemini (ou Groq como fallback) cria stats, skills e drops — e salva no banco. Você revisa e ajusta depois neste painel.
+              Gemini (ou Groq como fallback) cria stats, skills e drops — e salva no banco. Você pode pedir vários de uma vez (ex.: "6 monstros nível 10 a 15").
             </p>
             <label className={labelClass}>Prompt para a IA</label>
-            <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={3} className={inputClass} placeholder="Descreva o monstro..." />
+            <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={3} className={inputClass} placeholder='Descreva o monstro... ex.: "6 lobos anciões de gelo nível 10 a 15"' />
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setAiPrompt(DEFAULT_AI_PROMPT)} className="px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors">
                 Exemplo
