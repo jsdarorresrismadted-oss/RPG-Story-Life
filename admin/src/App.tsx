@@ -12,6 +12,7 @@ import ShopsPage from "./pages/ShopsPage";
 import EnchantmentsPage from "./pages/EnchantmentsPage";
 import MonsterPage from "./pages/MonstersPage";
 import MapsPage from "./pages/MapsPage";
+import EventsPage from "./pages/EventsPage";
 import GachaPage from "./pages/GachaPage";
 import CrudPage from "./pages/CrudPage";
 import { crudConfigs } from "./crudConfigs";
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/shops" element={<ShopsPage />} />
         <Route path="/monsters" element={<MonsterPage />} />
         <Route path="/maps" element={<MapsPage />} />
+        <Route path="/events" element={<EventsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/codes" element={<CodesPage />} />
         <Route path="/guild-settings" element={<GuildSettingsPage />} />

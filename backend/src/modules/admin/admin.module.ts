@@ -12,6 +12,7 @@ import { generateItemSprite, defaultIconForItem } from "../../core/ai/itemGenera
 import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
 import { generateSkillIcons } from "../../core/ai/skillIconGenerator";
 import { generateMap, persistGeneratedMap } from "../../core/ai/mapGenerator";
+import { generateEvent, persistGeneratedEvent } from "../../core/ai/eventGenerator";
 import {
   withEnchantmentStats,
   enchantmentProgression,
@@ -596,16 +597,20 @@ export function createAdminModule(app: Express): void {
     passive: ["statModifiers", "skillModifiers", "effectModifiers", "conditions", "events"],
     effect: ["stackLoss", "tickDamage", "tickHealing", "statModifiers", "onMaxStacks", "onExpire", "onTick"],
     statmodel: ["base", "perLevel", "scaling"],
+    gameevent: ["rewards"],
   };
 
   // Relações opcionais: string vazia/null vira null (evita FK error)
   const NULLABLE_RELATIONS: Record<string, string[]> = {
     class: ["statModelId"],
-    item: ["enchantmentId"],
+    item: ["enchantmentId", "eventId"],
     shopitem: ["npcId", "itemId", "classId", "enchantmentId"],
     mapnpc: ["mapId", "npcId"],
     mapmonster: ["mapId", "monsterId"],
-    quest: ["giverNpcId", "mapId"],
+    quest: ["giverNpcId", "mapId", "eventId"],
+    map: ["eventId"],
+    craftrecipe: ["resultClassId", "eventId"],
+    eventshopitem: ["eventId", "itemId"],
   };
 
   // Labels das FKs para mensagem amigável quando der P2003
@@ -615,9 +620,11 @@ export function createAdminModule(app: Express): void {
     classId: "Classe",
     enchantmentId: "Encantamento",
     resultItemId: "Item resultado",
+    resultClassId: "Classe resultado",
     mapId: "Mapa",
     monsterId: "Monstro",
     statModelId: "Stat Model",
+    eventId: "Evento",
   };
 
   async function saveWithFk(model: string, id: string | null, body: any) {
@@ -995,6 +1002,91 @@ export function createAdminModule(app: Express): void {
 
   app.delete("/api/admin/maps/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try { const r = await deleteWithSoftFallback(prisma.map, req, "map"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+  });
+
+  // Events CRUD
+  app.get("/api/admin/events", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await prisma.gameEvent.findMany({
+        include: { maps: true },
+        orderBy: { createdAt: "desc" },
+      }));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/events/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      if (!idea) throw new AppError(400, "Descreva o evento que a IA deve criar (ex.: 'invasão de dragões do gelo nível 30, 3 ondas, com loja de moedas de gelo e armas com bônus de gelo craftáveis')");
+      requireAi();
+      const providerLog: string[] = [];
+      const gen = await generateEvent(idea, providerLog);
+      const saved = await persistGeneratedEvent(gen);
+      res.status(201).json({ data: saved, providers: providerLog });
+    } catch (err) { next(err); }
+  });
+
+  app.get("/api/admin/events/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const event = await prisma.gameEvent.findUnique({
+        where: { id: req.params.id },
+        include: {
+          maps: true,
+          quests: true,
+          shopItems: { include: { item: true } },
+          craftRecipes: { include: { resultItem: true, resultClass: true } },
+        },
+      });
+      if (!event) throw new AppError(404, "Evento não encontrado");
+      res.json(event);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/events", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try { res.status(201).json(await prisma.gameEvent.create({ data: normalizeBody("gameevent", req.body) })); } catch (err) { next(err); }
+  });
+
+  app.put("/api/admin/events/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try { res.json(await prisma.gameEvent.update({ where: { id: req.params.id }, data: normalizeBody("gameevent", req.body) })); } catch (err) { next(err); }
+  });
+
+  app.delete("/api/admin/events/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await prisma.$transaction([
+        prisma.craftRecipe.updateMany({ where: { eventId: req.params.id }, data: { eventId: null } }),
+        prisma.quest.updateMany({ where: { eventId: req.params.id }, data: { eventId: null } }),
+        prisma.map.updateMany({ where: { eventId: req.params.id }, data: { eventId: null } }),
+        prisma.eventShopItem.deleteMany({ where: { eventId: req.params.id } }),
+      ]);
+      const r = await deleteWithSoftFallback(prisma.gameEvent, req, "gameevent");
+      res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" });
+    } catch (err) { next(err); }
+  });
+
+  // Event Shop Items CRUD
+  app.get("/api/admin/event-shop-items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await prisma.eventShopItem.findMany({
+        where: { eventId: String(req.query.eventId || "") || undefined },
+        include: { item: true },
+        orderBy: { price: "asc" },
+      }));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/event-shop-items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try { res.status(201).json(await prisma.eventShopItem.create({ data: normalizeBody("eventshopitem", req.body) })); } catch (err) { next(err); }
+  });
+
+  app.put("/api/admin/event-shop-items/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try { res.json(await prisma.eventShopItem.update({ where: { id: req.params.id }, data: normalizeBody("eventshopitem", req.body) })); } catch (err) { next(err); }
+  });
+
+  app.delete("/api/admin/event-shop-items/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = await deleteWithSoftFallback(prisma.eventShopItem, req, "eventshopitem");
+      res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" });
+    } catch (err) { next(err); }
   });
 
   // Quests CRUD

@@ -64,15 +64,16 @@ export async function getEquippedBoosterBonuses(userId: string): Promise<Booster
   return sumBoosterBonuses(owned);
 }
 
-// Aneis/Colares do gacha que foram para o inventario e estao equipados nos
-// slots ring/necklace do personagem (boosts % gravados no proprio Item)
+// Boosters % gravados nos itens equipados (arma, capacete, armadura, capa,
+// anel, colar...) — permite itens de evento "arma com booster" etc.
 export async function getEquippedItemBoosterBonuses(characterId: string): Promise<BoosterBonuses> {
   const equipment = await prisma.equipment.findUnique({
     where: { characterId },
-    select: { ring: true, necklace: true },
+    select: { weapon: true, classItem: true, helm: true, armor: true, cape: true, ring: true, necklace: true },
   });
   const bonuses = { ...EMPTY_BOOSTER_BONUSES };
-  for (const item of [equipment?.ring ?? null, equipment?.necklace ?? null]) {
+  const slots = [equipment?.weapon ?? null, equipment?.classItem ?? null, equipment?.helm ?? null, equipment?.armor ?? null, equipment?.cape ?? null, equipment?.ring ?? null, equipment?.necklace ?? null];
+  for (const item of slots) {
     if (!item?.boostType) continue;
     const t = item.boostType as BoostType;
     if (t in bonuses) bonuses[t] += Number(item.boostValue) || 0;

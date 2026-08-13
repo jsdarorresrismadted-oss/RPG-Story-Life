@@ -204,6 +204,20 @@ export const adminApi = {
     get: () => api.get("/admin/gacha-config"),
     update: (data: any) => api.put("/admin/gacha-config", data),
   },
+  events: {
+    list: () => api.get("/admin/events"),
+    get: (id: string) => api.get(`/admin/events/${id}`),
+    create: (data: any) => api.post("/admin/events", data),
+    update: (id: string, data: any) => api.put(`/admin/events/${id}`, data),
+    delete: (id: string, params?: any) => api.delete(`/admin/events/${id}`, { params }),
+    generate: (prompt: string) => api.post("/admin/events/generate", { prompt }),
+  },
+  eventShopItems: {
+    list: (eventId?: string) => api.get("/admin/event-shop-items", { params: { eventId } }),
+    create: (data: any) => api.post("/admin/event-shop-items", data),
+    update: (id: string, data: any) => api.put(`/admin/event-shop-items/${id}`, data),
+    delete: (id: string, params?: any) => api.delete(`/admin/event-shop-items/${id}`, { params }),
+  },
   bulkDelete: (key: string, ids: string[], tipo: number) =>
     api.post("/admin/bulk-delete", { key, ids, tipo }),
 };

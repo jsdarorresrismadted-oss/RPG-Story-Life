@@ -18,6 +18,8 @@
     "build": "npm run build:backend && npm run build:frontend && npm run build:admin",
     "verify": "npm run typecheck:backend && npm run typecheck:frontend && npm run typecheck:admin",
     "deploy": "node scripts/deploy.js",
+    "save": "node scripts/save.js",
+    "autosave": "node scripts/autosave.js",
     "gen:class": "node scripts/generate-class.js",
     "typecheck:backend": "cd backend && npx tsc --noEmit",
     "typecheck:frontend": "cd frontend && npx tsc --noEmit",

@@ -186,6 +186,7 @@ model GameClass {
   resource      Json     @default("{}") // { manaRegenPerTick?, manaOnHit?, manaOnKill? }
   isStarter     Boolean  @default(false)
   isActive      Boolean  @default(true)
+  craftable     Boolean  @default(false) // classe desbloqueável/obtível via craft (token)
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -197,6 +198,7 @@ model GameClass {
   passives      Passive[]
   shopItems     ShopItem[]
   shopProducts  ShopProduct[]
+  craftRecipes  CraftRecipe[]    @relation("CraftResultClass")
 }
 
 // Stat model da classe: identidade (nome/categoria) + os 6 Status Class (coreStats).
@@ -445,11 +447,15 @@ model Item {
   equippedAsNecklace  Equipment?      @relation("EquippedNecklace")
   shopProducts        ShopProduct[]
   guildShop           GuildShopItem[]
+  eventId             String?
+  event               GameEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventShopItems      EventShopItem[]
 
   @@index([type])
   @@index([rarity])
   @@index([level])
   @@index([name])
+  @@index([eventId])
 }
 
 // Receita de crafting: itens (por nome) consumidos para criar o item resultado
@@ -459,6 +465,8 @@ model CraftRecipe {
   description    String   @default("")
   resultItemId   String
   resultQuantity Int      @default(1)
+  resultClassId  String? // craft de classe (token): classe desbloqueada/trocada ao craftar
+  eventId        String? // evento dono da receita (sub-aba do evento)
   requiredLevel  Int      @default(1) // nível mínimo do personagem para craftar
   requiredVip    Boolean  @default(false) // requer VIP ativo para craftar
   requiredQuestIds String? // JSON: ids de quests que o jogador precisa ter concluído
@@ -467,9 +475,12 @@ model CraftRecipe {
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  resultItem     Item     @relation(fields: [resultItemId], references: [id])
+  resultItem     Item      @relation(fields: [resultItemId], references: [id])
+  resultClass    GameClass? @relation("CraftResultClass", fields: [resultClassId], references: [id])
+  event          GameEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([isActive])
+  @@index([eventId])
 }
 
 model Enchantment {
@@ -592,6 +603,7 @@ model Map {
   requiredQuest   String?
   isPvPZone       Boolean         @default(false)
   type            String          @default("normal") // normal | raid
+  eventId         String? // evento dono deste mapa (raids de evento ficam fora da história)
   raidResetHours  Int? // periodicidade do reset de tentativas (ex: 24)
   maxRaidAttempts Int? // tentativas por janela de reset
   raidWaves       Int             @default(10) // nº de ondas do raid
@@ -608,6 +620,10 @@ model Map {
   connectedFrom   MapConnection[] @relation("MapConnectionTo")
   questGivers     Quest[]
   raidRuns        RaidRun[]
+  event           GameEvent?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([eventId])
 }
 
 model MapConnection {
@@ -757,6 +773,7 @@ model Quest {
   requiredRank     Int             @default(1)
   giverNpcId       String?
   mapId            String?
+  eventId          String?
   isRepeatable     Boolean         @default(false)
   cooldownType     String?
   isActive         Boolean         @default(true)
@@ -771,10 +788,12 @@ model Quest {
   updatedAt        DateTime        @updatedAt
   giverNpc         Npc?            @relation("QuestGiver", fields: [giverNpcId], references: [id])
   map              Map?            @relation(fields: [mapId], references: [id])
+  event            GameEvent?      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   progress         QuestProgress[]
 
   @@index([type])
   @@index([giverNpcId])
+  @@index([eventId])
 }
 
 model QuestProgress {
@@ -1043,9 +1062,17 @@ model PartyMember {
 
 model GameEvent {
   id          String   @id @default(uuid())
+  slug        String   @unique
   name        String
   description String
-  type        String
+  type        String // raid | quest | festival | season...
+  imageUrl    String?
+  levelMin    Int      @default(1)
+  levelMax    Int?
+  xpBonus     Int      @default(0) // % extra de XP dentro do evento
+  goldBonus   Int      @default(0) // % extra de gold dentro do evento
+  dropBonus   Int      @default(0) // % extra de chance de drop dentro do evento
+  sortOrder   Int      @default(0)
   startsAt    DateTime
   endsAt      DateTime
   rewards     String?
@@ -1053,8 +1080,34 @@ model GameEvent {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  quests   Quest[]
+  items    Item[]
+  maps     Map[]
+  shopItems EventShopItem[]
+  craftRecipes CraftRecipe[]
+
   @@index([startsAt, endsAt])
   @@index([isActive])
+}
+
+model EventShopItem {
+  id            String   @id @default(uuid())
+  eventId       String
+  itemId        String
+  currency      String   @default("gold") // gold (diamond não usado em eventos)
+  price         BigInt   @default(0)
+  stock         Int      @default(-1) // -1 = infinito
+  requiredLevel Int      @default(1)
+  requiredVip   Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  event GameEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  item  Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([itemId])
 }
 
 model Season {

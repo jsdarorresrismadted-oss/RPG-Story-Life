@@ -23,6 +23,7 @@ import {
   Dices,
   Gem,
   Hammer,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -51,6 +52,7 @@ const navGroups: NavGroup[] = [
       { to: '/enchantments', icon: <Sparkles size={18} />, label: 'Encantamentos' },
       { to: '/monsters', icon: <Skull size={18} />, label: 'Monstros' },
       { to: '/maps', icon: <Map size={18} />, label: 'Mapas' },
+      { to: '/events', icon: <CalendarDays size={18} />, label: 'Eventos' },
       { to: '/quests', icon: <ScrollText size={18} />, label: 'Quests' },
       { to: '/effects', icon: <Activity size={18} />, label: 'Effects' },
       { to: '/npcs', icon: <Contact size={18} />, label: 'NPCs' },
