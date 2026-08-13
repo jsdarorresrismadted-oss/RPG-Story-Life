@@ -11,6 +11,8 @@
     "migrate": "tsx scripts/migrate.ts",
     "migrate:rollback": "tsx scripts/rollback.ts",
     "seed": "tsx scripts/seed.ts",
+    "db:tunnel": "railway connect Postgres --tunnel-only -P 15432",
+    "db:push": "node scripts/db-push.js",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
