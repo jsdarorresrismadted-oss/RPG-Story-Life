@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Loader2, MapPin, Plus, RefreshCw, Sparkles, Trash2, Wand2, X } from "lucide-react";
+import { ArrowUpDown, Loader2, MapPin, Plus, RefreshCw, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
 
@@ -58,6 +58,7 @@ export default function MonstersPage() {
   const [maps, setMaps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "level">("name");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"geral" | "drops">("geral");
@@ -106,6 +107,16 @@ export default function MonstersPage() {
     const q = filter.toLowerCase();
     return monsters.filter((m) => m.name.toLowerCase().includes(q));
   }, [monsters, filter]);
+
+  const sortedMonsters = useMemo(() => {
+    const arr = [...filteredMonsters];
+    if (sortBy === "level") {
+      arr.sort((a, b) => (Number(a.level) || 0) - (Number(b.level) || 0) || String(a.name).localeCompare(String(b.name), "pt"));
+    } else {
+      arr.sort((a, b) => String(a.name).localeCompare(String(b.name), "pt"));
+    }
+    return arr;
+  }, [filteredMonsters, sortBy]);
 
   const mapsOf = (monsterId: string) => maps.filter((m) => Array.isArray(m.monsters) && m.monsters.some((s: any) => s.monsterId === monsterId));
 
@@ -185,8 +196,10 @@ export default function MonstersPage() {
         saved = (await adminApi.monsters.update(selectedId, payload)).data;
         toast.success("Monstro atualizado!");
       }
-      await load(false);
-      if (saved?.id) selectMonster(saved.id);
+      setMonsters((prev) => (creating ? [saved, ...prev] : prev.map((m) => (m.id === saved.id ? saved : m))));
+      setSelectedId(saved.id);
+      setCreating(false);
+      fillForm(saved);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -284,8 +297,12 @@ export default function MonstersPage() {
       }
       setAiOpen(false);
       await load(false);
-      if (saved?.monsters?.[0]?.id) selectMonster(saved.monsters[0].id);
-      else if (saved?.id) selectMonster(saved.id);
+      const first = saved?.monsters?.[0] ?? saved;
+      if (first?.id) {
+        setSelectedId(first.id);
+        setCreating(false);
+        fillForm(first);
+      }
       if (saved?.warnings && saved.warnings.length > 0) {
         saved.warnings.forEach((w: string) => toast(w, { icon: "⚠️" }));
       }
@@ -327,15 +344,26 @@ export default function MonstersPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
         {/* Lista */}
         <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden h-fit">
-          <div className="p-4 border-b border-dark-600">
+          <div className="p-4 border-b border-dark-600 space-y-2">
             <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Buscar monstro..." className={inputClass} />
+            <div className="flex items-center gap-2">
+              <ArrowUpDown size={13} className="text-gray-500 shrink-0" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "name" | "level")}
+                className="w-full bg-dark-900 border border-dark-600 rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent-500 focus:outline-none"
+              >
+                <option value="name">Ordem alfabética</option>
+                <option value="level">Por nível (crescente)</option>
+              </select>
+            </div>
           </div>
           <div className="max-h-[72vh] overflow-y-auto">
             {loading && <p className="text-center text-gray-500 py-8">Carregando...</p>}
             {!loading && filteredMonsters.length === 0 && (
               <p className="text-center text-gray-500 py-8">Nenhum monstro — crie um ou use o gerador de IA</p>
             )}
-            {filteredMonsters.map((m) => {
+            {sortedMonsters.map((m) => {
               const spawnCount = mapsOf(m.id).length;
               return (
                 <button
