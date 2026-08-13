@@ -852,16 +852,31 @@ export function createAdminModule(app: Express): void {
   });
 
   // Monsters CRUD
+  // Campos válidos do Monster (whitelist) — evita 500 por campo desconhecido
+  const MONSTER_ALLOWED = new Set([
+    "name", "description", "imageUrl", "level", "isBoss", "isElite", "faction", "element",
+    "hp", "mana", "attack", "defense", "magic", "magicDefense", "speed",
+    "criticalChance", "criticalDamage", "dodge", "accuracy",
+    "xpReward", "classXpReward", "goldReward", "dropTable",
+    "attackSpeed", "skills", "behavior", "isActive",
+  ]);
+  const filterMonster = (body: any) => {
+    if (!body || typeof body !== "object" || Array.isArray(body)) return body;
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(body)) if (MONSTER_ALLOWED.has(k)) out[k] = v;
+    return out;
+  };
+
   app.get("/api/admin/monsters", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
     try { res.json(await prisma.monster.findMany({ orderBy: { name: "asc" } })); } catch (err) { next(err); }
   });
 
   app.post("/api/admin/monsters", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { res.status(201).json(await prisma.monster.create({ data: normalizeBody("monster", req.body) })); } catch (err) { next(err); }
+    try { res.status(201).json(await prisma.monster.create({ data: normalizeBody("monster", filterMonster(req.body)) })); } catch (err) { next(err); }
   });
 
   app.put("/api/admin/monsters/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { res.json(await prisma.monster.update({ where: { id: req.params.id }, data: normalizeBody("monster", req.body) })); } catch (err) { next(err); }
+    try { res.json(await prisma.monster.update({ where: { id: req.params.id }, data: normalizeBody("monster", filterMonster(req.body)) })); } catch (err) { next(err); }
   });
 
   app.delete("/api/admin/monsters/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
