@@ -194,7 +194,7 @@ export default function ShopsPage() {
 
   // ===== Loja PvP (Arena): ShopProducts com PVP Coins =====
   const openPvpAdd = () => {
-    setPvpForm({ itemId: "", price: 100, quantity: 1, requiredLevel: 0, requiredVip: false, isActive: true });
+    setPvpForm({ itemId: "", price: 100, quantity: 1, stock: -1, requiredLevel: 0, requiredVip: false, isActive: true });
     setPvpModal({});
   };
 
@@ -203,6 +203,7 @@ export default function ShopsPage() {
       itemId: p.itemId ?? "",
       price: Number(p.price ?? 0),
       quantity: p.quantity ?? 1,
+      stock: Number(p.stock ?? -1),
       requiredLevel: Number(p.requiredLevel ?? 0),
       requiredVip: !!p.requiredVip,
       isActive: p.isActive !== false,
@@ -223,6 +224,7 @@ export default function ShopsPage() {
         currency: "pvp_coins",
         price: Number(pvpForm.price) || 0,
         quantity: Math.max(1, Number(pvpForm.quantity) || 1),
+        stock: Number(pvpForm.stock) === 0 ? 0 : Number(pvpForm.stock) || -1,
         requiredLevel: Math.max(0, Number(pvpForm.requiredLevel) || 0),
         requiredVip: !!pvpForm.requiredVip,
         isActive: pvpForm.isActive !== false,
@@ -272,6 +274,9 @@ export default function ShopsPage() {
         icon: p.icon ?? null,
         isActive: !p.isActive,
         sortOrder: Number(p.sortOrder ?? 0),
+        stock: Number(p.stock ?? -1),
+        requiredLevel: Number(p.requiredLevel ?? 0),
+        requiredVip: !!p.requiredVip,
       });
       toast.success(p.isActive ? "Produto desativado" : "Produto ativado");
       await load();
@@ -759,7 +764,15 @@ export default function ShopsPage() {
         <td className="py-2.5 px-4 font-mono text-xs">{Number(s.requiredLevel) > 0 ? s.requiredLevel : "-"}</td>
         <td className="py-2.5 px-4">{s.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
         <td className="py-2.5 px-4">{s.requiredQuestIds ? <span className="px-2 py-0.5 rounded-full text-xs bg-sky-500/20 text-sky-300">Quest</span> : <span className="text-xs text-gray-500">-</span>}</td>
-        <td className="py-2.5 px-4 font-mono text-xs">{s.stock}</td>
+        <td className="py-2.5 px-4">
+          {Number(s.stock) < 0 ? (
+            <span className="text-xs text-gray-500">∞</span>
+          ) : (
+            <span className={`font-mono text-xs ${Number(s.sold ?? 0) >= Number(s.stock) ? "text-red-400" : "text-gray-300"}`} title={`${Number(s.sold ?? 0)} vendidos`}>
+              {Math.max(0, Number(s.stock) - Number(s.sold ?? 0))}/{s.stock}
+            </span>
+          )}
+        </td>
         <td className="py-2.5 px-4 text-right whitespace-nowrap">
           <button onClick={() => openEdit(s)} className="text-blue-400 hover:text-blue-300 mr-3"><Pencil size={13} className="inline" /> Edit</button>
           <button onClick={() => handleDelete(s)} className="text-red-400 hover:text-red-300"><Trash2 size={13} className="inline" /> Delete</button>
@@ -793,7 +806,15 @@ export default function ShopsPage() {
         <td className="py-2.5 px-4 font-mono text-xs">{Number(s.requiredLevel) > 0 ? s.requiredLevel : "-"}</td>
         <td className="py-2.5 px-4">{s.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
         <td className="py-2.5 px-4">{s.requiredQuestIds ? <span className="px-2 py-0.5 rounded-full text-xs bg-sky-500/20 text-sky-300">Quest</span> : <span className="text-xs text-gray-500">-</span>}</td>
-        <td className="py-2.5 px-4 font-mono text-xs">{s.stock}</td>
+        <td className="py-2.5 px-4">
+          {Number(s.stock) < 0 ? (
+            <span className="text-xs text-gray-500">∞</span>
+          ) : (
+            <span className={`font-mono text-xs ${Number(s.sold ?? 0) >= Number(s.stock) ? "text-red-400" : "text-gray-300"}`} title={`${Number(s.sold ?? 0)} vendidos`}>
+              {Math.max(0, Number(s.stock) - Number(s.sold ?? 0))}/{s.stock}
+            </span>
+          )}
+        </td>
         <td className="py-2.5 px-4 text-right whitespace-nowrap">
           {e && (
             <button
@@ -834,7 +855,15 @@ export default function ShopsPage() {
         <td className="py-2.5 px-4 font-mono text-xs">{Number(s.requiredLevel) > 0 ? s.requiredLevel : "-"}</td>
         <td className="py-2.5 px-4">{s.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
         <td className="py-2.5 px-4">{s.requiredQuestIds ? <span className="px-2 py-0.5 rounded-full text-xs bg-sky-500/20 text-sky-300">Quest</span> : <span className="text-xs text-gray-500">-</span>}</td>
-        <td className="py-2.5 px-4 font-mono text-xs">{s.stock}</td>
+        <td className="py-2.5 px-4">
+          {Number(s.stock) < 0 ? (
+            <span className="text-xs text-gray-500">∞</span>
+          ) : (
+            <span className={`font-mono text-xs ${Number(s.sold ?? 0) >= Number(s.stock) ? "text-red-400" : "text-gray-300"}`} title={`${Number(s.sold ?? 0)} vendidos`}>
+              {Math.max(0, Number(s.stock) - Number(s.sold ?? 0))}/{s.stock}
+            </span>
+          )}
+        </td>
         <td className="py-2.5 px-4 text-right whitespace-nowrap">
           <button onClick={() => openEdit(s)} className="text-blue-400 hover:text-blue-300 mr-3"><Pencil size={13} className="inline" /> Edit</button>
           <button onClick={() => handleDelete(s)} className="text-red-400 hover:text-red-300"><Trash2 size={13} className="inline" /> Delete</button>
@@ -1118,6 +1147,7 @@ export default function ShopsPage() {
                 <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Nv. mín</th>
                 <th className="text-left py-2.5 px-4 text-gray-400 font-medium">VIP</th>
                 <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Qtd</th>
+                <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Estoque</th>
                 <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Status</th>
                 <th className="text-right py-2.5 px-4 text-gray-400 font-medium">Ações</th>
               </tr>
@@ -1136,6 +1166,15 @@ export default function ShopsPage() {
                   <td className="py-2.5 px-4">{p.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
                   <td className="py-2.5 px-4 font-mono text-xs">{p.quantity}</td>
                   <td className="py-2.5 px-4">
+                    {Number(p.stock) < 0 ? (
+                      <span className="text-xs text-gray-500">∞</span>
+                    ) : (
+                      <span className={`font-mono text-xs ${Number(p.sold ?? 0) >= Number(p.stock) ? "text-red-400" : "text-gray-300"}`}>
+                        {Math.max(0, Number(p.stock) - Number(p.sold ?? 0))}/{p.stock}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-4">
                     <button
                       onClick={() => handlePvpToggleActive(p)}
                       className={`text-xs ${p.isActive ? "text-green-400 hover:text-green-300" : "text-gray-500 hover:text-gray-300"}`}
@@ -1152,7 +1191,7 @@ export default function ShopsPage() {
               ))}
               {pvpProducts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-gray-500">
+                  <td colSpan={8} className="py-6 text-center text-gray-500">
                     Nenhum item na Loja PvP — use [+ Adicionar item]
                   </td>
                 </tr>
@@ -1439,6 +1478,15 @@ export default function ShopsPage() {
                   min={1}
                   value={pvpForm.quantity ?? 1}
                   onChange={(e) => setPvpForm({ ...pvpForm, quantity: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Estoque (-1 = infinito)</label>
+                <input
+                  type="number"
+                  value={pvpForm.stock ?? -1}
+                  onChange={(e) => setPvpForm({ ...pvpForm, stock: e.target.value })}
                   className={inputClass}
                 />
               </div>

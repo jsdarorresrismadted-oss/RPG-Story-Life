@@ -1,0 +1,4 @@
+-- Estoques das lojas: ShopItem.sold (contador), ShopProduct.stock/sold
+ALTER TABLE "ShopItem" ADD COLUMN IF NOT EXISTS "sold" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "ShopProduct" ADD COLUMN IF NOT EXISTS "stock" INTEGER NOT NULL DEFAULT -1;
+ALTER TABLE "ShopProduct" ADD COLUMN IF NOT EXISTS "sold" INTEGER NOT NULL DEFAULT 0;

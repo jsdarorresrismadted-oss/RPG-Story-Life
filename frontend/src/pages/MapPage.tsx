@@ -136,6 +136,8 @@ interface NpcShopItem {
   id: string;
   price: string | number;
   currency?: string;
+  stock?: number;
+  sold?: number;
   itemId?: string | null;
   enchantmentId?: string | null;
   classId?: string | null;
@@ -322,6 +324,26 @@ function parseQuestIdList(raw?: string | null): string[] {
     /* não é JSON — tenta formato separado por vírgula */
   }
   return String(raw).split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+// Estoque da oferta: stock < 0 = infinito; senão retorna quantas unidades restam
+function stockLeft(offer: { stock?: number; sold?: number }): number {
+  const stock = Number(offer.stock ?? -1);
+  if (stock < 0) return -1;
+  return Math.max(0, stock - Number(offer.sold ?? 0));
+}
+
+function StockBadge({ offer }: { offer: { stock?: number; sold?: number } }) {
+  const left = stockLeft(offer);
+  if (left < 0) return null;
+  if (left === 0) {
+    return <span className="text-[10px] px-1.5 py-0.5 bg-red-500/15 text-red-300 rounded-md font-semibold">ESGOTADO</span>;
+  }
+  return (
+    <span className="text-[10px] px-1.5 py-0.5 bg-dark-700 text-gray-400 rounded-md">
+      Restam {left.toLocaleString("pt-BR")}
+    </span>
+  );
 }
 
 const SHOP_TYPES = new Set(["vendor", "shop", "enchantments", "classes"]);
@@ -575,6 +597,16 @@ export function MapPage() {
     }
   };
 
+  const refreshNpc = async () => {
+    if (!npc) return;
+    try {
+      const { data } = await npcApi.get(npc.id);
+      setNpc(data);
+    } catch {
+      /* mantém o estado atual se falhar */
+    }
+  };
+
   const buyItem = async (offer: { item?: { id: string } | null; enchantment?: { name: string } | null; enchantmentId?: string | null; itemId?: string | null; classId?: string | null; class?: { name: string } | null; price: string | number; currency?: string }) => {
     if (!npc) return;
     const isEnchantment = !!offer.enchantmentId;
@@ -591,6 +623,7 @@ export function MapPage() {
       toast.success(isClass ? `Classe ${data.item} desbloqueada e equipada!` : `${data.quantity}x ${data.item} comprado (${data.totalPrice} ${currency})`);
       refreshUser();
       loadInventory();
+      refreshNpc();
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Falha na compra");
     } finally {
@@ -968,6 +1001,7 @@ export function MapPage() {
                           const price = Number(offer.price);
                           const isSfCoins = offer.currency === "sf_coins";
                           const enough = isSfCoins ? sfCoins >= price : gold >= price;
+                          const soldOutOffer = stockLeft(offer) === 0;
                           const questIds = parseQuestIdList(offer.requiredQuestIds);
                           const questLocked = questIds.length > 0 && !questIds.every((id) => doneQuests.has(id));
                           const vipLocked = !!(offer.requiredVip || offer.item?.requiredVip) && !vipActive;
@@ -983,18 +1017,23 @@ export function MapPage() {
                                 </span>
                                 <span className={`font-mono text-base ${isSfCoins ? "text-cyan-200" : "text-yellow-200"}`}>{price.toLocaleString("pt-BR")}</span>
                               </div>
+                              <div className="mt-1.5">
+                                <StockBadge offer={offer} />
+                              </div>
                               <button
                                 onClick={() => buyItem(offer)}
-                                disabled={locked || !enough || !!busy}
+                                disabled={locked || !enough || !!busy || soldOutOffer}
                                 className={`w-full mt-2.5 text-xs px-3 py-2 rounded-lg font-semibold tracking-wider transition-colors ${
-                                  locked
+                                  soldOutOffer
+                                    ? "bg-dark-700 text-gray-600"
+                                    : locked
                                     ? "bg-dark-700 text-gray-500"
                                     : !enough
                                     ? "bg-dark-700 text-red-400"
                                     : "bg-gradient-to-r from-yellow-600 to-amber-500 text-black hover:opacity-90"
                                 }`}
                               >
-                                {busy ? "..." : locked ? (questLocked ? "Quest bloqueada" : vipLocked ? "Requer VIP" : `Requer Nv. ${offer.requiredLevel}`) : !enough ? (isSfCoins ? "SF Coins insuficientes" : "Ouro insuficiente") : "COMPRAR"}
+                                {busy ? "..." : soldOutOffer ? "ESGOTADO" : locked ? (questLocked ? "Quest bloqueada" : vipLocked ? "Requer VIP" : `Requer Nv. ${offer.requiredLevel}`) : !enough ? (isSfCoins ? "SF Coins insuficientes" : "Ouro insuficiente") : "COMPRAR"}
                               </button>
                             </div>
                           );
@@ -1159,6 +1198,7 @@ export function MapPage() {
                       const questLocked = questIds.length > 0 && !questIds.every((id) => doneQuests.has(id));
                       const requiresVip = offer.requiredVip || offer.item?.requiredVip || offer.enchantment?.requiredVip;
                       const vipLocked = !!requiresVip && !vipActive;
+                      const soldOutOffer = stockLeft(offer) === 0;
                       const locked = questLocked || vipLocked;
                       return (
                         <div key={offer.id} className="card p-3 flex items-center gap-3">
@@ -1230,6 +1270,7 @@ export function MapPage() {
                                   Nv. {offer.requiredLevel}+
                                 </span>
                               )}
+                              <StockBadge offer={offer} />
                             </div>
                           </div>
                           <div className="text-right shrink-0">
@@ -1241,11 +1282,11 @@ export function MapPage() {
                             )}
                             <button
                               onClick={() => buyItem(offer)}
-                              disabled={buyingItemId === (isEnchantment ? offer.enchantmentId : offer.itemId) || locked}
+                              disabled={buyingItemId === (isEnchantment ? offer.enchantmentId : offer.itemId) || locked || soldOutOffer}
                               className="btn-secondary text-xs px-3 py-1 mt-1 disabled:opacity-50"
                               title={locked ? (questLocked ? "Requer concluir uma quest" : "Requer VIP") : undefined}
                             >
-                              {buyingItemId === (isEnchantment ? offer.enchantmentId : offer.itemId) ? "..." : locked ? (questLocked ? "Quest bloqueada" : "VIP") : "Comprar"}
+                              {buyingItemId === (isEnchantment ? offer.enchantmentId : offer.itemId) ? "..." : soldOutOffer ? "Esgotado" : locked ? (questLocked ? "Quest bloqueada" : "VIP") : "Comprar"}
                             </button>
                           </div>
                         </div>
@@ -1267,6 +1308,7 @@ export function MapPage() {
                       const cls = offer.class;
                       if (!cls) return null;
                       const vipLocked = cls.requiredVip && !vipActive;
+                      const soldOutOffer = stockLeft(offer) === 0;
                       return (
                         <div key={offer.id} className="card p-3 flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center overflow-hidden shrink-0">
@@ -1292,17 +1334,18 @@ export function MapPage() {
                                   <Crown size={9} /> VIP
                                 </span>
                               )}
+                              <StockBadge offer={offer} />
                             </div>
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-sm text-yellow-400">{Number(offer.price).toLocaleString()} gold</p>
                             <button
                               onClick={() => buyItem(offer)}
-                              disabled={buyingItemId === offer.classId || vipLocked}
+                              disabled={buyingItemId === offer.classId || vipLocked || soldOutOffer}
                               className="btn-secondary text-xs px-3 py-1 mt-1 disabled:opacity-50"
                               title={vipLocked ? "Requer VIP" : undefined}
                             >
-                              {buyingItemId === offer.classId ? "..." : vipLocked ? "VIP" : "Comprar"}
+                              {buyingItemId === offer.classId ? "..." : soldOutOffer ? "Esgotado" : vipLocked ? "VIP" : "Comprar"}
                             </button>
                           </div>
                         </div>

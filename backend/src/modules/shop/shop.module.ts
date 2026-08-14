@@ -128,6 +128,13 @@ export function createShopModule(app: Express): void {
       });
       if (!product || !product.isActive) throw new AppError(404, "Produto não encontrado");
 
+      // Estoque: stock < 0 = infinito; senão exige unidades restantes (1 por compra, ou a quantidade p/ type=item)
+      const qty = product.type === "item" ? Math.max(1, product.quantity || 1) : 1;
+      const remaining = Number(product.stock ?? -1) < 0 ? Infinity : Number(product.stock) - Number(product.sold ?? 0);
+      if (qty > remaining) {
+        throw new AppError(400, remaining <= 0 ? "Produto esgotado — volte mais tarde." : `Estoque insuficiente — restam ${remaining} unidade(s).`);
+      }
+
       // Requisitos de compra: VIP, quests concluídas e nível do personagem ativo
       const requiresVip =
         product.requiredVip ||
@@ -149,6 +156,10 @@ export function createShopModule(app: Express): void {
           throw new AppError(400, `Saldo insuficiente — custa ${product.price} SF Coins`);
         }
         await prisma.$transaction(async (tx) => {
+          const ok = await tx.$executeRawUnsafe(
+            `UPDATE "ShopProduct" SET "sold" = "sold" + ${qty} WHERE "id" = '${product.id}' AND ("stock" < 0 OR "sold" + ${qty} <= "stock")`
+          );
+          if (ok === 0) throw new AppError(400, "Produto esgotado — volte mais tarde.");
           await tx.user.update({
             where: { id: req.user!.userId },
             data: { sfCoins: { decrement: product.price } },
@@ -179,6 +190,10 @@ export function createShopModule(app: Express): void {
           throw new AppError(400, `Saldo insuficiente — custa ${product.price} PVP Coins`);
         }
         await prisma.$transaction(async (tx) => {
+          const ok = await tx.$executeRawUnsafe(
+            `UPDATE "ShopProduct" SET "sold" = "sold" + ${qty} WHERE "id" = '${product.id}' AND ("stock" < 0 OR "sold" + ${qty} <= "stock")`
+          );
+          if (ok === 0) throw new AppError(400, "Produto esgotado — volte mais tarde.");
           await tx.user.update({
             where: { id: req.user!.userId },
             data: { pvpCoins: { decrement: product.price } },
@@ -209,6 +224,10 @@ export function createShopModule(app: Express): void {
           throw new AppError(400, `Ouro insuficiente — custa ${product.price} de ouro`);
         }
         await prisma.$transaction(async (tx) => {
+          const ok = await tx.$executeRawUnsafe(
+            `UPDATE "ShopProduct" SET "sold" = "sold" + ${qty} WHERE "id" = '${product.id}' AND ("stock" < 0 OR "sold" + ${qty} <= "stock")`
+          );
+          if (ok === 0) throw new AppError(400, "Produto esgotado — volte mais tarde.");
           await tx.user.update({
             where: { id: req.user!.userId },
             data: { gold: { decrement: product.price } },
@@ -236,6 +255,10 @@ export function createShopModule(app: Express): void {
         throw new AppError(400, "Pagamentos ainda não configurados — tente de novo mais tarde");
       }
       await prisma.$transaction(async (tx) => {
+        const ok = await tx.$executeRawUnsafe(
+          `UPDATE "ShopProduct" SET "sold" = "sold" + ${qty} WHERE "id" = '${product.id}' AND ("stock" < 0 OR "sold" + ${qty} <= "stock")`
+        );
+        if (ok === 0) throw new AppError(400, "Produto esgotado — volte mais tarde.");
         await applyProduct(tx, req.user!.userId, product);
         await tx.shopOrder.create({
           data: {

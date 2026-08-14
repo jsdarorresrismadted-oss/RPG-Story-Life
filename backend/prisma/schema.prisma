@@ -750,7 +750,8 @@ model ShopItem {
   enchantmentId    String? // vende um Enchantment direto (userEnchantment)
   price            BigInt
   currency         String       @default("gold")
-  stock            Int          @default(-1)
+  stock            Int          @default(-1) // -1 = infinito
+  sold             Int          @default(0) // unidades já vendidas
   rotationDays     Int          @default(0)
   classId          String? // classe restrita (null = qualquer classe)
   requiredLevel    Int          @default(0)
@@ -1270,6 +1271,8 @@ currency      String       @default("sf_coins") // sf_coins | money | gold | pvp
   itemId        String? // item entregue (type=item)
   classId       String? // classe desbloqueada (type=class)
   quantity      Int          @default(1) // quantidade entregue (type=item)
+  stock         Int          @default(-1) // -1 = infinito
+  sold          Int          @default(0) // unidades já vendidas
   requiredLevel Int          @default(0) // nível mínimo do personagem para comprar
   requiredVip   Boolean      @default(false) // exclusivo para VIP
   requiredQuestIds String? // JSON: ids de quests que o jogador precisa ter concluído

@@ -72,6 +72,8 @@ interface ShopProduct {
   sfCoinAmount: number;
   vipDays: number;
   quantity: number;
+  stock?: number;
+  sold?: number;
   requiredLevel?: number;
   requiredVip?: boolean;
   requiredQuestIds?: string | null;
@@ -145,6 +147,13 @@ function productSubtitle(product: ShopProduct): string | null {
   return null;
 }
 
+// Estoque do produto: stock < 0 = infinito; senão retorna quantas unidades restam
+function productStockLeft(product: ShopProduct): number {
+  const stock = Number(product.stock ?? -1);
+  if (stock < 0) return -1;
+  return Math.max(0, stock - Number(product.sold ?? 0));
+}
+
 export function ShopPage() {
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,6 +198,10 @@ export function ShopPage() {
       if (data.note) toast(data.note, { icon: "🛒" });
       setConfirm(null);
       refreshUser();
+      shopApi
+        .list()
+        .then(({ data }) => setProducts(Array.isArray(data) ? data : []))
+        .catch(() => {});
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Falha na compra");
     } finally {
@@ -284,6 +297,7 @@ export function ShopPage() {
     const recipe = craftRecipeOf(item);
     const enough = enoughFor(product);
     const locked = productLocked(product);
+    const soldOutProduct = productStockLeft(product) === 0;
     const inGameCurrency = product.currency === "sf_coins" || product.currency === "gold" || product.currency === "pvp_coins";
     return (
       <div className="panel p-4 space-y-3 lg:sticky lg:top-4">
@@ -375,11 +389,25 @@ export function ShopPage() {
           </span>
         </div>
 
+        {(() => {
+          const left = productStockLeft(product);
+          if (left < 0) return null;
+          return (
+            <div className="text-center">
+              <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${left === 0 ? "bg-red-500/15 text-red-300" : "bg-dark-800 text-gray-400"}`}>
+                {left === 0 ? "ESGOTADO" : `Restam ${left.toLocaleString("pt-BR")} unidade(s)`}
+              </span>
+            </div>
+          );
+        })()}
+
         <button
           onClick={() => setConfirm(product)}
-          disabled={locked || (inGameCurrency && !enough)}
+          disabled={locked || (inGameCurrency && !enough) || soldOutProduct}
           className={`w-full text-sm px-3 py-2.5 rounded-lg font-medium transition-colors ${
-            locked
+            soldOutProduct
+              ? "bg-dark-700 text-gray-600"
+              : locked
               ? "bg-dark-700 text-gray-500"
               : inGameCurrency
               ? enough
@@ -389,7 +417,9 @@ export function ShopPage() {
           }`}
         >
           <span className="flex items-center justify-center gap-1.5">
-            {locked ? (
+            {soldOutProduct ? (
+              "ESGOTADO"
+            ) : locked ? (
               <>
                 <Lock size={14} />
                 {questLocked(product) ? "Requer quest" : levelLocked(product) ? `Requer Nv. ${product.requiredLevel}` : "Requer VIP"}
@@ -614,6 +644,9 @@ const inGameCurrency = product.currency === "sf_coins" || product.currency === "
                 {currencyIcon(confirm.currency)}
                 Custo: {priceLabel(confirm)}
               </p>
+              {productStockLeft(confirm) === 0 && (
+                <p className="text-red-400 text-xs mt-2">Produto esgotado — restam 0 unidades.</p>
+              )}
               {confirm.currency === "sf_coins" && (user?.sfCoins ?? 0) < confirm.price && (
                 <p className="text-red-400 text-xs mt-2">Saldo insuficiente de SF Coins.</p>
               )}
@@ -628,10 +661,10 @@ const inGameCurrency = product.currency === "sf_coins" || product.currency === "
               <button onClick={() => setConfirm(null)} className="btn-secondary flex-1">Cancelar</button>
               <button
                 onClick={handlePurchase}
-                disabled={buying || ((confirm.currency === "sf_coins" && (user?.sfCoins ?? 0) < confirm.price) || (confirm.currency === "pvp_coins" && (user?.pvpCoins ?? 0) < confirm.price) || (confirm.currency === "gold" && (user?.gold ?? 0) < confirm.price))}
+                disabled={buying || productStockLeft(confirm) === 0 || ((confirm.currency === "sf_coins" && (user?.sfCoins ?? 0) < confirm.price) || (confirm.currency === "pvp_coins" && (user?.pvpCoins ?? 0) < confirm.price) || (confirm.currency === "gold" && (user?.gold ?? 0) < confirm.price))}
                 className="btn-primary flex-1 disabled:opacity-50"
               >
-                {buying ? "Comprando..." : `Comprar por ${priceLabel(confirm)}`}
+                {buying ? "Comprando..." : productStockLeft(confirm) === 0 ? "Esgotado" : `Comprar por ${priceLabel(confirm)}`}
               </button>
             </div>
           </div>

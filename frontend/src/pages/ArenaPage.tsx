@@ -177,6 +177,10 @@ export function ArenaPage() {
       if (data.note) toast(data.note, { icon: "🛒" });
       setConfirm(null);
       refreshAuth();
+      shopApi.list().then(({ data }) => {
+        const list: any[] = Array.isArray(data) ? data : [];
+        setShopProducts(list.filter((p) => p.currency === "pvp_coins" && p.isActive !== false));
+      }).catch(() => {});
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Falha na compra");
     } finally {
@@ -653,6 +657,8 @@ export function ArenaPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {shopProducts.map((p) => {
               const enough = (user?.pvpCoins ?? 0) >= p.price;
+              const stockLeftPvp = Number(p.stock ?? -1) < 0 ? -1 : Math.max(0, Number(p.stock) - Number(p.sold ?? 0));
+              const soldOutPvp = stockLeftPvp === 0;
               const locked =
                 (Number(p.requiredLevel) > 0 && characterLevel < Number(p.requiredLevel)) ||
                 (p.requiredVip && !vipActive);
@@ -692,17 +698,26 @@ export function ArenaPage() {
                     <span className="text-xs text-orange-300 font-medium flex items-center gap-1">
                       <Swords size={12} /> {Number(p.price).toLocaleString("pt-BR")} PVP Coins
                     </span>
-                    <button
-                      onClick={() => setConfirm(p)}
-                      disabled={locked || !enough}
-                      className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-orange-600 to-red-600 text-white hover:opacity-90"
-                    >
-                      {locked ? (
-                        <span className="flex items-center gap-1"><Lock size={11} /> Bloqueado</span>
-                      ) : (
-                        "Comprar"
+                    <span className="flex items-center gap-1.5">
+                      {stockLeftPvp >= 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${soldOutPvp ? "bg-red-500/15 text-red-300" : "bg-dark-700 text-gray-400"}`}>
+                          {soldOutPvp ? "ESGOTADO" : `${stockLeftPvp} restantes`}
+                        </span>
                       )}
-                    </button>
+                      <button
+                        onClick={() => setConfirm(p)}
+                        disabled={locked || !enough || soldOutPvp}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-orange-600 to-red-600 text-white hover:opacity-90"
+                      >
+                        {locked ? (
+                          <span className="flex items-center gap-1"><Lock size={11} /> Bloqueado</span>
+                        ) : soldOutPvp ? (
+                          "Esgotado"
+                        ) : (
+                          "Comprar"
+                        )}
+                      </button>
+                    </span>
                   </div>
                   {!locked && !enough && (
                     <p className="text-[10px] text-red-400 mt-1.5">Saldo insuficiente — vença lutas na arena para ganhar PVP Coins.</p>
@@ -726,6 +741,9 @@ export function ArenaPage() {
               <p className="text-gray-400 flex items-center gap-1.5">
                 <Swords size={14} className="text-orange-400" /> Custo: {Number(confirm.price).toLocaleString("pt-BR")} PVP Coins
               </p>
+              {Number(confirm.stock ?? -1) >= 0 && Number(confirm.stock) - Number(confirm.sold ?? 0) <= 0 && (
+                <p className="text-red-400 text-xs">Produto esgotado — restam 0 unidades.</p>
+              )}
               {(user?.pvpCoins ?? 0) < confirm.price && (
                 <p className="text-red-400 text-xs">Saldo insuficiente de PVP Coins — vença lutas na Arena para ganhar.</p>
               )}
@@ -734,10 +752,10 @@ export function ArenaPage() {
               <button onClick={() => setConfirm(null)} className="btn-secondary flex-1">Cancelar</button>
               <button
                 onClick={handleShopBuy}
-                disabled={buying || (user?.pvpCoins ?? 0) < confirm.price}
+                disabled={buying || (user?.pvpCoins ?? 0) < confirm.price || (Number(confirm.stock ?? -1) >= 0 && Number(confirm.stock) - Number(confirm.sold ?? 0) <= 0)}
                 className="btn-primary flex-1 disabled:opacity-50"
               >
-                {buying ? "Comprando..." : `Comprar por ${Number(confirm.price).toLocaleString("pt-BR")} PVP Coins`}
+                {buying ? "Comprando..." : Number(confirm.stock ?? -1) >= 0 && Number(confirm.stock) - Number(confirm.sold ?? 0) <= 0 ? "Esgotado" : `Comprar por ${Number(confirm.price).toLocaleString("pt-BR")} PVP Coins`}
               </button>
             </div>
           </div>
