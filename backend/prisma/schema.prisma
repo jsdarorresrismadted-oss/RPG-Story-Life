@@ -1262,11 +1262,13 @@ model ShopProduct {
   slug          String       @unique
   name          String
   description   String
-type          String       @default("sf_coins_pack") // sf_coins_pack | vip | pass_premium | enchantment | item | class
+type          String       @default("sf_coins_pack") // sf_coins_pack | vip | pass_premium | item | class | gold_pack | gacha_ticket
 currency      String       @default("sf_coins") // sf_coins | money | gold | pvp_coins
     price         Int          @default(0) // custo em SF Coins, centavos (moeda real), ouro ou PVP Coins
     sfCoinAmount  Int          @default(0) // SF Coins entregues (sf_coins_pack)
   vipDays       Int          @default(0) // dias de VIP entregues (vip)
+  goldAmount    Int          @default(0) // ouro entregue (gold_pack)
+  gachaTickets  Int          @default(0) // tickets de gacha entregues (gacha_ticket)
   enchantmentId String?
   itemId        String? // item entregue (type=item)
   classId       String? // classe desbloqueada (type=class)

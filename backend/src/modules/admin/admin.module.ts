@@ -1579,13 +1579,14 @@ export function createAdminModule(app: Express): void {
 
   app.post("/api/admin/shop-products", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder, stock, requiredLevel, requiredVip } = req.body;
+      const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, goldAmount, gachaTickets, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder, stock, requiredLevel, requiredVip } = req.body;
       if (!slug || !name || !type) throw new AppError(400, "slug, name e type são obrigatórios");
       res.status(201).json(await prisma.shopProduct.create({
         data: {
           slug, name, description: description || "", type, currency: currency || "sf_coins",
           price: Number(price) || 0, sfCoinAmount: Number(sfCoinAmount) || 0,
-          vipDays: Number(vipDays) || 0, enchantmentId: enchantmentId || null,
+          vipDays: Number(vipDays) || 0, goldAmount: Number(goldAmount) || 0, gachaTickets: Number(gachaTickets) || 0,
+          enchantmentId: enchantmentId || null,
           itemId: itemId || null, classId: classId || null, quantity: Math.max(1, Number(quantity) || 1),
           icon: icon || null, isActive: isActive !== false, sortOrder: Number(sortOrder) || 0,
           stock: Number(stock) === 0 ? 0 : Number(stock) || -1,
@@ -1597,12 +1598,13 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/shop-products/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder, stock, requiredLevel, requiredVip } = req.body;
+      const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, goldAmount, gachaTickets, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder, stock, requiredLevel, requiredVip } = req.body;
       res.json(await prisma.shopProduct.update({
         where: { id: req.params.id },
         data: {
           slug, name, description, type, currency,
           price: Number(price), sfCoinAmount: Number(sfCoinAmount), vipDays: Number(vipDays),
+          goldAmount: Number(goldAmount) || 0, gachaTickets: Number(gachaTickets) || 0,
           enchantmentId: enchantmentId || null, itemId: itemId || null, classId: classId || null,
           quantity: Math.max(1, Number(quantity) || 1),
           icon: icon || null, isActive, sortOrder: Number(sortOrder),

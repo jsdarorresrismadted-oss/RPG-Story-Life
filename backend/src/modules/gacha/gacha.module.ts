@@ -63,7 +63,7 @@ export function createGachaModule(app: Express): void {
         select: { id: true, gachaTickets: true },
       });
       if (!user) throw new AppError(404, "User not found");
-      if (user.gachaTickets < 1) throw new AppError(400, "Você não tem tickets de gacha. Compre um no NPC.");
+      if (user.gachaTickets < 1) throw new AppError(400, "Você não tem tickets de gacha. Compre na Loja do Game.");
 
       const rarity = rollRarity(config.chances);
       const slot = rollSlot(config.slotChances);
@@ -130,33 +130,6 @@ export function createGachaModule(app: Express): void {
         booster: { ...booster, boostValue },
         ticketsLeft,
       });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // Comprar ticket extra com ouro (config: ticketCost > 0)
-  app.post("/api/npcs/:id/gacha/buy-ticket", authenticate, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const npc = await prisma.npc.findUnique({ where: { id: req.params.id }, select: { type: true } });
-      if (!npc) throw new AppError(404, "NPC not found");
-      if (!GACHA_TYPES.has(npc.type)) throw new AppError(403, "Este NPC não é o Gacha.");
-
-      const config = await getGachaConfig();
-      if (!config || !config.active) throw new AppError(400, "Gacha desativado no momento.");
-      const cost = Number(config.ticketCost) || 0;
-      if (cost <= 0) throw new AppError(400, "Tickets não podem ser comprados.");
-
-      const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { id: true, gold: true, gachaTickets: true } });
-      if (!user) throw new AppError(404, "User not found");
-      if (Number(user.gold) < cost) throw new AppError(400, `Gold insuficiente (precisa de ${cost}).`);
-
-      await prisma.$transaction([
-        prisma.user.update({ where: { id: user.id }, data: { gold: { decrement: cost } } }),
-        prisma.user.update({ where: { id: user.id }, data: { gachaTickets: { increment: 1 } } }),
-      ]);
-
-      res.json({ cost, ticketsLeft: user.gachaTickets + 1, goldLeft: Math.max(0, Number(user.gold) - cost) });
     } catch (err) {
       next(err);
     }

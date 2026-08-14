@@ -413,7 +413,6 @@ export default function ShopsPage() {
       npcId: selected!.id,
       price: Number(extra.price) || 0,
       currency,
-      stock: Number(extra.stock) === 0 ? 0 : Number(extra.stock) || -1,
       rotationDays: Number(extra.rotationDays) || 0,
       requiredLevel: Number(extra.requiredLevel) || 0,
       requiredVip: !!extra.requiredVip,
@@ -527,10 +526,6 @@ export default function ShopsPage() {
           <option value="gold">Gold</option>
           <option value="sf_coins">SF Coins</option>
         </select>
-      </div>
-      <div>
-        <label className={labelClass}>Estoque (-1 = infinito)</label>
-        <input type="number" value={form.stock ?? -1} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} className={inputClass} />
       </div>
       <div>
         <label className={labelClass}>Rotação (dias)</label>
@@ -764,15 +759,6 @@ export default function ShopsPage() {
         <td className="py-2.5 px-4 font-mono text-xs">{Number(s.requiredLevel) > 0 ? s.requiredLevel : "-"}</td>
         <td className="py-2.5 px-4">{s.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
         <td className="py-2.5 px-4">{s.requiredQuestIds ? <span className="px-2 py-0.5 rounded-full text-xs bg-sky-500/20 text-sky-300">Quest</span> : <span className="text-xs text-gray-500">-</span>}</td>
-        <td className="py-2.5 px-4">
-          {Number(s.stock) < 0 ? (
-            <span className="text-xs text-gray-500">∞</span>
-          ) : (
-            <span className={`font-mono text-xs ${Number(s.sold ?? 0) >= Number(s.stock) ? "text-red-400" : "text-gray-300"}`} title={`${Number(s.sold ?? 0)} vendidos`}>
-              {Math.max(0, Number(s.stock) - Number(s.sold ?? 0))}/{s.stock}
-            </span>
-          )}
-        </td>
         <td className="py-2.5 px-4 text-right whitespace-nowrap">
           <button onClick={() => openEdit(s)} className="text-blue-400 hover:text-blue-300 mr-3"><Pencil size={13} className="inline" /> Edit</button>
           <button onClick={() => handleDelete(s)} className="text-red-400 hover:text-red-300"><Trash2 size={13} className="inline" /> Delete</button>
@@ -806,15 +792,6 @@ export default function ShopsPage() {
         <td className="py-2.5 px-4 font-mono text-xs">{Number(s.requiredLevel) > 0 ? s.requiredLevel : "-"}</td>
         <td className="py-2.5 px-4">{s.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
         <td className="py-2.5 px-4">{s.requiredQuestIds ? <span className="px-2 py-0.5 rounded-full text-xs bg-sky-500/20 text-sky-300">Quest</span> : <span className="text-xs text-gray-500">-</span>}</td>
-        <td className="py-2.5 px-4">
-          {Number(s.stock) < 0 ? (
-            <span className="text-xs text-gray-500">∞</span>
-          ) : (
-            <span className={`font-mono text-xs ${Number(s.sold ?? 0) >= Number(s.stock) ? "text-red-400" : "text-gray-300"}`} title={`${Number(s.sold ?? 0)} vendidos`}>
-              {Math.max(0, Number(s.stock) - Number(s.sold ?? 0))}/{s.stock}
-            </span>
-          )}
-        </td>
         <td className="py-2.5 px-4 text-right whitespace-nowrap">
           {e && (
             <button
@@ -855,15 +832,6 @@ export default function ShopsPage() {
         <td className="py-2.5 px-4 font-mono text-xs">{Number(s.requiredLevel) > 0 ? s.requiredLevel : "-"}</td>
         <td className="py-2.5 px-4">{s.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
         <td className="py-2.5 px-4">{s.requiredQuestIds ? <span className="px-2 py-0.5 rounded-full text-xs bg-sky-500/20 text-sky-300">Quest</span> : <span className="text-xs text-gray-500">-</span>}</td>
-        <td className="py-2.5 px-4">
-          {Number(s.stock) < 0 ? (
-            <span className="text-xs text-gray-500">∞</span>
-          ) : (
-            <span className={`font-mono text-xs ${Number(s.sold ?? 0) >= Number(s.stock) ? "text-red-400" : "text-gray-300"}`} title={`${Number(s.sold ?? 0)} vendidos`}>
-              {Math.max(0, Number(s.stock) - Number(s.sold ?? 0))}/{s.stock}
-            </span>
-          )}
-        </td>
         <td className="py-2.5 px-4 text-right whitespace-nowrap">
           <button onClick={() => openEdit(s)} className="text-blue-400 hover:text-blue-300 mr-3"><Pencil size={13} className="inline" /> Edit</button>
           <button onClick={() => handleDelete(s)} className="text-red-400 hover:text-red-300"><Trash2 size={13} className="inline" /> Delete</button>
@@ -1030,7 +998,6 @@ export default function ShopsPage() {
                       <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Nv. mín</th>
                       <th className="text-left py-2.5 px-4 text-gray-400 font-medium">VIP</th>
                       <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Quest</th>
-                      <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Estoque</th>
                       <th className="text-right py-2.5 px-4 text-gray-400 font-medium">Ações</th>
                     </tr>
                   </thead>
@@ -1038,7 +1005,7 @@ export default function ShopsPage() {
                     {filteredShopItems.map((s) => (shopTab === "items" ? renderItemRow(s) : shopTab === "enchantments" ? renderEnchantmentRow(s) : renderClassRow(s)))}
                     {filteredShopItems.length === 0 && (
                       <tr>
-                        <td colSpan={9} className="py-6 text-center text-gray-500">
+                        <td colSpan={8} className="py-6 text-center text-gray-500">
                           Nada {shopTab === "items" ? "à venda" : shopTab === "classes" ? "de classes na loja" : "de encantamentos na loja"} deste NPC — use [+ ADICIONAR]
                         </td>
                       </tr>

@@ -153,7 +153,6 @@ export const npcApi = {
 export const gachaApi = {
   info: (npcId: string) => api.get(`/npcs/${npcId}/gacha`),
   roll: (npcId: string) => api.post(`/npcs/${npcId}/gacha/roll`),
-  buyTicket: (npcId: string) => api.post(`/npcs/${npcId}/gacha/buy-ticket`),
   my: () => api.get("/gacha/my"),
   equip: (id: string) => api.post(`/gacha/boosters/${id}/equip`),
   unequip: (id: string) => api.post(`/gacha/boosters/${id}/unequip`),

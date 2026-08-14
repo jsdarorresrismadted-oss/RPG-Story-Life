@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { shopApi, authApi, questsApi } from "../services/api";
 import {
-  ShoppingBag, Gem, Crown, Trophy, Coins, Sparkles, Package, Swords, Layers, Lock,
+  ShoppingBag, Gem, Crown, Trophy, Coins, Sparkles, Package, Swords, Layers, Lock, Dices,
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
@@ -66,12 +66,14 @@ interface ShopProduct {
   slug: string;
   name: string;
   description: string;
-  type: "sf_coins_pack" | "vip" | "pass_premium" | "enchantment" | "item" | "class";
+  type: "sf_coins_pack" | "vip" | "pass_premium" | "enchantment" | "item" | "class" | "gold_pack" | "gacha_ticket";
   currency: "sf_coins" | "money" | "gold" | "pvp_coins";
   price: number;
   sfCoinAmount: number;
   vipDays: number;
   quantity: number;
+  goldAmount?: number;
+  gachaTickets?: number;
   stock?: number;
   sold?: number;
   requiredLevel?: number;
@@ -234,7 +236,7 @@ export function ShopPage() {
   const byTab = (key: TabKey) => {
     if (key === "items") return catalog.filter((p) => p.type === "item");
     if (key === "classes") return catalog.filter((p) => p.type === "class");
-    return catalog.filter((p) => ["sf_coins_pack", "vip", "pass_premium"].includes(p.type));
+    return catalog.filter((p) => ["sf_coins_pack", "vip", "pass_premium", "gacha_ticket", "gold_pack"].includes(p.type));
   };
 
   const priceLabel = (product: ShopProduct) => {
@@ -627,6 +629,12 @@ const inGameCurrency = product.currency === "sf_coins" || product.currency === "
               )}
               {confirm.type === "sf_coins_pack" && (
                 <p className="text-cyan-300 flex items-center gap-1.5"><Gem size={14} /> +{confirm.sfCoinAmount} SF Coins</p>
+              )}
+              {confirm.type === "gold_pack" && (
+                <p className="text-yellow-300 flex items-center gap-1.5"><Coins size={14} /> +{Number(confirm.goldAmount ?? 0).toLocaleString("pt-BR")} de ouro</p>
+              )}
+              {confirm.type === "gacha_ticket" && (
+                <p className="text-purple-300 flex items-center gap-1.5"><Dices size={14} /> +{Math.max(1, confirm.gachaTickets ?? 1)} {Math.max(1, confirm.gachaTickets ?? 1) === 1 ? "ticket" : "tickets"} de gacha</p>
               )}
               {confirm.type === "pass_premium" && (
                 <p className="text-purple-300 flex items-center gap-1.5"><Trophy size={14} /> Passe Premium da temporada</p>

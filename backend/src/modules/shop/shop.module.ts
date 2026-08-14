@@ -30,6 +30,22 @@ async function applyProduct(
     return { amount: product.sfCoinAmount, message: `+${product.sfCoinAmount} SF Coins` };
   }
 
+  if (product.type === "gold_pack") {
+    await tx.user.update({
+      where: { id: userId },
+      data: { gold: { increment: product.goldAmount } },
+    });
+    return { amount: product.goldAmount, message: `+${product.goldAmount} de ouro` };
+  }
+
+  if (product.type === "gacha_ticket") {
+    await tx.user.update({
+      where: { id: userId },
+      data: { gachaTickets: { increment: product.gachaTickets } },
+    });
+    return { amount: product.gachaTickets, message: `+${product.gachaTickets} ${product.gachaTickets === 1 ? "ticket" : "tickets"} de gacha` };
+  }
+
   if (product.type === "vip") {
     const user = await tx.user.findUnique({ where: { id: userId }, select: { vipUntil: true } });
     const base = isVipActive(user) ? user.vipUntil.getTime() : Date.now();
@@ -170,7 +186,7 @@ export function createShopModule(app: Express): void {
               userId: req.user!.userId,
               productId: product.id,
               type: product.type,
-              amount: product.type === "vip" ? product.vipDays : product.type === "sf_coins_pack" ? product.sfCoinAmount : product.type === "item" ? Math.max(1, product.quantity || 1) : 1,
+              amount: product.type === "vip" ? product.vipDays : product.type === "sf_coins_pack" ? product.sfCoinAmount : product.type === "gold_pack" ? product.goldAmount : product.type === "gacha_ticket" ? product.gachaTickets : product.type === "item" ? Math.max(1, product.quantity || 1) : 1,
               price: product.price,
               currency: "sf_coins",
               status: "paid",

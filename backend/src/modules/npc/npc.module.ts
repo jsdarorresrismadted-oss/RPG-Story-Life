@@ -112,12 +112,6 @@ export function createNpcModule(app: Express): void {
           });
       if (!shopOffer) throw new AppError(404, "Item not sold by this NPC");
 
-      // Estoque: stock < 0 = infinito; senão exige unidades restantes
-      const remaining = Number(shopOffer.stock ?? -1) < 0 ? Infinity : Number(shopOffer.stock) - Number(shopOffer.sold ?? 0);
-      if (qty > remaining) {
-        throw new AppError(400, remaining <= 0 ? "Item esgotado — volte mais tarde." : `Estoque insuficiente — restam ${remaining} unidade(s).`);
-      }
-
       // Encantamento desativado não pode ser comprado (nem item inativo)
       if (shopOffer.enchantmentId && !shopOffer.enchantment?.isActive) {
         throw new AppError(400, "Este encantamento não está mais disponível.");
@@ -159,11 +153,6 @@ export function createNpcModule(app: Express): void {
       });
 
       await prisma.$transaction(async (tx) => {
-        // Baixa o estoque de forma atômica (concorrência segura)
-        const ok = await tx.$executeRawUnsafe(
-          `UPDATE "ShopItem" SET "sold" = "sold" + ${qty} WHERE "id" = '${shopOffer.id}' AND ("stock" < 0 OR "sold" + ${qty} <= "stock")`
-        );
-        if (ok === 0) throw new AppError(400, "Item esgotado — volte mais tarde.");
         if (currency === "sf_coins") {
           await tx.user.update({
             where: { id: user.id },
@@ -222,7 +211,6 @@ export function createNpcModule(app: Express): void {
         totalPrice,
         currency,
         isClass: !!shopOffer.classId,
-        stockLeft: Number(shopOffer.stock ?? -1) < 0 ? -1 : Math.max(0, Number(shopOffer.stock) - (Number(shopOffer.sold ?? 0) + qty)),
         [currency === "sf_coins" ? "sfCoinsLeft" : "goldLeft"]: Math.max(0, Number(currency === "sf_coins" ? user.sfCoins : user.gold) - totalPrice),
       });
     } catch (err) {
