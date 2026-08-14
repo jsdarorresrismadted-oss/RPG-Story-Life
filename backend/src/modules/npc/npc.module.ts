@@ -137,18 +137,6 @@ export function createNpcModule(app: Express): void {
         requiredQuestIds: shopOffer.requiredQuestIds,
       });
 
-      // Restrição de classe: itens que são exclusivos de uma classe usam o personagem ativo
-      if (itemId && shopOffer.classId) {
-        const restrictedChar = await prisma.character.findFirst({
-          where: { userId: user.id },
-          orderBy: { updatedAt: "desc" },
-          include: { class: true },
-        });
-        if (!restrictedChar || restrictedChar.classId !== shopOffer.classId) {
-          throw new AppError(403, `Este item é exclusivo para a classe ${shopOffer.class?.name ?? "restrita"}.`);
-        }
-      }
-
       const currency = shopOffer.currency === "sf_coins" ? "sf_coins" : "gold";
       const totalPrice = Number(shopOffer.price) * qty;
       if (currency === "sf_coins") {

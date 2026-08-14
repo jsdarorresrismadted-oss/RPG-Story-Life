@@ -1116,7 +1116,7 @@ export default function ShopsPage() {
                     <>
                       <div>
                         <label className={labelClass}>Configuração da oferta</label>
-                        {offerFields(itemForm, setItemForm)}
+                        {offerFields(itemForm, setItemForm, { withClassRestriction: false })}
                       </div>
                       {itemForm.mode === "both" && (
                         <p className="text-xs text-gray-500">O jogador poderá comprar o Item <b>ou</b> craftá-lo com a receita existente.</p>
