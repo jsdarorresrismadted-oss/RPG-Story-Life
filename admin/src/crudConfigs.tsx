@@ -405,6 +405,23 @@ export const crudConfigs: CrudConfig[] = [
       { key: "sfCoinAmount", label: "SF Coins" },
       { key: "vipDays", label: "VIP dias" },
       { key: "quantity", label: "Qtd" },
+      {
+        key: "stock",
+        label: "Estoque",
+        render: (v, item) => {
+          const stock = Number(v ?? -1);
+          const sold = Number((item as any)?.sold ?? 0);
+          if (stock < 0) return <span className="text-xs text-gray-500">∞</span>;
+          return (
+            <span
+              className={`text-xs font-mono ${sold >= stock ? "text-red-400" : "text-gray-300"}`}
+              title={`${sold} vendidos`}
+            >
+              {Math.max(0, stock - sold)}/{stock}
+            </span>
+          );
+        },
+      },
       { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
     ],
     fields: [
@@ -435,6 +452,7 @@ export const crudConfigs: CrudConfig[] = [
       { name: "itemId", label: "Item (tipo item)", type: "select", optionsFrom: "items", visibleIf: { field: "type", values: ["item"] } },
       { name: "classId", label: "Classe (tipo class)", type: "select", optionsFrom: "classes", visibleIf: { field: "type", values: ["class"] } },
       { name: "quantity", label: "Quantidade (tipo item)", type: "number", defaultValue: 1, visibleIf: { field: "type", values: ["item"] }, hint: "Quantas unidades do item o jogador recebe por compra" },
+      { name: "stock", label: "Estoque (-1 = infinito)", type: "number", defaultValue: -1, hint: "Limite de unidades que podem ser vendidas no total (itens, classes, pacotes). -1 = sem limite. O jogo bloqueia a compra quando esgota." },
       { name: "requiredLevel", label: "Nível mínimo", type: "number", defaultValue: 0, hint: "Nível do personagem ativo para comprar (0 = qualquer)" },
       { name: "requiredVip", label: "Exclusivo VIP", type: "boolean", defaultValue: false },
       { name: "requiredQuestIds", label: "Quests para desbloquear (ids, JSON array)", type: "text", hint: "ex: [\"3f2a1b\", \"8c4d5e\"] — o jogador precisa ter concluído todas para comprar" },
