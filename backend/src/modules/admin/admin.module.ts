@@ -511,6 +511,14 @@ export function createAdminModule(app: Express): void {
   app.delete("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id;
+      const target = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true } });
+      if (!target) throw new AppError(404, "User not found");
+      if (target.role === "admin" || target.role === "owner") {
+        throw new AppError(400, "Contas admin/owner não podem ser excluídas");
+      }
+      if ((req as any).user?.userId === id) {
+        throw new AppError(400, "Você não pode excluir a própria conta");
+      }
       const charRows = await prisma.character.findMany({ where: { userId: id }, select: { id: true } });
       const charIds = charRows.map((c) => c.id);
       await prisma.$transaction([

@@ -52,6 +52,8 @@ export default function UsersPage() {
   const [detailData, setDetailData] = useState<any>(null);
   const [addItemName, setAddItemName] = useState("");
   const [addItemQty, setAddItemQty] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -100,12 +102,19 @@ export default function UsersPage() {
     }
   };
 
-  const deleteUser = async (user: AdminUser) => {
-    if (!window.confirm(`Delete user "${user.username}"? This removes all their characters, inventory and data.`)) return;
+  const askDelete = (user: AdminUser) => {
+    setConfirmText("");
+    setDeleteTarget(user);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget) return;
+    if (confirmText.trim().toLowerCase() !== deleteTarget.username.trim().toLowerCase()) return;
     try {
-      await adminApi.users.delete(user.id);
-      toast.success(`${user.username} deleted`);
-      if (detail?.id === user.id) setDetail(null);
+      await adminApi.users.delete(deleteTarget.id);
+      toast.success(`${deleteTarget.username} deleted`);
+      if (detail?.id === deleteTarget.id) setDetail(null);
+      setDeleteTarget(null);
       load();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete user");
@@ -316,7 +325,7 @@ export default function UsersPage() {
                       {u.isBanned ? "Unban" : "Ban"}
                     </button>
                     <button
-                      onClick={() => deleteUser(u)}
+                      onClick={() => askDelete(u)}
                       title="Delete user"
                       className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
                     >
@@ -602,6 +611,49 @@ export default function UsersPage() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+    {deleteTarget && (
+        <div className={modalBg} onClick={() => setDeleteTarget(null)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-dark-800 border border-red-500/40 rounded-xl p-6 w-full max-w-md space-y-4 mt-10"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                <Trash2 size={18} /> Delete user
+              </h2>
+              <button type="button" onClick={() => setDeleteTarget(null)} className="text-gray-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300">
+              Isso remove <span className="text-white font-medium">{deleteTarget.username}</span> e todos os seus
+              personagens, inventário e dados. <span className="text-red-400">Essa ação não pode ser desfeita.</span>
+            </p>
+            <label className="block text-xs text-gray-400">
+              Digite o nome do usuário para confirmar
+              <input
+                autoFocus
+                className="input-rpg mt-1 w-full font-mono"
+                placeholder={deleteTarget.username}
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && confirmText.trim().toLowerCase() === deleteTarget.username.trim().toLowerCase()) {
+                    confirmDeleteUser();
+                  }
+                }}
+              />
+            </label>
+            <button
+              onClick={confirmDeleteUser}
+              disabled={confirmText.trim().toLowerCase() !== deleteTarget.username.trim().toLowerCase()}
+              className="w-full px-4 py-2.5 text-sm font-semibold rounded-lg bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Excluir definitivamente
+            </button>
           </div>
         </div>
       )}

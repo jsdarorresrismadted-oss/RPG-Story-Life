@@ -34,6 +34,8 @@ export default function CodesPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<RedeemCode | null>(null);
   const [form, setForm] = useState<any>(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<RedeemCode | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -112,11 +114,18 @@ export default function CodesPage() {
     }
   };
 
-  const remove = async (code: RedeemCode) => {
-    if (!window.confirm(`Delete code "${code.code}"?`)) return;
+  const askDelete = (code: RedeemCode) => {
+    setConfirmText("");
+    setDeleteTarget(code);
+  };
+
+  const confirmDeleteCode = async () => {
+    if (!deleteTarget) return;
+    if (confirmText.trim().toUpperCase() !== deleteTarget.code.trim().toUpperCase()) return;
     try {
-      await adminApi.codes.delete(code.id);
+      await adminApi.codes.delete(deleteTarget.id);
       toast.success("Code deleted");
+      setDeleteTarget(null);
       load();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete code");
@@ -191,7 +200,7 @@ export default function CodesPage() {
                       <Pencil size={14} /> Edit
                     </button>
                     <button
-                      onClick={() => remove(c)}
+                      onClick={() => askDelete(c)}
                       className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
                     >
                       <Trash2 size={14} /> Delete
@@ -309,6 +318,49 @@ export default function CodesPage() {
             </div>
             <button type="submit" className="btn-primary w-full">Save code</button>
           </form>
+        </div>
+      )}
+    {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto" onClick={() => setDeleteTarget(null)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-dark-800 border border-red-500/40 rounded-xl p-6 w-full max-w-md space-y-4 mt-10"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                <Trash2 size={18} /> Delete code
+              </h2>
+              <button type="button" onClick={() => setDeleteTarget(null)} className="text-gray-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300">
+              Excluir o código <span className="text-yellow-300 font-mono font-medium">{deleteTarget.code}</span>?
+              Quem ainda não resgatou não poderá mais usar. <span className="text-red-400">Essa ação não pode ser desfeita.</span>
+            </p>
+            <label className="block text-xs text-gray-400">
+              Digite o código para confirmar
+              <input
+                autoFocus
+                className="input-rpg mt-1 w-full font-mono uppercase"
+                placeholder={deleteTarget.code}
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && confirmText.trim().toUpperCase() === deleteTarget.code.trim().toUpperCase()) {
+                    confirmDeleteCode();
+                  }
+                }}
+              />
+            </label>
+            <button
+              onClick={confirmDeleteCode}
+              disabled={confirmText.trim().toUpperCase() !== deleteTarget.code.trim().toUpperCase()}
+              className="w-full px-4 py-2.5 text-sm font-semibold rounded-lg bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Excluir definitivamente
+            </button>
+          </div>
         </div>
       )}
     </div>
