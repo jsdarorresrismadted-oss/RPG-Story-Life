@@ -1176,7 +1176,7 @@ export default function ShopsPage() {
                   {enchantmentPreview(en)}
                   <div>
                     <label className={labelClass}>Configuração da oferta</label>
-                    {offerFields(enchForm, setEnchForm)}
+                    {offerFields(enchForm, setEnchForm, { withClassRestriction: false })}
                   </div>
                 </>
               );
