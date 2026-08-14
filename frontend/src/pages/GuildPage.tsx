@@ -58,7 +58,7 @@ export function GuildPage() {
       itemsApi.list().catch(() => ({ data: [] })),
     ]).then(([req, items]) => {
       setRequirements(req.data);
-      setAllItems(items.data);
+      setAllItems(Array.isArray(items.data) ? items.data : items.data?.items ?? []);
     });
     load();
   }, [load]);
