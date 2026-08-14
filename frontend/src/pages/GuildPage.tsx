@@ -376,7 +376,7 @@ export function GuildPage() {
       {tab === "shop" && (
         <div className="panel p-4 space-y-4">
           <h2 className="font-display font-bold text-lg flex items-center gap-2"><ShoppingCart size={18} className="text-cyan-400" /> Shop da Guilda</h2>
-          <p className="text-xs text-gray-400">Compre itens usando GC (Guild Coins) — ganhe GC completando as quests da guilda. Os itens do shop são definidos pelo staff do jogo.</p>
+          <p className="text-xs text-gray-400">Compre itens usando GC (Guild Coins) — ganhe GC completando as quests da guilda. O shop é o mesmo para todas as guildas e é definido pelo staff do jogo.</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {guild.shop?.map((s) => (

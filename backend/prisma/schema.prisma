@@ -870,15 +870,15 @@ model GuildBank {
 }
 
 model GuildShopItem {
-  id        String   @id @default(uuid())
-  guildId   String
+  id        String    @id @default(uuid())
+  guildId   String? // null = shop GLOBAL (mesmo shop para todas as guildas)
   itemId    String
-  price     BigInt   @default(0) // custo em pontos de contribuição
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  guild     Guild    @relation(fields: [guildId], references: [id])
-  item      Item     @relation(fields: [itemId], references: [id])
+  price     BigInt    @default(0) // custo em pontos de contribuição
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  guild     Guild?    @relation(fields: [guildId], references: [id])
+  item      Item      @relation(fields: [itemId], references: [id])
 
   @@index([guildId])
 }

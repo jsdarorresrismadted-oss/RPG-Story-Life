@@ -90,18 +90,19 @@ export function createGuildModule(app: Express): void {
           },
           perks: true,
           bank: true,
-          shop: {
-            where: { isActive: true },
-            orderBy: { sortOrder: "asc" },
-            include: { item: { select: { id: true, name: true, icon: true, rarity: true, type: true, description: true, level: true } } },
-          },
         },
       });
       if (!guild) {
         res.status(404).json({ error: "Guild not found" });
         return;
       }
-      res.json(guild);
+      // Shop global: o mesmo shop vale para todas as guildas (guildId = null)
+      const shop = await prisma.guildShopItem.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+        include: { item: { select: { id: true, name: true, icon: true, rarity: true, type: true, description: true, level: true } } },
+      });
+      res.json({ ...guild, shop });
     } catch (err) {
       next(err);
     }
@@ -365,8 +366,9 @@ export function createGuildModule(app: Express): void {
   app.get("/api/guilds/:id/shop", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
       await requireGuildRole(req.user!.userId, req.params.id, "member");
+      // Shop GLOBAL: mesmo shop para todas as guildas
       const shop = await prisma.guildShopItem.findMany({
-        where: { guildId: req.params.id, isActive: true },
+        where: { isActive: true },
         orderBy: { sortOrder: "asc" },
         include: { item: true },
       });
@@ -384,7 +386,7 @@ export function createGuildModule(app: Express): void {
         where: { id: req.params.shopItemId },
         include: { item: true },
       });
-      if (!entry || entry.guildId !== req.params.id || !entry.isActive) {
+      if (!entry || !entry.isActive) {
         throw new AppError(404, "Item não encontrado no shop da guilda");
       }
 

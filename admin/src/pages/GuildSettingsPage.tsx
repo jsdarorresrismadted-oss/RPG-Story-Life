@@ -94,11 +94,10 @@ export default function GuildSettingsPage() {
     } catch {}
   };
 
-  const loadShop = async (guildId: string) => {
-    if (!guildId) return setShopItems([]);
+  const loadShop = async () => {
     setShopLoading(true);
     try {
-      const { data } = await adminApi.guilds.shop.list(guildId);
+      const { data } = await adminApi.guilds.shop.list();
       setShopItems(Array.isArray(data) ? data : []);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to load guild shop");
@@ -124,10 +123,10 @@ export default function GuildSettingsPage() {
     load();
     loadGuilds();
     loadAllItems();
+    loadShop();
   }, []);
 
   useEffect(() => {
-    loadShop(selectedGuildId);
     loadQuests(selectedGuildId);
   }, [selectedGuildId]);
 
@@ -150,14 +149,14 @@ export default function GuildSettingsPage() {
 
   const handleAddShopItem = async (e: FormEvent) => {
     e.preventDefault();
-    if (!selectedGuildId || !itemIdToAdd) return;
+    if (!itemIdToAdd) return;
     setAddingShop(true);
     try {
-      await adminApi.guilds.shop.add(selectedGuildId, { itemId: itemIdToAdd, price: Number(itemPrice) || 100 });
+      await adminApi.guilds.shop.add({ itemId: itemIdToAdd, price: Number(itemPrice) || 100 });
       toast.success("Item adicionado ao shop da guilda");
       setItemIdToAdd("");
       setItemPrice("");
-      await loadShop(selectedGuildId);
+      await loadShop();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to add item");
     } finally {
@@ -166,11 +165,10 @@ export default function GuildSettingsPage() {
   };
 
   const handleRemoveShopItem = async (shopItemId: string) => {
-    if (!selectedGuildId) return;
     try {
-      await adminApi.guilds.shop.remove(selectedGuildId, shopItemId);
+      await adminApi.guilds.shop.remove(shopItemId);
       toast.success("Item removido do shop da guilda");
-      await loadShop(selectedGuildId);
+      await loadShop();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to remove item");
     }
@@ -276,10 +274,73 @@ export default function GuildSettingsPage() {
       </form>
 
       <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShoppingCart size={18} className="text-cyan-400" />
+          <h2 className="text-lg font-bold">Shop da Guilda (compartilhado)</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300">MESMO SHOP PARA TODAS AS GUILDAS</span>
+        </div>
+        <p className="text-sm text-gray-500">Itens colocados aqui aparecem no shop de todas as guildas. Jogadores compram com GC (Guild Coins).</p>
+
+        <form onSubmit={handleAddShopItem} className="flex flex-col sm:flex-row gap-2 bg-dark-900/50 border border-dark-600 rounded-lg p-3">
+          <select value={itemIdToAdd} onChange={(e) => setItemIdToAdd(e.target.value)} className={inputClass + " flex-1"} required>
+            <option value="">Selecione um item...</option>
+            {allItems.map((it) => (
+              <option key={it.id} value={it.id}>
+                {it.name} (Nv {it.level} • {it.type})
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            value={itemPrice}
+            onChange={(e) => setItemPrice(e.target.value)}
+            className={inputClass + " sm:w-36"}
+            placeholder="Preço (GC)"
+            required
+          />
+          <button type="submit" disabled={addingShop} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0">
+            <Plus size={14} />
+            {addingShop ? "Adicionando..." : "Adicionar"}
+          </button>
+        </form>
+
+        {shopLoading ? (
+          <p className="text-sm text-gray-500">Carregando shop...</p>
+        ) : shopItems.length === 0 ? (
+          <p className="text-sm text-gray-500">O shop está vazio — adicione itens acima.</p>
+        ) : (
+          <div className="space-y-2">
+            {shopItems.map((s) => (
+              <div key={s.id} className="flex items-center justify-between bg-dark-900/50 border border-dark-600 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-lg">{s.item?.icon ? "🛡️" : "🎁"}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{s.item?.name ?? "Item removido"}</p>
+                    <p className="text-xs text-gray-500">Nível {s.item?.level ?? "-"} • {s.item?.type ?? "-"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs font-bold text-emerald-300">{Number(s.price).toLocaleString()} GC</span>
+                  <button
+                    onClick={() => handleRemoveShopItem(s.id)}
+                    className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded text-red-400"
+                    title="Remover do shop"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <Users size={18} className="text-cyan-400" />
-            <h2 className="text-lg font-bold">Shop da Guilda &amp; Quests</h2>
+            <h2 className="text-lg font-bold">Quests da Guilda</h2>
           </div>
           <select
             value={selectedGuildId}
@@ -296,75 +357,15 @@ export default function GuildSettingsPage() {
         </div>
 
         {!selectedGuild && (
-          <p className="text-sm text-gray-500">Escolha uma guilda acima para gerenciar o shop (itens colocados pelo staff) e ver as quests ativas.</p>
+          <p className="text-sm text-gray-500">Escolha uma guilda acima para ver e regenerar as quests ativas.</p>
         )}
 
         {selectedGuild && (
           <>
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-                <ShoppingCart size={15} className="text-cyan-400" /> Shop da Guilda — {selectedGuild.name} (preço em GC)
-              </h3>
-
-              <form onSubmit={handleAddShopItem} className="flex flex-col sm:flex-row gap-2 bg-dark-900/50 border border-dark-600 rounded-lg p-3">
-                <select value={itemIdToAdd} onChange={(e) => setItemIdToAdd(e.target.value)} className={inputClass + " flex-1"} required>
-                  <option value="">Selecione um item...</option>
-                  {allItems.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.name} (Nv {it.level} • {it.type})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min={1}
-                  value={itemPrice}
-                  onChange={(e) => setItemPrice(e.target.value)}
-                  className={inputClass + " sm:w-36"}
-                  placeholder="Preço (GC)"
-                  required
-                />
-                <button type="submit" disabled={addingShop} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0">
-                  <Plus size={14} />
-                  {addingShop ? "Adicionando..." : "Adicionar"}
-                </button>
-              </form>
-
-              {shopLoading ? (
-                <p className="text-sm text-gray-500">Carregando shop...</p>
-              ) : shopItems.length === 0 ? (
-                <p className="text-sm text-gray-500">O shop desta guilda está vazio — adicione itens acima.</p>
-              ) : (
-                <div className="space-y-2">
-                  {shopItems.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between bg-dark-900/50 border border-dark-600 rounded-lg px-3 py-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-lg">{s.item?.icon ? "🛡️" : "🎁"}</span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{s.item?.name ?? "Item removido"}</p>
-                          <p className="text-xs text-gray-500">Nível {s.item?.level ?? "-"} • {s.item?.type ?? "-"}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs font-bold text-emerald-300">{Number(s.price).toLocaleString()} GC</span>
-                        <button
-                          onClick={() => handleRemoveShopItem(s.id)}
-                          className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded text-red-400"
-                          title="Remover do shop"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-                  <Trophy size={15} className="text-emerald-400" /> Quests da Guilda — {selectedGuild.name}
+                  <Trophy size={15} className="text-emerald-400" /> Quests ativas — {selectedGuild.name}
                 </h3>
                 <button
                   onClick={handleRegenerate}

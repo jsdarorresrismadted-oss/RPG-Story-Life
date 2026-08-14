@@ -11,6 +11,8 @@ import { AppError } from "./middleware/errorHandler";
 const QUEST_DURATION_MS = 24 * 60 * 60 * 1000;
 const GUILD_QUEST_BASE = { gc: 50, xp: 1000, gold: 2000 };
 const GUILD_QUEST_TARGETS = { kill: 10, collect: 5, pvp: 3 };
+// Monstros de treino nunca podem virar quest de guilda
+const GUILD_QUEST_EXCLUDED_MONSTERS = ["Dummy de Treino"];
 
 function pick<T>(arr: T[]): T | undefined {
   if (!arr || arr.length === 0) return undefined;
@@ -41,9 +43,9 @@ export async function ensureGuildQuests(guildId: string, guildLevel = 1): Promis
   if (active > 0) return;
 
   const [monsters, monsterSources] = await Promise.all([
-    prisma.monster.findMany({ where: { isActive: true }, take: 50 }),
+    prisma.monster.findMany({ where: { isActive: true, NOT: { name: { in: GUILD_QUEST_EXCLUDED_MONSTERS } } }, take: 50 }),
     prisma.monster.findMany({
-      where: { isActive: true, drops: { some: { item: { isActive: true } } } },
+      where: { isActive: true, NOT: { name: { in: GUILD_QUEST_EXCLUDED_MONSTERS } }, drops: { some: { item: { isActive: true } } } },
       include: { drops: { where: { item: { isActive: true } }, include: { item: true } } },
       take: 30,
     }),

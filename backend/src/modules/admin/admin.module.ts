@@ -284,12 +284,12 @@ export function createAdminModule(app: Express): void {
     }
   });
 
-  // Shop da guilda (itens colocados pelo staff, comprados com GC pelos jogadores)
-  app.get("/api/admin/guilds/:id/shop", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  // Shop da guilda GLOBAL (itens colocados pelo staff, comprados com GC pelos jogadores — mesmo shop para todas as guildas)
+  app.get("/api/admin/guild-shop", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(
         await prisma.guildShopItem.findMany({
-          where: { guildId: req.params.id, isActive: true },
+          where: { isActive: true },
           orderBy: { sortOrder: "asc" },
           include: { item: true },
         })
@@ -299,7 +299,7 @@ export function createAdminModule(app: Express): void {
     }
   });
 
-  app.post("/api/admin/guilds/:id/shop", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/guild-shop", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { itemId, price } = req.body;
       if (!itemId) throw new AppError(400, "itemId é obrigatório");
@@ -307,12 +307,12 @@ export function createAdminModule(app: Express): void {
       if (!item) throw new AppError(404, "Item não encontrado");
 
       const existing = await prisma.guildShopItem.findFirst({
-        where: { guildId: req.params.id, itemId, isActive: true },
+        where: { itemId, isActive: true },
       });
       if (existing) throw new AppError(409, "Este item já está no shop da guilda");
 
       const entry = await prisma.guildShopItem.create({
-        data: { guildId: req.params.id, itemId, price: BigInt(Math.max(1, Math.floor(Number(price) || 100))) },
+        data: { guildId: null, itemId, price: BigInt(Math.max(1, Math.floor(Number(price) || 100))) },
       });
       res.status(201).json(entry);
     } catch (err) {
@@ -320,10 +320,10 @@ export function createAdminModule(app: Express): void {
     }
   });
 
-  app.delete("/api/admin/guilds/:id/shop/:shopItemId", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.delete("/api/admin/guild-shop/:shopItemId", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       await prisma.guildShopItem.updateMany({
-        where: { id: req.params.shopItemId, guildId: req.params.id },
+        where: { id: req.params.shopItemId },
         data: { isActive: false },
       });
       res.json({ message: "Item removido do shop da guilda" });

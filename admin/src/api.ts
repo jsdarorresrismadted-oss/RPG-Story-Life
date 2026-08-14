@@ -191,11 +191,9 @@ export const adminApi = {
   guilds: {
     list: () => api.get("/admin/guilds"),
     shop: {
-      list: (id: string) => api.get(`/admin/guilds/${id}/shop`),
-      add: (id: string, data: { itemId: string; price: number }) =>
-        api.post(`/admin/guilds/${id}/shop`, data),
-      remove: (id: string, shopItemId: string) =>
-        api.delete(`/admin/guilds/${id}/shop/${shopItemId}`),
+      list: () => api.get("/admin/guild-shop"),
+      add: (data: { itemId: string; price: number }) => api.post("/admin/guild-shop", data),
+      remove: (shopItemId: string) => api.delete(`/admin/guild-shop/${shopItemId}`),
     },
     quests: {
       list: (id: string) => api.get(`/admin/guilds/${id}/quests`),
