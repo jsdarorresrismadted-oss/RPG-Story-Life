@@ -84,13 +84,12 @@ interface ShopProduct {
   icon?: string | null;
 }
 
-type TabKey = "items" | "classes" | "offers" | "pvp";
+type TabKey = "items" | "classes" | "offers";
 
 const TABS: { key: TabKey; label: string; icon: any }[] = [
   { key: "items", label: "Itens", icon: Package },
   { key: "classes", label: "Classes", icon: Swords },
   { key: "offers", label: "Ofertas", icon: Layers },
-  { key: "pvp", label: "Loja PvP", icon: Trophy },
 ];
 
 const rarityColor: Record<string, string> = {
@@ -216,11 +215,13 @@ export function ShopPage() {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>;
   }
 
+  // Produtos de PVP Coins agora ficam na Loja PvP da Arena — não aparecem na Loja.
+  const catalog = products.filter((p) => p.currency !== "pvp_coins");
+
   const byTab = (key: TabKey) => {
-    if (key === "items") return products.filter((p) => p.type === "item");
-    if (key === "classes") return products.filter((p) => p.type === "class");
-    if (key === "pvp") return products.filter((p) => p.currency === "pvp_coins");
-    return products.filter((p) => ["sf_coins_pack", "vip", "pass_premium"].includes(p.type));
+    if (key === "items") return catalog.filter((p) => p.type === "item");
+    if (key === "classes") return catalog.filter((p) => p.type === "class");
+    return catalog.filter((p) => ["sf_coins_pack", "vip", "pass_premium"].includes(p.type));
   };
 
   const priceLabel = (product: ShopProduct) => {

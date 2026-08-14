@@ -188,6 +188,20 @@ export const adminApi = {
     update: (id: string, data: any) => api.put(`/admin/patch-notes/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/patch-notes/${id}`, { params }),
   },
+  guilds: {
+    list: () => api.get("/admin/guilds"),
+    shop: {
+      list: (id: string) => api.get(`/admin/guilds/${id}/shop`),
+      add: (id: string, data: { itemId: string; price: number }) =>
+        api.post(`/admin/guilds/${id}/shop`, data),
+      remove: (id: string, shopItemId: string) =>
+        api.delete(`/admin/guilds/${id}/shop/${shopItemId}`),
+    },
+    quests: {
+      list: (id: string) => api.get(`/admin/guilds/${id}/quests`),
+      regenerate: (id: string) => api.post(`/admin/guilds/${id}/quests/regenerate`),
+    },
+  },
   boosters: {
     list: () => api.get("/admin/boosters"),
     create: (data: any) => api.post("/admin/boosters", data),

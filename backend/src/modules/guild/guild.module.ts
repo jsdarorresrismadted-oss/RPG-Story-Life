@@ -360,7 +360,7 @@ export function createGuildModule(app: Express): void {
     }
   });
 
-  // ===== Shop da guilda (compra com pontos de contribuição) =====
+  // ===== Shop da guilda (itens colocados pelo staff no admin; jogadores só compram com GC) =====
 
   app.get("/api/guilds/:id/shop", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -371,43 +371,6 @@ export function createGuildModule(app: Express): void {
         include: { item: true },
       });
       res.json(shop);
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // Adiciona um item ao shop da guilda (Leader/Officer).
-  app.post("/api/guilds/:id/shop", authenticate, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await requireGuildRole(req.user!.userId, req.params.id, "officer");
-      const { itemId, price } = req.body;
-      if (!itemId) throw new AppError(400, "itemId é obrigatório");
-      const item = await prisma.item.findUnique({ where: { id: itemId } });
-      if (!item) throw new AppError(404, "Item não encontrado");
-
-      const existing = await prisma.guildShopItem.findFirst({
-        where: { guildId: req.params.id, itemId, isActive: true },
-      });
-      if (existing) throw new AppError(409, "Este item já está no shop da guilda");
-
-      const entry = await prisma.guildShopItem.create({
-        data: { guildId: req.params.id, itemId, price: BigInt(Math.max(1, Math.floor(Number(price) || 100))) },
-      });
-      res.status(201).json(entry);
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // Remove um item do shop da guilda (Leader/Officer).
-  app.delete("/api/guilds/:id/shop/:shopItemId", authenticate, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await requireGuildRole(req.user!.userId, req.params.id, "officer");
-      await prisma.guildShopItem.updateMany({
-        where: { id: req.params.shopItemId, guildId: req.params.id },
-        data: { isActive: false },
-      });
-      res.json({ message: "Item removido do shop" });
     } catch (err) {
       next(err);
     }

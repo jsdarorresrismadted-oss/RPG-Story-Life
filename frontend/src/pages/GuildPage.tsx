@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { guildApi, itemsApi, authApi } from "../services/api";
-import { Guild, GuildShopItem, Item } from "../types";
+import { guildApi, authApi } from "../services/api";
+import { Guild, GuildShopItem } from "../types";
 import { Users, Shield, Plus, LogOut, Trophy, Star, Coins, Crown, ChevronUp, ChevronDown, Trash2, ShoppingCart, Gem, Swords } from "lucide-react";
 import { EntityIcon } from "../components/EntityIcon";
 import toast from "react-hot-toast";
@@ -25,9 +25,6 @@ export function GuildPage() {
   const [form, setForm] = useState({ name: "", tag: "", description: "" });
   const [tab, setTab] = useState<"members" | "shop" | "quests" | "info">("members");
   const [depositAmt, setDepositAmt] = useState("");
-  const [shopItemId, setShopItemId] = useState("");
-  const [shopPrice, setShopPrice] = useState("");
-  const [allItems, setAllItems] = useState<Item[]>([]);
   const [quests, setQuests] = useState<GuildQuest[]>([]);
   const [claiming, setClaiming] = useState<string | null>(null);
 
@@ -53,12 +50,8 @@ export function GuildPage() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      guildApi.requirements().catch(() => ({ data: null })),
-      itemsApi.list().catch(() => ({ data: [] })),
-    ]).then(([req, items]) => {
+    guildApi.requirements().catch(() => ({ data: null })).then((req) => {
       setRequirements(req.data);
-      setAllItems(Array.isArray(items.data) ? items.data : items.data?.items ?? []);
     });
     load();
   }, [load]);
@@ -159,29 +152,6 @@ export function GuildPage() {
     try {
       const { data } = await guildApi.rankUpMember(guild!.id, memberId);
       toast.success(data.message);
-      await refreshGuild(guild!.id);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Falha");
-    }
-  };
-
-  const handleAddShop = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await guildApi.addShopItem(guild!.id, { itemId: shopItemId, price: Number(shopPrice) || 100 });
-      toast.success("Item adicionado ao shop da guilda");
-      setShopItemId("");
-      setShopPrice("");
-      await refreshGuild(guild!.id);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Falha");
-    }
-  };
-
-  const handleRemoveShop = async (shopItemId: string) => {
-    try {
-      await guildApi.removeShopItem(guild!.id, shopItemId);
-      toast.success("Item removido do shop");
       await refreshGuild(guild!.id);
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Falha");
@@ -406,20 +376,7 @@ export function GuildPage() {
       {tab === "shop" && (
         <div className="panel p-4 space-y-4">
           <h2 className="font-display font-bold text-lg flex items-center gap-2"><ShoppingCart size={18} className="text-cyan-400" /> Shop da Guilda</h2>
-          <p className="text-xs text-gray-400">Compre itens usando GC (Guild Coins) — ganhe GC completando as quests da guilda. O líder e oficiais adicionam itens ao shop.</p>
-
-          {canManage && (
-            <form onSubmit={handleAddShop} className="flex flex-col sm:flex-row gap-2 bg-dark-800/50 border border-dark-600 rounded-lg p-3">
-              <select value={shopItemId} onChange={e => setShopItemId(e.target.value)} className="input-rpg flex-1" required>
-                <option value="">Selecione um item...</option>
-                {allItems.map((it) => (
-                  <option key={it.id} value={it.id}>{it.name} (Nv {it.level})</option>
-                ))}
-              </select>
-              <input value={shopPrice} onChange={e => setShopPrice(e.target.value)} type="number" min={1} className="input-rpg w-36" placeholder="Preço (GC)" required />
-              <button type="submit" className="btn-primary text-sm shrink-0"><Plus size={14} /> Adicionar</button>
-            </form>
-          )}
+          <p className="text-xs text-gray-400">Compre itens usando GC (Guild Coins) — ganhe GC completando as quests da guilda. Os itens do shop são definidos pelo staff do jogo.</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {guild.shop?.map((s) => (
@@ -433,14 +390,7 @@ export function GuildPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-emerald-300 flex items-center gap-1"><Swords size={12} /> {Number(s.price).toLocaleString()} GC</span>
-                  <div className="flex gap-1">
-                    <button onClick={() => handleBuyShop(s.id)} className="btn-primary text-xs px-3 py-1">Comprar</button>
-                    {canManage && (
-                      <button onClick={() => handleRemoveShop(s.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded text-red-400">
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
+                  <button onClick={() => handleBuyShop(s.id)} className="btn-primary text-xs px-3 py-1">Comprar</button>
                 </div>
               </div>
             ))}

@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "../services/socket";
-import { pvpApi, authApi, inventoryApi } from "../services/api";
+import { pvpApi, authApi, inventoryApi, shopApi } from "../services/api";
 import { useGameStore } from "../store/gameStore";
 import { useAuthStore } from "../store/authStore";
 import { PvpMatchState, PvpMe } from "../types";
-import { Swords, Star, RefreshCw, LogOut, Crown, Heart, Zap, HeartPulse, Dices } from "lucide-react";
+import { Swords, Star, RefreshCw, LogOut, Crown, Heart, Zap, HeartPulse, Dices, ShoppingBag, Package, Lock } from "lucide-react";
 import toast from "react-hot-toast";
 import { EntityIcon } from "../components/EntityIcon";
+
+const PVP_RARITY_COLOR: Record<string, string> = {
+  common: "text-gray-400",
+  uncommon: "text-green-400",
+  rare: "text-blue-400",
+  epic: "text-purple-400",
+  legendary: "text-orange-400",
+  mythic: "text-red-400",
+  artifact: "text-cyan-400",
+};
 
 function logClass(line: string): string {
   const l = line.toLowerCase();
@@ -64,7 +74,7 @@ function itemEffects(item: any): { heal: number; manaRestore: number } {
 
 export function ArenaPage() {
   const { selectedCharacter } = useGameStore();
-  const { setUser } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const [me, setMe] = useState<PvpMe | null>(null);
   const [match, setMatch] = useState<PvpMatchState | null>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -80,6 +90,10 @@ export function ArenaPage() {
   myCharIdRef.current = selectedCharacter?.id;
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const floaterSeq = useRef(0);
+  const [shopProducts, setShopProducts] = useState<any[]>([]);
+  const [shopLoading, setShopLoading] = useState(true);
+  const [confirm, setConfirm] = useState<any | null>(null);
+  const [buying, setBuying] = useState(false);
 
   // Sistema central de feedback visual (mesmo CSS do combate PvE).
   const emitEvent = (target: "me" | "them", kind: Floater["kind"], value: number) => {
@@ -143,6 +157,32 @@ export function ArenaPage() {
       setPotions(usable);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    shopApi.list().then(({ data }) => {
+      const list: any[] = Array.isArray(data) ? data : [];
+      setShopProducts(list.filter((p) => p.currency === "pvp_coins" && p.isActive !== false));
+    }).catch(() => {}).finally(() => setShopLoading(false));
+  }, []);
+
+  const vipActive = !!user?.vipUntil && new Date(user.vipUntil).getTime() > Date.now();
+  const characterLevel = user?.characters?.[0]?.level ?? user?.level ?? 0;
+
+  const handleShopBuy = async () => {
+    if (!confirm) return;
+    setBuying(true);
+    try {
+      const { data } = await shopApi.purchase(confirm.id);
+      toast.success(`Compra realizada! ${data.detail}`);
+      if (data.note) toast(data.note, { icon: "🛒" });
+      setConfirm(null);
+      refreshAuth();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha na compra");
+    } finally {
+      setBuying(false);
+    }
+  };
 
   useEffect(() => {
     const s = getSocket();
@@ -590,6 +630,119 @@ export function ArenaPage() {
       <p className="text-[11px] text-gray-500 mt-4 flex items-center gap-1.5">
         <Crown size={12} /> Quando um oponente é encontrado, ele recebe um aviso e pode aceitar. Depois é com você: use suas skills e poções na hora. Vencedor ganha ouro e rating.
       </p>
+
+      <div className="mt-6">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <h2 className="font-display font-semibold text-white flex items-center gap-2">
+            <ShoppingBag size={18} className="text-orange-400" /> Loja PvP
+          </h2>
+          <span className="flex items-center gap-1.5 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5 text-sm">
+            <Swords size={14} className="text-orange-400" /> {user?.pvpCoins ?? 0} PVP Coins
+          </span>
+        </div>
+
+        {shopLoading ? (
+          <div className="flex items-center justify-center h-24 text-gray-500">
+            <RefreshCw size={16} className="animate-spin mr-2" /> Carregando loja...
+          </div>
+        ) : shopProducts.length === 0 ? (
+          <div className="rounded-xl border border-dark-600 bg-dark-800/40 p-6 text-center text-gray-500 text-sm">
+            Nenhum item disponível por enquanto — vença lutas na arena para ganhar PVP Coins e volte aqui.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {shopProducts.map((p) => {
+              const enough = (user?.pvpCoins ?? 0) >= p.price;
+              const locked =
+                (Number(p.requiredLevel) > 0 && characterLevel < Number(p.requiredLevel)) ||
+                (p.requiredVip && !vipActive);
+              return (
+                <div key={p.id} className="panel p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-600/30 to-red-600/20 border border-orange-500/20 flex items-center justify-center shrink-0">
+                      {p.item?.icon || p.icon ? (
+                        <EntityIcon src={p.item?.icon || p.icon} size={18} className="text-gray-300" imgClassName="w-6 h-6 object-contain" />
+                      ) : (
+                        <Package size={18} className="text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{p.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {p.item?.rarity && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md capitalize ${PVP_RARITY_COLOR[p.item.rarity] || "text-gray-400"}`}>
+                            {p.item.rarity}
+                          </span>
+                        )}
+                        {Number(p.quantity) > 1 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-dark-700 text-gray-300 rounded-md">{p.quantity}x</span>
+                        )}
+                        {locked && Number(p.requiredLevel) > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/15 text-yellow-300 rounded-md">Nv. {p.requiredLevel}+</span>
+                        )}
+                        {locked && p.requiredVip && (
+                          <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-yellow-500/15 text-yellow-300 rounded-md">
+                            <Crown size={9} /> VIP
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <span className="text-xs text-orange-300 font-medium flex items-center gap-1">
+                      <Swords size={12} /> {Number(p.price).toLocaleString("pt-BR")} PVP Coins
+                    </span>
+                    <button
+                      onClick={() => setConfirm(p)}
+                      disabled={locked || !enough}
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-orange-600 to-red-600 text-white hover:opacity-90"
+                    >
+                      {locked ? (
+                        <span className="flex items-center gap-1"><Lock size={11} /> Bloqueado</span>
+                      ) : (
+                        "Comprar"
+                      )}
+                    </button>
+                  </div>
+                  {!locked && !enough && (
+                    <p className="text-[10px] text-red-400 mt-1.5">Saldo insuficiente — vença lutas na arena para ganhar PVP Coins.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {confirm && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={() => setConfirm(null)}>
+          <div className="panel p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-display font-bold mb-2">Confirmar compra</h3>
+            <p className="text-sm text-gray-200 mb-1">{confirm.name}</p>
+            <div className="bg-dark-800/50 rounded-lg p-3 mb-4 text-sm space-y-1.5">
+              <p className="text-blue-300 flex items-center gap-1.5">
+                <Package size={14} /> {Math.max(1, confirm.quantity || 1)}x {confirm.item?.name || confirm.name} — vai para seu inventário.
+              </p>
+              <p className="text-gray-400 flex items-center gap-1.5">
+                <Swords size={14} className="text-orange-400" /> Custo: {Number(confirm.price).toLocaleString("pt-BR")} PVP Coins
+              </p>
+              {(user?.pvpCoins ?? 0) < confirm.price && (
+                <p className="text-red-400 text-xs">Saldo insuficiente de PVP Coins — vença lutas na Arena para ganhar.</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirm(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button
+                onClick={handleShopBuy}
+                disabled={buying || (user?.pvpCoins ?? 0) < confirm.price}
+                className="btn-primary flex-1 disabled:opacity-50"
+              >
+                {buying ? "Comprando..." : `Comprar por ${Number(confirm.price).toLocaleString("pt-BR")} PVP Coins`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

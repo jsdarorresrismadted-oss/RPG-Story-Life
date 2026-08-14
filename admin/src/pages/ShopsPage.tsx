@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Package, Sparkles, Swords, Plus, Hammer, CheckCircle2, XCircle, MapPin, Pencil, Trash2 } from "lucide-react";
+import { Package, Sparkles, Swords, Plus, Hammer, CheckCircle2, XCircle, MapPin, Pencil, Trash2, Trophy } from "lucide-react";
 import { adminApi } from "../api";
 
 const inputClass =
@@ -139,6 +139,11 @@ export default function ShopsPage() {
   const [editingMap, setEditingMap] = useState<any>(null);
   const [savingMap, setSavingMap] = useState(false);
 
+  const [pvpProducts, setPvpProducts] = useState<any[]>([]);
+  const [pvpModal, setPvpModal] = useState<{ editing?: any } | null>(null);
+  const [pvpForm, setPvpForm] = useState<Record<string, any>>({});
+  const [pvpSaving, setPvpSaving] = useState(false);
+
   const ENCH_CATEGORIES = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
 
   const recipesByItem = useMemo(() => {
@@ -154,13 +159,14 @@ export default function ShopsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [npcsRes, itemsRes, mapsRes, classesRes, enchantmentsRes, recipesRes] = await Promise.all([
+      const [npcsRes, itemsRes, mapsRes, classesRes, enchantmentsRes, recipesRes, shopProductsRes] = await Promise.all([
         adminApi.npcs.list(),
         adminApi.items.list(),
         adminApi.maps.list(),
         adminApi.classes.list(),
         adminApi.enchantments.list(),
         adminApi.craftRecipes.list(),
+        adminApi.shopProducts.list(),
       ]);
       const npcList = Array.isArray(npcsRes.data) ? npcsRes.data : [];
       setNpcs(npcList);
@@ -169,6 +175,7 @@ export default function ShopsPage() {
       setClasses(Array.isArray(classesRes.data) ? classesRes.data : []);
       setEnchantments(Array.isArray(enchantmentsRes.data) ? enchantmentsRes.data : []);
       setCraftRecipes(Array.isArray(recipesRes.data) ? recipesRes.data : []);
+      setPvpProducts(Array.isArray(shopProductsRes.data) ? shopProductsRes.data.filter((x: any) => x.currency === "pvp_coins") : []);
       if (selected) {
         const updated = npcList.find((n: any) => n.id === selected.id);
         if (updated) setSelected(updated);
@@ -184,6 +191,94 @@ export default function ShopsPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ===== Loja PvP (Arena): ShopProducts com PVP Coins =====
+  const openPvpAdd = () => {
+    setPvpForm({ itemId: "", price: 100, quantity: 1, requiredLevel: 0, requiredVip: false, isActive: true });
+    setPvpModal({});
+  };
+
+  const openPvpEdit = (p: any) => {
+    setPvpForm({
+      itemId: p.itemId ?? "",
+      price: Number(p.price ?? 0),
+      quantity: p.quantity ?? 1,
+      requiredLevel: Number(p.requiredLevel ?? 0),
+      requiredVip: !!p.requiredVip,
+      isActive: p.isActive !== false,
+    });
+    setPvpModal({ editing: p });
+  };
+
+  const handlePvpSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setPvpSaving(true);
+    try {
+      const it = items.find((i) => i.id === pvpForm.itemId);
+      if (!it) throw new Error("Item inválido");
+      const base = {
+        name: it.name,
+        description: it.description ?? "",
+        type: "item",
+        currency: "pvp_coins",
+        price: Number(pvpForm.price) || 0,
+        quantity: Math.max(1, Number(pvpForm.quantity) || 1),
+        requiredLevel: Math.max(0, Number(pvpForm.requiredLevel) || 0),
+        requiredVip: !!pvpForm.requiredVip,
+        isActive: pvpForm.isActive !== false,
+        itemId: it.id,
+      };
+      if (pvpModal?.editing) {
+        await adminApi.shopProducts.update(pvpModal.editing.id, base);
+        toast.success("Produto PvP atualizado");
+      } else {
+        await adminApi.shopProducts.create({ ...base, slug: `pvp-${it.id.slice(0, 8)}-${Date.now()}` });
+        toast.success("Item adicionado à Loja PvP");
+      }
+      setPvpModal(null);
+      await load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Falha ao salvar");
+    } finally {
+      setPvpSaving(false);
+    }
+  };
+
+  const handlePvpDelete = async (p: any) => {
+    if (!window.confirm(`Remover "${p.name}" da Loja PvP?`)) return;
+    try {
+      await adminApi.shopProducts.delete(p.id);
+      toast.success("Removido da Loja PvP");
+      await load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Falha ao remover");
+    }
+  };
+
+  const handlePvpToggleActive = async (p: any) => {
+    try {
+      await adminApi.shopProducts.update(p.id, {
+        name: p.name,
+        description: p.description ?? "",
+        type: p.type,
+        currency: p.currency,
+        price: Number(p.price),
+        sfCoinAmount: Number(p.sfCoinAmount ?? 0),
+        vipDays: Number(p.vipDays ?? 0),
+        enchantmentId: p.enchantmentId ?? null,
+        itemId: p.itemId ?? null,
+        classId: p.classId ?? null,
+        quantity: Math.max(1, Number(p.quantity) || 1),
+        icon: p.icon ?? null,
+        isActive: !p.isActive,
+        sortOrder: Number(p.sortOrder ?? 0),
+      });
+      toast.success(p.isActive ? "Produto desativado" : "Produto ativado");
+      await load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Falha ao alternar");
+    }
+  };
 
   const shopNpcs = useMemo(() => npcs.filter((n) => SHOP_TYPES.has(n.type)), [npcs]);
   const availableNpcTypes = useMemo(() => Array.from(new Set(shopNpcs.map((n) => n.type).filter(Boolean))), [shopNpcs]);
@@ -495,23 +590,26 @@ export default function ShopsPage() {
     </div>
   );
 
-  const modalShell = (title: string, subtitle: string, children: ReactNode) => (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => !saving && setAddModal(null)}>
-      <div
-        className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-bold">{title}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+  const modalShell = (title: string, subtitle: string, children: ReactNode, onClose?: () => void) => {
+    const close = onClose ?? (() => setAddModal(null));
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => !saving && close()}>
+        <div
+          className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold">{title}</h2>
+              <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+            </div>
+            <button onClick={close} className="text-gray-500 hover:text-gray-300 text-xl leading-none">✕</button>
           </div>
-          <button onClick={() => setAddModal(null)} className="text-gray-500 hover:text-gray-300 text-xl leading-none">✕</button>
+          {children}
         </div>
-        {children}
       </div>
-    </div>
-  );
+    );
+  };
 
   // ===== Preview de conteúdo =====
   const itemPreview = (item: any) => (
@@ -999,6 +1097,71 @@ export default function ShopsPage() {
         )}
       </div>
 
+      {/* ===== Loja PvP (Arena): ShopProducts com PVP Coins ===== */}
+      <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-dark-600 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Trophy size={15} className="text-orange-400" />
+            <h3 className="font-medium text-white">Loja PvP (Arena)</h3>
+            <span className="text-xs text-gray-500">— itens vendidos na Arena do jogo, pagos com PVP Coins</span>
+          </div>
+          <button onClick={openPvpAdd} className="text-xs text-accent-400 hover:text-accent-300">
+            + Adicionar item
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-dark-600">
+                <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Item</th>
+                <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Preço (PVP Coins)</th>
+                <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Nv. mín</th>
+                <th className="text-left py-2.5 px-4 text-gray-400 font-medium">VIP</th>
+                <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Qtd</th>
+                <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Status</th>
+                <th className="text-right py-2.5 px-4 text-gray-400 font-medium">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pvpProducts.map((p) => (
+                <tr key={p.id} className="border-b border-dark-700 hover:bg-dark-800/50">
+                  <td className="py-2.5 px-4">
+                    <div className="flex items-center gap-2.5">
+                      {imgIcon(p.item?.icon ?? p.icon, "w-8 h-8")}
+                      <span className="font-medium text-white">{p.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-4 font-mono text-xs text-orange-300">{Number(p.price).toLocaleString()}</td>
+                  <td className="py-2.5 px-4 font-mono text-xs">{Number(p.requiredLevel) > 0 ? p.requiredLevel : "-"}</td>
+                  <td className="py-2.5 px-4">{p.requiredVip ? <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">VIP</span> : <span className="text-xs text-gray-500">-</span>}</td>
+                  <td className="py-2.5 px-4 font-mono text-xs">{p.quantity}</td>
+                  <td className="py-2.5 px-4">
+                    <button
+                      onClick={() => handlePvpToggleActive(p)}
+                      className={`text-xs ${p.isActive ? "text-green-400 hover:text-green-300" : "text-gray-500 hover:text-gray-300"}`}
+                      title="Ativar/desativar"
+                    >
+                      {p.isActive ? "Ativo" : "Inativo"}
+                    </button>
+                  </td>
+                  <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                    <button onClick={() => openPvpEdit(p)} className="text-blue-400 hover:text-blue-300 mr-3"><Pencil size={13} className="inline" /> Edit</button>
+                    <button onClick={() => handlePvpDelete(p)} className="text-red-400 hover:text-red-300"><Trash2 size={13} className="inline" /> Delete</button>
+                  </td>
+                </tr>
+              ))}
+              {pvpProducts.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-gray-500">
+                    Nenhum item na Loja PvP — use [+ Adicionar item]
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* ===== Modal: escolher categoria ===== */}
       {addModal?.kind === "pick" && (() => {
         const kinds = SHOP_CONTENT_BY_TYPE[selected?.type ?? ""] ?? [];
@@ -1226,6 +1389,110 @@ export default function ShopsPage() {
 
             {modalFooter("ADICIONAR À SHOP", !!addModal.editing)}
           </form>
+        )
+      )}
+
+      {/* ===== Modal: Loja PvP ===== */}
+      {pvpModal && (
+        modalShell(
+          pvpModal.editing ? "Editar item da Loja PvP" : "Adicionar à Loja PvP",
+          "Itens vendidos na Arena do jogo, pagos com PVP Coins (moeda de vitórias PvP).",
+          <form onSubmit={handlePvpSubmit} className="space-y-4">
+            <div>
+              <label className={labelClass}>Item *</label>
+              <select
+                value={pvpForm.itemId ?? ""}
+                onChange={(e) => setPvpForm({ ...pvpForm, itemId: e.target.value })}
+                className={inputClass}
+                required
+                disabled={!!pvpModal.editing}
+              >
+                <option value="">Selecionar Item...</option>
+                {items.map((i) => (
+                  <option key={i.id} value={i.id}>{i.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {pvpForm.itemId && (() => {
+              const it = items.find((i) => i.id === pvpForm.itemId);
+              if (!it) return null;
+              return itemPreview(it);
+            })()}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Preço (PVP Coins) *</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={pvpForm.price ?? ""}
+                  onChange={(e) => setPvpForm({ ...pvpForm, price: e.target.value })}
+                  className={inputClass}
+                  required
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Quantidade</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={pvpForm.quantity ?? 1}
+                  onChange={(e) => setPvpForm({ ...pvpForm, quantity: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Nível mínimo</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={pvpForm.requiredLevel ?? 0}
+                  onChange={(e) => setPvpForm({ ...pvpForm, requiredLevel: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!pvpForm.requiredVip}
+                    onChange={(e) => setPvpForm({ ...pvpForm, requiredVip: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  Exige VIP
+                </label>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pvpForm.isActive !== false}
+                onChange={(e) => setPvpForm({ ...pvpForm, isActive: e.target.checked })}
+                className="w-4 h-4"
+              />
+              Ativo na loja
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPvpModal(null)}
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={pvpSaving}
+                className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {pvpSaving ? "Saving..." : pvpModal.editing ? "Salvar" : "Adicionar"}
+              </button>
+            </div>
+          </form>,
+          () => !pvpSaving && setPvpModal(null)
         )
       )}
     </div>

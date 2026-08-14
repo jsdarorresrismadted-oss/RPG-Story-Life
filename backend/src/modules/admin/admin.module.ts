@@ -19,6 +19,7 @@ import {
   clampLevel,
   ENCHANTMENT_CATEGORIES,
 } from "../../core/enchantments/enchantmentStats";
+import { ensureGuildQuests } from "../../core/guildQuests";
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   authenticate(req, res, () => {
@@ -263,6 +264,123 @@ export function createAdminModule(app: Express): void {
         create: { key: "guild", value },
       });
       res.json(config.value);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ===== Guildas: shop (staff) e quests =====
+
+  app.get("/api/admin/guilds", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(
+        await prisma.guild.findMany({
+          select: { id: true, name: true, tag: true, level: true, memberCount: true },
+          orderBy: { name: "asc" },
+        })
+      );
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Shop da guilda (itens colocados pelo staff, comprados com GC pelos jogadores)
+  app.get("/api/admin/guilds/:id/shop", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(
+        await prisma.guildShopItem.findMany({
+          where: { guildId: req.params.id, isActive: true },
+          orderBy: { sortOrder: "asc" },
+          include: { item: true },
+        })
+      );
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post("/api/admin/guilds/:id/shop", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { itemId, price } = req.body;
+      if (!itemId) throw new AppError(400, "itemId é obrigatório");
+      const item = await prisma.item.findUnique({ where: { id: itemId } });
+      if (!item) throw new AppError(404, "Item não encontrado");
+
+      const existing = await prisma.guildShopItem.findFirst({
+        where: { guildId: req.params.id, itemId, isActive: true },
+      });
+      if (existing) throw new AppError(409, "Este item já está no shop da guilda");
+
+      const entry = await prisma.guildShopItem.create({
+        data: { guildId: req.params.id, itemId, price: BigInt(Math.max(1, Math.floor(Number(price) || 100))) },
+      });
+      res.status(201).json(entry);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.delete("/api/admin/guilds/:id/shop/:shopItemId", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await prisma.guildShopItem.updateMany({
+        where: { id: req.params.shopItemId, guildId: req.params.id },
+        data: { isActive: false },
+      });
+      res.json({ message: "Item removido do shop da guilda" });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Quests de guilda (geradas pelo sistema)
+  app.get("/api/admin/guilds/:id/quests", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const guild = await prisma.guild.findUnique({ where: { id: req.params.id } });
+      if (!guild) throw new AppError(404, "Guilda não encontrada");
+      await ensureGuildQuests(guild.id, guild.level);
+      const quests = await prisma.guildQuest.findMany({
+        where: { guildId: guild.id, isActive: true },
+        orderBy: { createdAt: "asc" },
+      });
+      res.json(
+        quests.map((q) => {
+          const progress = (q.progress as Record<string, any>) ?? {};
+          const entries = Object.values(progress);
+          const completedCount = entries.filter((e) => (e?.count ?? 0) >= q.targetCount).length;
+          const claimedCount = entries.filter((e) => e?.claimed).length;
+          return {
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            type: q.type,
+            targetName: q.targetName,
+            targetCount: q.targetCount,
+            xpReward: q.xpReward.toString(),
+            goldReward: q.goldReward.toString(),
+            gcReward: q.gcReward.toString(),
+            expiresAt: q.expiresAt,
+            completedCount,
+            claimedCount,
+          };
+        })
+      );
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Regenera o lote de quests da guilda (expira as atuais e gera novas)
+  app.post("/api/admin/guilds/:id/quests/regenerate", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const guild = await prisma.guild.findUnique({ where: { id: req.params.id } });
+      if (!guild) throw new AppError(404, "Guilda não encontrada");
+      await prisma.guildQuest.updateMany({
+        where: { guildId: guild.id },
+        data: { isActive: false },
+      });
+      await ensureGuildQuests(guild.id, guild.level);
+      const count = await prisma.guildQuest.count({ where: { guildId: guild.id, isActive: true } });
+      res.json({ message: `Novo lote gerado (${count} quests ativas)`, count });
     } catch (err) {
       next(err);
     }
