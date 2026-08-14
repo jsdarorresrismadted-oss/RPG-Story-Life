@@ -1141,7 +1141,7 @@ export function MapPage() {
                             onChange={(e) => setEnchantMaxLevel(Number(e.target.value))}
                             className="input-rpg !py-1 !px-2 !text-xs w-28"
                           >
-                            {[5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((lv) => (
+                            {[5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 150].map((lv) => (
                               <option key={lv} value={lv}>até Nv. {lv}</option>
                             ))}
                           </select>
