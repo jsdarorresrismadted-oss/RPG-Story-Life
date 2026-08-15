@@ -101,6 +101,8 @@ interface PlanInput {
   color?: string;
   rarity: string;
   level: number;
+  mobs?: string[];
+  maps?: string[];
 }
 
 // ===== 1) Planejamento via Groq =====
@@ -110,11 +112,14 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
 
   const auto = !input.theme && !input.material && !input.color;
   const isMaterial = input.type === "material";
+  const mobsHint = (input.mobs || []).slice(0, 30).join(", ");
+  const mapsHint = (input.maps || []).slice(0, 20).join(", ");
   const specLines = isMaterial
     ? [
         "REGRA MATERIAL: o item e um MATERIAL BRUTO (materia-prima usada em craft) — minerio, pele, escama, essencia, fragmento, cristal, erva, etc. NAO e equipamento.",
         "NAO tem slot, NAO tem stats (todos 0), NAO tem attackSpeedMs nem dps. subtype DEVE ser 'material'.",
-        "Nome curto em portugues de materia-prima. Descricao: para que serve como materia-prima.",
+        "CRIATIVIDADE NOMINAL: o nome DEVE derivar de CRIATURAS ou LOCAIS do mundo do jogo (use os nomes reais listados abaixo), ex.: 'Garra de Lobo Anciao', 'Escama da Serpente das Dunas', 'Cristal da Caverna do Eco', 'Essencia do Pântano Sombrio'. Nao use nomes genericos tipo 'Fragmento Mistico'.",
+        "Descricao: para que serve como materia-prima, mencionando a criatura/local de origem.",
         "PRECOS: buyPrice entre 50 e 50000, sellPrice ~20% do buyPrice.",
       ]
     : [
@@ -140,6 +145,9 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     input.theme ? "Tema: " + input.theme : "",
     input.material ? "Material: " + input.material : "",
     input.color ? "Cor principal: " + input.color : "",
+    auto ? "Escolha voce mesmo nome, tema, material, cor, estilo, formato, design e ornamentos. O item deve parecer unico, sem copiar itens famosos, respeitando a raridade informada." : "",
+    mobsHint ? "CRIATURAS EXISTENTES NO JOGO (use estes nomes em materiais): " + mobsHint : "",
+    mapsHint ? "LOCAIS EXISTENTES NO JOGO (use estes nomes em materiais): " + mapsHint : "",
     auto ? "Escolha voce mesmo nome, tema, material, cor, estilo, formato, design e ornamentos. O item deve parecer unico, sem copiar itens famosos, respeitando a raridade informada." : "",
     "",
     ...specLines,
@@ -306,6 +314,37 @@ function clampInt(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, Math.round(v)));
 }
 
+// Raízes de material que combinam com CRIATURAS (partes do corpo, subprodutos).
+const MOB_MATERIAL_ROOTS = [
+  "Garra", "Pele", "Escama", "Osso", "Dente", "Presa", "Coração", "Carapaça",
+  "Chifre", "Pena", "Fio", "Verme", "Gosma", "Presilha", "Falange", "Casco",
+];
+
+// Raízes de material que combinam com LOCAIS (recursos do ambiente).
+const MAP_MATERIAL_ROOTS = [
+  "Cristal", "Fragmento", "Essência", "Minério", "Pó", "Seiva", "Núcleo",
+  "Plasma", "Lodo", "Flor", "Sal", "Âmbar", "Turfa", "Basalto", "Musgo", "Véu",
+];
+
+// Gera nome criativo de material: "Pele de {mob}" ou "Cristal de {map}".
+function materialNameFromWorld(mobs: string[], maps: string[], seed: number): { name: string; source: string } {
+  const mob = mobs.length > 0 ? mobs[hashStr("mob|" + seed) % mobs.length] : null;
+  const map = maps.length > 0 ? maps[hashStr("map|" + seed) % maps.length] : null;
+  if (!mob && !map) {
+    const root = pick(STRENGTH_NAMES.material, "material|" + seed, 2);
+    const ep = pick(PRICE_NAMES.material, "material|" + seed, 3);
+    return { name: (root + " " + ep).slice(0, 60), source: "" };
+  }
+  // Alterna entre criatura e local pela seed; se só um existir, usa ele.
+  const useMob = mob && map ? hashStr("src|" + seed) % 2 === 0 : !!mob;
+  if (useMob && mob) {
+    const root = pick(MOB_MATERIAL_ROOTS, "mobroot|" + seed, 4);
+    return { name: `${root} de ${mob}`.slice(0, 60), source: mob };
+  }
+  const root = pick(MAP_MATERIAL_ROOTS, "maproot|" + seed, 4);
+  return { name: `${root} de ${map}`.slice(0, 60), source: map || "" };
+}
+
 function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const rarMult = RARITY_MULT[input.rarity];
   const base = 1.2 * input.level;
@@ -314,6 +353,26 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const subtypes = SUBTYPES[input.type];
   const fromTheme = detectSubtypeFromTheme(input.theme);
   const subtype = fromTheme && subtypes.includes(fromTheme) ? fromTheme : pick(subtypes, `${input.type}|${input.rarity}|${input.level}|${seed}`, 1);
+
+  // Material bruto: nome derivado de criaturas/locais do mundo (mais criativo).
+  if (input.type === "material") {
+    const world = materialNameFromWorld(input.mobs || [], input.maps || [], seed);
+    const motif = pick(STRENGTH_DESC.material, `material|${seed}`, 4);
+    const src = world.source
+      ? ` Extraído de ${world.source}, usado em receitas de craft.`
+      : ` Materia-prima usada em receitas de craft.`;
+    return {
+      name: world.name,
+      description: `Material ${RARITY_PT[input.rarity]}: ${motif}.${src}`.slice(0, 300),
+      subtype: "material",
+      icon: defaultIconForItem("material", "material"),
+      stats: { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 },
+      attackSpeedMs: 0,
+      dps: 0,
+      buyPrice: clampInt(20 + base * rarMult * 6 + (seed % 80), 20, 50000),
+      sellPrice: clampInt(5 + (20 + base * rarMult * 6 + (seed % 80)) * 0.2, 5, 10000),
+    };
+  }
 
   // nome = [substantivo forte] + [aposito ambientico]
   const WEAPON_PT: Record<string, string> = { sword: "Espada", dagger: "Adaga", staff: "Cajado", axe: "Machado", bow: "Arco", tome: "Grimório" };
@@ -328,21 +387,6 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const motif = pick(STRENGTH_DESC[input.type] || STRENGTH_DESC.weapon, `${input.type}|${input.rarity}|${seed}`, 4);
   const desc = `Equipamento ${RARITY_PT[input.rarity]} com ${motif}.` + (input.theme ? ` Inspirado em ${input.theme}.` : "");
   const description = desc.slice(0, 300);
-
-  // Material bruto: sem stats, empilhável, preços baixos.
-  if (input.type === "material") {
-    return {
-      name,
-      description: `Material ${RARITY_PT[input.rarity]} ${motif}.` + (input.theme ? ` Inspirado em ${input.theme}.` : ""),
-      subtype: "material",
-      icon: defaultIconForItem("material", "material"),
-      stats: { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 },
-      attackSpeedMs: 0,
-      dps: 0,
-      buyPrice: clampInt(20 + base * rarMult * 6 + (seed % 80), 20, 50000),
-      sellPrice: clampInt(5 + (20 + base * rarMult * 6 + (seed % 80)) * 0.2, 5, 10000),
-    };
-  }
 
   // Stats: 6 atributos sempre > 0; principal do tipo recebe o maior valor.
   const STAT_KEYS: Record<string, number> = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
@@ -408,6 +452,8 @@ export interface GenerateItemInput {
   level?: number;
   seed?: number;
   variants?: number;
+  mobs?: string[];
+  maps?: string[];
 }
 
 export interface GeneratedItem {
@@ -425,8 +471,8 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
   // Plano: por padrao usa a IA LOCAL (deterministica, sem API externa).
   //    Groq fica opcional (GROQ_PLANNER=on) para nomes/textos via LLM.
   const plan = process.env.GROQ_PLANNER === "on"
-    ? await planItem({ type, theme: input.theme, material: input.material, color: input.color, rarity, level })
-    : planItemLocal({ type, theme: input.theme, material: input.material, color: input.color, rarity, level }, seed);
+    ? await planItem({ type, theme: input.theme, material: input.material, color: input.color, rarity, level, mobs: input.mobs, maps: input.maps })
+    : planItemLocal({ type, theme: input.theme, material: input.material, color: input.color, rarity, level, mobs: input.mobs, maps: input.maps }, seed);
 
   log.push((process.env.GROQ_PLANNER === "on" ? "Groq" : "IA local") + " (plano)");
   return { plan };
