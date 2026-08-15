@@ -986,7 +986,34 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/items/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { const r = await deleteWithSoftFallback(prisma.item, req, "item"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+    try {
+      const item = await prisma.item.findUnique({ where: { id: req.params.id } });
+      if (!item) throw new AppError(404, "Item não encontrado");
+      // Deleta de verdade em cascata: inventário, drops, lojas (NPC/guilda/evento),
+      // market, mail, receitas de craft e equipamentos equipados (slots zerados).
+      await prisma.$transaction(async (tx) => {
+        await tx.inventory.deleteMany({ where: { itemId: item.id } });
+        await tx.mailItem.deleteMany({ where: { itemId: item.id } });
+        await tx.marketListing.deleteMany({ where: { itemId: item.id } });
+        await tx.dropItem.deleteMany({ where: { itemId: item.id } });
+        await tx.shopItem.deleteMany({ where: { itemId: item.id } });
+        await tx.guildShopItem.deleteMany({ where: { itemId: item.id } });
+        await tx.shopProduct.updateMany({ where: { itemId: item.id }, data: { itemId: null } });
+        await tx.craftRecipe.deleteMany({ where: { resultItemId: item.id } });
+        await tx.equipment.updateMany({ where: { weaponId: item.id }, data: { weaponId: null } });
+        await tx.equipment.updateMany({ where: { classItemId: item.id }, data: { classItemId: null } });
+        await tx.equipment.updateMany({ where: { helmId: item.id }, data: { helmId: null } });
+        await tx.equipment.updateMany({ where: { armorId: item.id }, data: { armorId: null } });
+        await tx.equipment.updateMany({ where: { capeId: item.id }, data: { capeId: null } });
+        await tx.equipment.updateMany({ where: { ringId: item.id }, data: { ringId: null } });
+        await tx.equipment.updateMany({ where: { necklaceId: item.id }, data: { necklaceId: null } });
+        await tx.item.delete({ where: { id: item.id } });
+      });
+      logDelete(req, "item", item.id, "delete");
+      res.json({ message: "Item deletado (inventários, drops, lojas e receitas removidos)" });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Enchantments CRUD

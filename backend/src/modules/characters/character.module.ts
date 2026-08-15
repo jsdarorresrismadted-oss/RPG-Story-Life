@@ -7,6 +7,7 @@ import { computeStats } from "../../core/classEngine/stat-calculator";
 import { addItemsToInventory, classXpToNextRank, xpToNextLevel } from "../../core/progression";
 import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 import { sumCoreStats } from "../../core/stats/coreStats";
+import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStats";
 
 function parseJson(value: any, fallback: any): any {
   if (!value) return fallback;
@@ -254,13 +255,13 @@ export function createCharacterModule(app: Express): void {
               classProgress: { where: { isActive: true } },
               equipment: {
                 include: {
-                  weapon: true,
-                  classItem: true,
-                  helm: true,
-                  armor: true,
-                  cape: true,
-                  ring: true,
-                  necklace: true,
+                  weapon: { include: { enchantment: true } },
+                  classItem: { include: { enchantment: true } },
+                  helm: { include: { enchantment: true } },
+                  armor: { include: { enchantment: true } },
+                  cape: { include: { enchantment: true } },
+                  ring: { include: { enchantment: true } },
+                  necklace: { include: { enchantment: true } },
                 },
               },
             },
@@ -300,7 +301,7 @@ export function createCharacterModule(app: Express): void {
         EQUIP_SLOTS.map((slot) => {
           const item = (character.equipment as any)?.[slot];
           if (!item) return null;
-          return {
+          const itemStats = {
             strength: item.strength ?? 0,
             intellect: item.intellect ?? 0,
             endurance: item.endurance ?? 0,
@@ -308,6 +309,8 @@ export function createCharacterModule(app: Express): void {
             wisdom: item.wisdom ?? 0,
             luck: item.luck ?? 0,
           };
+          const ench = item.enchantment ? computeEnchantmentStats(item.enchantment) : null;
+          return ench ? sumCoreStats([itemStats, ench]) : itemStats;
         })
       );
 
