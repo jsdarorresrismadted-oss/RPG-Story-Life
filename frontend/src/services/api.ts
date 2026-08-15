@@ -92,6 +92,7 @@ export const combatApi = {
 };
 
 export const questsApi = {
+  list: (params?: any) => api.get("/quests", { params }),
   accept: (id: string) => api.post(`/quests/${id}/accept`),
   abandon: (id: string) => api.post(`/quests/${id}/abandon`),
   progress: () => api.get("/quests/progress"),

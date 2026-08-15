@@ -14,6 +14,7 @@ import MonsterPage from "./pages/MonstersPage";
 import MapsPage from "./pages/MapsPage";
 import EventsPage from "./pages/EventsPage";
 import GachaPage from "./pages/GachaPage";
+import SeasonsPage from "./pages/SeasonsPage";
 import CrudPage from "./pages/CrudPage";
 import { crudConfigs } from "./crudConfigs";
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/codes" element={<CodesPage />} />
         <Route path="/guild-settings" element={<GuildSettingsPage />} />
         <Route path="/gacha" element={<GachaPage />} />
+        <Route path="/seasons" element={<SeasonsPage />} />
         <Route path="/limits" element={<LimitsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

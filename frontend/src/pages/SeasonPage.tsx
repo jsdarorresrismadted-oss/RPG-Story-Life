@@ -1,9 +1,105 @@
 import { useEffect, useState } from "react";
-import { seasonsApi } from "../services/api";
-import { Trophy, Gift, Lock, Check, Coins, Zap, Star, Gem } from "lucide-react";
+import { seasonsApi, questsApi } from "../services/api";
+import { Trophy, Gift, Lock, Check, Coins, Zap, Star, Gem, CalendarDays, CalendarRange, CalendarClock, CheckCircle2, Play } from "lucide-react";
 import toast from "react-hot-toast";
 
 const PASS_XP_PER_LEVEL = 1000;
+
+const PERIODS = [
+  { key: "daily", label: "Diárias", icon: CalendarDays, hint: "Resetam todo dia", color: "text-sky-400" },
+  { key: "weekly", label: "Semanais", icon: CalendarRange, hint: "Resetam toda semana", color: "text-purple-400" },
+  { key: "monthly", label: "Mensais", icon: CalendarClock, hint: "Resetam todo mês", color: "text-amber-400" },
+] as const;
+
+interface QuestLike {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  period?: string | null;
+  objectives: any[];
+  xpReward: string | number;
+  goldReward: string | number;
+  isActive: boolean;
+}
+
+interface ProgressLike {
+  questId: string;
+  quest: QuestLike;
+  status: string;
+  progress: Record<string, number> | string;
+  claimedAt?: string | null;
+}
+
+interface QuestObjectiveLike {
+  id?: string;
+  type?: string;
+  target?: string;
+  monsterName?: string;
+  monsterId?: string;
+  itemName?: string;
+  amount?: number;
+  quantity?: number;
+  current?: number;
+  description?: string;
+}
+
+function parseObj(raw: any): QuestObjectiveLike[] {
+  if (Array.isArray(raw)) return raw;
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseProgress(raw: any): Record<string, number> {
+  if (!raw) return {};
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, number>;
+  try {
+    return JSON.parse(raw) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+function objectiveKey(obj: QuestObjectiveLike): string {
+  if (obj.id) return String(obj.id);
+  return `${obj.type ?? "obj"}-${obj.monsterName ?? obj.itemName ?? obj.monsterId ?? obj.target ?? "?"}`;
+}
+
+function objectiveLabel(obj: QuestObjectiveLike): string {
+  const target = obj.monsterName ?? obj.itemName ?? obj.target ?? "?";
+  if (obj.type === "kill") return `Derrote ${target}`;
+  if (obj.type === "collect") return `Colete ${target}`;
+  return obj.description ?? target;
+}
+
+function QuestObjectiveBlock({ quest, progress }: { quest: QuestLike; progress: Record<string, number> }) {
+  const objectives = parseObj(quest.objectives);
+  return (
+    <div className="space-y-1 mt-2">
+      {objectives.map((obj, i) => {
+        const amount = Number(obj.amount ?? obj.quantity ?? 1);
+        const count = Math.min(amount, Number(progress[objectiveKey(obj)]) || Number(obj.current) || 0);
+        const complete = count >= amount;
+        return (
+          <div key={`${objectiveKey(obj)}-${i}`} className="flex items-center gap-1.5 text-[11px]">
+            {complete ? (
+              <CheckCircle2 size={11} className="text-green-400 shrink-0" />
+            ) : (
+              <span className="w-[11px] h-[11px] rounded-full border border-dark-600 shrink-0" />
+            )}
+            <span className={`truncate ${complete ? "text-green-300" : "text-gray-400"}`}>{objectiveLabel(obj)}</span>
+            <span className={`ml-auto font-mono shrink-0 ${complete ? "text-green-300" : "text-gray-500"}`}>{count}/{amount}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface SeasonData {
   season: { id: string; name: string; description: string; startsAt: string; endsAt: string } | null;
@@ -33,6 +129,10 @@ export function SeasonPage() {
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState<string | null>(null);
 
+  const [quests, setQuests] = useState<QuestLike[]>([]);
+  const [progress, setProgress] = useState<ProgressLike[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
   const load = () => {
     seasonsApi
       .me()
@@ -41,7 +141,19 @@ export function SeasonPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  const loadQuests = () => {
+    Promise.all([questsApi.list(), questsApi.progress()])
+      .then(([q, p]) => {
+        setQuests((Array.isArray(q.data) ? q.data : []).filter((x: any) => x?.period));
+        setProgress(Array.isArray(p.data) ? p.data : []);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    load();
+    loadQuests();
+  }, []);
 
   const handleClaim = async (tierId: string) => {
     setClaiming(tierId);
@@ -53,6 +165,21 @@ export function SeasonPage() {
       toast.error(err.response?.data?.error || "Falha ao reivindicar");
     } finally {
       setClaiming(null);
+    }
+  };
+
+  const handleQuestAction = async (questId: string, action: "accept" | "claim") => {
+    setBusy(questId);
+    try {
+      await (action === "accept" ? questsApi.accept(questId) : questsApi.claim(questId));
+      toast.success(action === "accept" ? "Quest aceita!" : "Recompensas recebidas (XP do passe + XP normal)!");
+      window.dispatchEvent(new Event("quests-changed"));
+      loadQuests();
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.response?.data?.message || "Falha na quest");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -106,8 +233,95 @@ export function SeasonPage() {
           />
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          {xpInto.toLocaleString()} / {PASS_XP_PER_LEVEL.toLocaleString()} XP até o nível {level + 1} • Ganhe XP de passe em combates e quests
+          {xpInto.toLocaleString()} / {PASS_XP_PER_LEVEL.toLocaleString()} XP até o nível {level + 1} • Ganhe XP de passe concluindo quests diárias, semanais e mensais
         </p>
+      </div>
+
+      <div className="panel p-4">
+        <h2 className="font-display font-semibold mb-1 flex items-center gap-2">
+          <Star size={16} className="text-purple-400" /> Missões do Passe
+        </h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Cada missão concluída dá o XP inteiro dela para o seu passe. Diárias e semanais trocam sozinhas a cada ciclo.
+        </p>
+        <div className="space-y-5">
+          {PERIODS.map((period) => {
+            const periodQuests = quests.filter((q) => q.period === period.key);
+            return (
+              <div key={period.key}>
+                <div className="flex items-center gap-2 mb-2">
+                  <period.icon size={14} className={period.color} />
+                  <span className={`text-xs font-semibold uppercase tracking-wide ${period.color}`}>{period.label}</span>
+                  <span className="text-[10px] text-gray-500">{period.hint}</span>
+                </div>
+                {periodQuests.length === 0 ? (
+                  <p className="text-xs text-gray-600">Nenhuma quest {period.label.toLowerCase()} ativa no momento.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {periodQuests.map((q) => {
+                      const p = progress.find((x) => x.questId === q.id);
+                      const status = p?.status ?? "none";
+                      const pr = parseProgress(p?.progress);
+                      return (
+                        <div key={q.id} className="rounded-lg bg-dark-900 border border-dark-600 p-3">
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white">{q.title}</p>
+                              {q.description && (
+                                <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{q.description}</p>
+                              )}
+                              {status === "active" || status === "completed" ? (
+                                <QuestObjectiveBlock quest={q} progress={pr} />
+                              ) : null}
+                            </div>
+                            <div className="shrink-0 flex flex-col items-end gap-1.5">
+                              <span className="flex items-center gap-1 text-[11px] text-purple-300">
+                                <Zap size={11} /> +{Number(q.xpReward || 0).toLocaleString()} XP passe
+                              </span>
+                              {Number(q.goldReward || 0) > 0 && (
+                                <span className="flex items-center gap-1 text-[11px] text-yellow-400">
+                                  <Coins size={11} /> +{Number(q.goldReward || 0).toLocaleString()}G
+                                </span>
+                              )}
+                              {status === "none" && (
+                                <button
+                                  onClick={() => handleQuestAction(q.id, "accept")}
+                                  disabled={busy === q.id}
+                                  className="btn-primary text-[11px] px-2.5 py-1 disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  <Play size={11} /> Aceitar
+                                </button>
+                              )}
+                              {status === "active" && (
+                                <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                                  <CalendarDays size={11} /> Em andamento
+                                </span>
+                              )}
+                              {status === "completed" && (
+                                <button
+                                  onClick={() => handleQuestAction(q.id, "claim")}
+                                  disabled={busy === q.id}
+                                  className="btn-primary text-[11px] px-2.5 py-1 disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  <Check size={11} /> Receber
+                                </button>
+                              )}
+                              {status === "claimed" && (
+                                <span className="flex items-center gap-1 text-[11px] text-green-400">
+                                  <CheckCircle2 size={11} /> Concluída
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

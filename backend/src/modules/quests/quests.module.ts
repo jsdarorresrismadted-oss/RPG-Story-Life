@@ -6,10 +6,12 @@ import { addItemsToInventory, clampGold } from "../../core/progression";
 import { getGameLimits } from "../../core/gameLimits";
 import { grantPassXp } from "../seasons/seasons.module";
 import { isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "../../core/progression";
+import { rotatePeriodQuests } from "../../core/periodQuests";
 
 export function createQuestsModule(app: Express): void {
   app.get("/api/quests", async (req: Request, res: Response, next: NextFunction) => {
     try {
+      await rotatePeriodQuests(prisma);
       const { type, mapId } = req.query;
       const where: any = { isActive: true };
       if (type) where.type = type;
@@ -28,6 +30,7 @@ export function createQuestsModule(app: Express): void {
 
   app.get("/api/quests/progress", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
+      await rotatePeriodQuests(prisma);
       const progress = await prisma.questProgress.findMany({
         where: { userId: req.user!.userId },
         include: { quest: true },
@@ -59,6 +62,7 @@ export function createQuestsModule(app: Express): void {
     try {
       const quest = await prisma.quest.findUnique({ where: { id: req.params.id } });
       if (!quest) throw new AppError(404, "Quest not found");
+      if (quest.period && !quest.isActive) throw new AppError(404, "Esta quest não está ativa no momento");
 
       const existing = await prisma.questProgress.findUnique({
         where: { userId_questId: { userId: req.user!.userId, questId: req.params.id } },
@@ -178,8 +182,12 @@ export function createQuestsModule(app: Express): void {
         // Entregar recompensas de itens no inventário
         await addItemsToInventory(tx, req.user!.userId, rewards);
 
-        // XP para o passe de temporada (1/5 do XP da quest)
-        await grantPassXp(tx, req.user!.userId, Math.floor(Number(progress.quest.xpReward) / 5));
+        // XP para o passe de temporada: quests de passe (diária/semanal/mensal)
+        // dão o XP inteiro da quest; as demais dão 1/5 do XP.
+        const passXp = progress.quest.period
+          ? Math.floor(Number(progress.quest.xpReward))
+          : Math.floor(Number(progress.quest.xpReward) / 5);
+        await grantPassXp(tx, req.user!.userId, passXp);
       });
 
       res.json({ message: "Rewards claimed", xpGain: questXp, goldGain, items: rewards });

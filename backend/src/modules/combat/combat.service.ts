@@ -1016,6 +1016,7 @@ export class CombatService {
       await addItemsToInventory(this.prisma, character.userId, rolled);
       for (const r of rolled) {
         await updateGuildQuestProgress(character.userId, "collect", r.itemId, r.quantity);
+        await this.updateQuestCollectProgress(character.userId, r.itemName, r.quantity);
       }
     }
 
@@ -1064,6 +1065,65 @@ export class CombatService {
         if (obj?.type !== "kill") continue;
         const count = Number(current[keyOf(obj)]) || 0;
         if (count < Number(obj?.amount ?? 1)) {
+          allDone = false;
+          break;
+        }
+      }
+
+      await this.prisma.questProgress.update({
+        where: { id: progress.id },
+        data: {
+          progress: JSON.stringify(current),
+          ...(allDone ? { status: "completed" } : {}),
+        },
+      });
+    }
+  }
+
+  private async updateQuestCollectProgress(userId: string, itemName: string, quantity: number): Promise<void> {
+    const progresses = await this.prisma.questProgress.findMany({
+      where: { userId, status: "active" },
+      include: { quest: true },
+    });
+
+    for (const progress of progresses) {
+      let objectives: any[] = [];
+      try {
+        objectives = JSON.parse(progress.quest.objectives || "[]");
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(objectives) || objectives.length === 0) continue;
+      const hasCollect = objectives.some((o) => o?.type === "collect");
+      if (!hasCollect) continue;
+
+      let current: Record<string, any> = {};
+      try {
+        current = JSON.parse(progress.progress || "{}");
+      } catch {
+        current = {};
+      }
+
+      const keyOf = (obj: any) =>
+        String(obj?.id ?? `${obj?.type}-${obj?.itemName ?? obj?.target ?? obj?.itemId}`);
+
+      let changed = false;
+      for (const obj of objectives) {
+        if (obj?.type !== "collect") continue;
+        const target = obj?.itemName ?? obj?.target ?? obj?.itemId;
+        if (!target) continue;
+        if (target !== itemName && target !== String(obj?.itemId)) continue;
+        const key = keyOf(obj);
+        current[key] = (Number(current[key]) || 0) + quantity;
+        changed = true;
+      }
+      if (!changed) continue;
+
+      let allDone = true;
+      for (const obj of objectives) {
+        if (obj?.type !== "collect") continue;
+        const count = Number(current[keyOf(obj)]) || 0;
+        if (count < Number(obj?.amount ?? obj?.count ?? 1)) {
           allDone = false;
           break;
         }

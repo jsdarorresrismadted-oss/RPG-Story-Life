@@ -10,6 +10,7 @@ import { createMarketModule } from "./modules/market/market.module";
 import { createNpcModule } from "./modules/npc/npc.module";
 import { createEventsModule } from "./modules/events/events.module";
 import { createAdminModule } from "./modules/admin/admin.module";
+import { createSeasonsAdminModule } from "./modules/admin/seasonsAdmin";
 import { createCharacterModule } from "./modules/characters/character.module";
 import { createRedeemModule } from "./modules/redeem/redeem.module";
 import { createContentModule } from "./modules/content/content.module";
@@ -43,5 +44,6 @@ export function registerModules(app: Express): void {
   createCraftModule(app);
   createGachaModule(app);
   createAdminModule(app);
+  createSeasonsAdminModule(app);
   createPvpModule(app, app.get("pvpService") as PvpService);
 }

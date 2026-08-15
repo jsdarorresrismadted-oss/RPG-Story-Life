@@ -24,6 +24,7 @@ import {
   Gem,
   Hammer,
   CalendarDays,
+  Trophy,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -71,6 +72,7 @@ const navGroups: NavGroup[] = [
   {
     title: 'Sistema',
     items: [
+      { to: '/seasons', icon: <Trophy size={18} />, label: 'Season Pass' },
       { to: '/statModels', icon: <Gauge size={18} />, label: 'Stat Models' },
       { to: '/patchNotes', icon: <Newspaper size={18} />, label: 'Patch Notes' },
       { to: '/users', icon: <Users size={18} />, label: 'Users' },

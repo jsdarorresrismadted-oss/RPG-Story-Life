@@ -230,6 +230,19 @@ export const adminApi = {
     update: (id: string, data: any) => api.put(`/admin/event-shop-items/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/event-shop-items/${id}`, { params }),
   },
+  seasons: {
+    list: () => api.get("/admin/seasons"),
+    create: (data: any) => api.post("/admin/seasons", data),
+    update: (id: string, data: any) => api.put(`/admin/seasons/${id}`, data),
+    delete: (id: string, params?: any) => api.delete(`/admin/seasons/${id}`, { params }),
+    updateTier: (seasonId: string, tierId: string, data: any) =>
+      api.put(`/admin/seasons/${seasonId}/tiers/${tierId}`, data),
+    passes: (seasonId: string) => api.get(`/admin/seasons/${seasonId}/passes`),
+    deletePass: (passId: string, params?: any) => api.delete(`/admin/passes/${passId}`, { params }),
+    deleteAllPasses: (seasonId: string, params?: any) =>
+      api.delete(`/admin/seasons/${seasonId}/passes`, { params }),
+    generate: (data: any) => api.post("/admin/seasons/generate", data),
+  },
   bulkDelete: (key: string, ids: string[], tipo: number) =>
     api.post("/admin/bulk-delete", { key, ids, tipo }),
 };
