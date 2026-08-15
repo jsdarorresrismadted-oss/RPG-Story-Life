@@ -7,6 +7,16 @@ import { withEnchantmentStats } from "../../core/enchantments/enchantmentStats";
 
 const SHOP_TYPES = new Set(["vendor", "shop", "enchantments", "classes"]);
 const QUEST_TYPES = new Set(["quest_giver", "quest"]);
+const ENCHANTABLE_SLOTS = ["weapon", "class", "helm", "armor", "cape", "ring", "necklace"] as const;
+
+function parseSlots(raw: string | null): string[] {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 // Anexa computedStats (fórmula de progressão) aos encantamentos das ofertas
 function enrichOffers(shopItems: any[]): any[] {
@@ -86,7 +96,7 @@ export function createNpcModule(app: Express): void {
   // Buy an item (ou encantamento ou classe) do NPC vendor (debita gold/diamante e adiciona ao inventário/coleção)
   app.post("/api/npcs/:id/buy", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { itemId, enchantmentId, classId, quantity = 1 } = req.body;
+      const { itemId, enchantmentId, classId, quantity = 1, inventoryId } = req.body;
       if (!itemId && !enchantmentId && !classId) throw new AppError(400, "itemId, enchantmentId ou classId required");
       const qty = Math.max(1, Math.floor(Number(quantity) || 1));
 
@@ -152,6 +162,8 @@ export function createNpcModule(app: Express): void {
         orderBy: { updatedAt: "desc" },
       });
 
+      let appliedItem: string | null = null;
+
       await prisma.$transaction(async (tx) => {
         if (currency === "sf_coins") {
           await tx.user.update({
@@ -170,6 +182,45 @@ export function createNpcModule(app: Express): void {
             create: { userId: user.id, enchantmentId: shopOffer.enchantmentId, quantity: qty },
             update: { quantity: { increment: qty } },
           });
+          // Compra com "encantar agora": aplica direto no item escolhido (consome o encantamento)
+          if (inventoryId) {
+            const enchant = shopOffer.enchantment!;
+            const inv = await tx.inventory.findUnique({
+              where: { id: String(inventoryId) },
+              include: { item: true },
+            });
+            if (!inv || inv.userId !== user.id) throw new AppError(404, "Item not found in inventory");
+            if (!ENCHANTABLE_SLOTS.includes(inv.item.type as any)) {
+              throw new AppError(400, "Este item não aceita encantamentos");
+            }
+            if (inv.item.rank < (enchant.minRank || 1)) {
+              throw new AppError(400, `Encantamento requer item de rank ${enchant.minRank}`);
+            }
+            if (inv.item.level < enchant.level) {
+              throw new AppError(400, `Encantamento nível ${enchant.level} exige item de nível ${enchant.level} ou superior`);
+            }
+            const compatible = parseSlots(enchant.compatibleSlots);
+            if (compatible.length > 0 && !compatible.includes(inv.item.type)) {
+              throw new AppError(400, "Encantamento incompatível com este item");
+            }
+            const oldEnchantmentId = inv.item.enchantmentId;
+            if (oldEnchantmentId && oldEnchantmentId !== enchant.id) {
+              await tx.userEnchantment.upsert({
+                where: { userId_enchantmentId: { userId: user.id, enchantmentId: oldEnchantmentId } },
+                create: { userId: user.id, enchantmentId: oldEnchantmentId, quantity: 1 },
+                update: { quantity: { increment: 1 } },
+              });
+            }
+            await tx.userEnchantment.update({
+              where: { userId_enchantmentId: { userId: user.id, enchantmentId: enchant.id } },
+              data: { quantity: { decrement: 1 } },
+            });
+            await tx.item.update({
+              where: { id: inv.itemId },
+              data: { enchantmentId: enchant.id },
+            });
+            appliedItem = inv.item.name;
+          }
         } else if (classId) {
           if (!character) throw new AppError(404, "Character not found");
           const classIdToBuy = shopOffer.classId;
@@ -211,6 +262,7 @@ export function createNpcModule(app: Express): void {
         totalPrice,
         currency,
         isClass: !!shopOffer.classId,
+        appliedTo: appliedItem,
         [currency === "sf_coins" ? "sfCoinsLeft" : "goldLeft"]: Math.max(0, Number(currency === "sf_coins" ? user.sfCoins : user.gold) - totalPrice),
       });
     } catch (err) {

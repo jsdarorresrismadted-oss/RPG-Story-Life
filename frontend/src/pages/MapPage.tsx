@@ -14,6 +14,7 @@ import { useAuthStore } from "../store/authStore";
 import { effectiveEnchantmentStats } from "../lib/enchantmentStats";
 import { EntityIcon } from "../components/EntityIcon";
 import { QuestTracker } from "../components/QuestTracker";
+import { EnchantItemPicker } from "../components/EnchantItemPicker";
 
 const ENCH_STAT_LABELS: { key: string; label: string }[] = [
   { key: "strength", label: "Força" },
@@ -368,6 +369,10 @@ export function MapPage() {
   const [gachaLoading, setGachaLoading] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [lastRoll, setLastRoll] = useState<GachaRollResult | null>(null);
+  const [enchantPick, setEnchantPick] = useState<NpcShopItem | null>(null);
+  const [enchantPickItems, setEnchantPickItems] = useState<any[]>([]);
+  const [enchantPickLoading, setEnchantPickLoading] = useState(false);
+  const [applyingInvId, setApplyingInvId] = useState<string | null>(null);
   const [pinEditMode, setPinEditMode] = useState(false);
   const [pinEditingSlug, setPinEditingSlug] = useState<string | null>(null);
   const isStaff = user?.role === "admin" || user?.role === "owner";
@@ -560,18 +565,26 @@ export function MapPage() {
     }
   };
 
-  const buyItem = async (offer: { item?: { id: string } | null; enchantment?: { name: string } | null; enchantmentId?: string | null; itemId?: string | null; classId?: string | null; class?: { name: string } | null; price: string | number; currency?: string }) => {
+  const doBuy = async (offer: NpcShopItem, inventoryId?: string) => {
+    if (!npc) throw new Error("NPC ausente");
+    const isEnchantment = !!offer.enchantmentId;
+    const isClass = !!offer.classId && !offer.itemId && !offer.enchantmentId;
+    const payload = isEnchantment
+      ? { enchantmentId: offer.enchantmentId!, quantity: 1, ...(inventoryId ? { inventoryId } : {}) }
+      : isClass
+        ? { classId: offer.classId!, quantity: 1 }
+        : { itemId: offer.itemId!, quantity: 1 };
+    const { data } = await npcApi.buy(npc.id, payload);
+    return { data, isEnchantment, isClass };
+  };
+
+  const buyItem = async (offer: NpcShopItem) => {
     if (!npc) return;
     const isEnchantment = !!offer.enchantmentId;
     const isClass = !!offer.classId && !offer.itemId && !offer.enchantmentId;
     setBuyingItemId(isEnchantment ? offer.enchantmentId! : isClass ? offer.classId! : offer.itemId!);
     try {
-      const payload = isEnchantment
-        ? { enchantmentId: offer.enchantmentId!, quantity: 1 }
-        : isClass
-          ? { classId: offer.classId!, quantity: 1 }
-          : { itemId: offer.itemId!, quantity: 1 };
-      const { data } = await npcApi.buy(npc.id, payload);
+      const { data } = await doBuy(offer);
       const currency = data.currency === "sf_coins" ? "SF Coins" : "gold";
       toast.success(isClass ? `Classe ${data.item} desbloqueada e equipada!` : `${data.quantity}x ${data.item} comprado (${data.totalPrice} ${currency})`);
       refreshUser();
@@ -580,6 +593,39 @@ export function MapPage() {
       toast.error(err.response?.data?.error || "Falha na compra");
     } finally {
       setBuyingItemId(null);
+    }
+  };
+
+  // Compra do encantamento com aplicação direta no item escolhido (categorias no modal)
+  const openEnchantPick = async (offer: NpcShopItem) => {
+    setEnchantPick(offer);
+    setEnchantPickLoading(true);
+    setEnchantPickItems([]);
+    try {
+      const { data } = await inventoryApi.list();
+      const rows = Array.isArray(data) ? data : [];
+      const ENCH_TYPES = ["weapon", "armor", "helm", "cape"];
+      setEnchantPickItems(rows.filter((r: any) => ENCH_TYPES.includes(r.item?.type)));
+    } catch {
+      setEnchantPickItems([]);
+    } finally {
+      setEnchantPickLoading(false);
+    }
+  };
+
+  const handleEnchantApply = async (offer: NpcShopItem, inventoryId: string) => {
+    setApplyingInvId(inventoryId);
+    try {
+      const { data } = await doBuy(offer, inventoryId);
+      toast.success(`Encantamento aplicado${data.appliedTo ? ` em ${data.appliedTo}` : ""}!`);
+      refreshUser();
+      loadInventory();
+      setEnchantPick(null);
+      setEnchantPickItems([]);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha ao encantar");
+    } finally {
+      setApplyingInvId(null);
     }
   };
 
@@ -1225,7 +1271,7 @@ export function MapPage() {
                               <p className="text-[10px] text-cyan-400/80">SF Coins</p>
                             )}
                             <button
-                              onClick={() => buyItem(offer)}
+                              onClick={() => (isEnchantment ? openEnchantPick(offer) : buyItem(offer))}
                               disabled={buyingItemId === (isEnchantment ? offer.enchantmentId : offer.itemId) || locked}
                               className="btn-secondary text-xs px-3 py-1 mt-1 disabled:opacity-50"
                               title={locked ? (questLocked ? "Requer concluir uma quest" : "Requer VIP") : undefined}
@@ -1460,6 +1506,26 @@ export function MapPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
         </div>
+      )}
+
+      {enchantPick && enchantPick.enchantment && (
+        <EnchantItemPicker
+          enchantment={enchantPick.enchantment}
+          items={enchantPickItems}
+          busyId={applyingInvId}
+          loading={enchantPickLoading}
+          onApply={(invId) => handleEnchantApply(enchantPick, invId)}
+          onKeep={() => {
+            const offer = enchantPick;
+            setEnchantPick(null);
+            setEnchantPickItems([]);
+            buyItem(offer);
+          }}
+          onClose={() => {
+            setEnchantPick(null);
+            setEnchantPickItems([]);
+          }}
+        />
       )}
         </>,
         document.body

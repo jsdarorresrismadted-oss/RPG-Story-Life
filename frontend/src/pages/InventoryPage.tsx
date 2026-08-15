@@ -11,6 +11,7 @@ import { useGameStore } from "../store/gameStore";
 import { EntityIcon } from "../components/EntityIcon";
 import { useAuthStore } from "../store/authStore";
 import CharacterPreview from "../components/CharacterPreview";
+import { EnchantItemPicker } from "../components/EnchantItemPicker";
 import { effectiveEnchantmentStats } from "../lib/enchantmentStats";
 import toast from "react-hot-toast";
 
@@ -48,6 +49,8 @@ export function InventoryPage() {
   const [listQty, setListQty] = useState(1);
   const [ownedEnchants, setOwnedEnchants] = useState<UserEnchantment[]>([]);
   const [enchantBusy, setEnchantBusy] = useState(false);
+  const [enchantPick, setEnchantPick] = useState<UserEnchantment | null>(null);
+  const [applyingInvId, setApplyingInvId] = useState<string | null>(null);
   const [unlockedClasses, setUnlockedClasses] = useState<any[]>([]);
   const [switchingClass, setSwitchingClass] = useState<string | null>(null);
   const [crafting, setCrafting] = useState(false);
@@ -218,6 +221,21 @@ export function InventoryPage() {
     }
   };
 
+  const handleEnchantPickApply = async (inventoryId: string) => {
+    if (!enchantPick) return;
+    setApplyingInvId(inventoryId);
+    try {
+      await inventoryApi.enchant({ inventoryId, enchantmentId: enchantPick.enchantment.id });
+      toast.success("Encantamento aplicado!");
+      setEnchantPick(null);
+      loadItems();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha ao encantar");
+    } finally {
+      setApplyingInvId(null);
+    }
+  };
+
   const handleCraft = async (recipeId: string) => {
     setCrafting(true);
     try {
@@ -304,6 +322,35 @@ export function InventoryPage() {
           ))}
         </div>
       </div>
+
+      {ownedEnchants.filter((ue) => ue.quantity > 0).length > 0 && (
+        <div className="panel p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-yellow-400 mb-2 flex items-center gap-1.5">
+            <Sparkles size={13} /> Seus encantamentos
+          </p>
+          <p className="text-[11px] text-gray-600 mb-2">Selecione um encantamento e depois escolha a arma/armadura/elmo/capa para aplicar.</p>
+          <div className="flex flex-wrap gap-2">
+            {ownedEnchants.filter((ue) => ue.quantity > 0).map((ue) => (
+              <button
+                key={ue.id}
+                onClick={() => setEnchantPick(ue)}
+                className="flex items-center gap-2 bg-dark-700 hover:bg-dark-600 rounded-lg px-2.5 py-1.5 text-left transition-colors border border-dark-600 hover:border-purple-500/40"
+              >
+                {ue.enchantment.icon ? (
+                  <EntityIcon src={ue.enchantment.icon} size={14} className="text-yellow-400" imgClassName="w-4 h-4 object-contain" />
+                ) : (
+                  <Sparkles size={14} className="text-yellow-400" />
+                )}
+                <span className="text-xs font-medium">{ue.enchantment.name}</span>
+                {ue.enchantment.level > 1 && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-yellow-500/15 text-yellow-400">Nv. {ue.enchantment.level}</span>
+                )}
+                <span className="text-[10px] text-gray-400">x{ue.quantity}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {filterType === "classes" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -664,6 +711,17 @@ export function InventoryPage() {
           </div>,
           document.body
         )}
+
+      {enchantPick && (
+        <EnchantItemPicker
+          enchantment={enchantPick.enchantment}
+          items={items}
+          busyId={applyingInvId}
+          onApply={handleEnchantPickApply}
+          onKeep={() => setEnchantPick(null)}
+          onClose={() => setEnchantPick(null)}
+        />
+      )}
     </div>
   );
 }
