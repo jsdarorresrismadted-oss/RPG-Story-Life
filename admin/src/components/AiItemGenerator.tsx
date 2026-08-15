@@ -22,6 +22,7 @@ const TYPE_OPTIONS = [
   { value: "helm", label: "Elmo" },
   { value: "armor", label: "Armadura" },
   { value: "cape", label: "Capa" },
+  { value: "material", label: "Material" },
 ];
 
 const RARITY_OPTIONS = [
@@ -95,12 +96,14 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
     if (!result) return;
     setSaving(true);
     try {
+      const isMaterial = type === "material";
+      const zeroStats = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
       await adminApi.items.create({
         name: result.plan.name,
         description: result.plan.description,
         icon: result.plan.icon || undefined,
-        type,
-        subtype: result.plan.subtype || undefined,
+        type: isMaterial ? "consumable" : type,
+        subtype: isMaterial ? "material" : result.plan.subtype || undefined,
         rarity,
         level,
         rank: 1,
@@ -109,16 +112,16 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         isActive: false,
         isTradable: true,
         isSellable: true,
-        isStackable: false,
-        maxStack: 1,
-        attackSpeedMs: result.plan.attackSpeedMs || 0,
-        dps: result.plan.dps || 0,
-        strength: result.plan.stats.strength || 0,
-        intellect: result.plan.stats.intellect || 0,
-        endurance: result.plan.stats.endurance || 0,
-        dexterity: result.plan.stats.dexterity || 0,
-        wisdom: result.plan.stats.wisdom || 0,
-        luck: result.plan.stats.luck || 0,
+        isStackable: isMaterial ? true : false,
+        maxStack: isMaterial ? 99 : 1,
+        attackSpeedMs: isMaterial ? 0 : result.plan.attackSpeedMs || 0,
+        dps: isMaterial ? 0 : result.plan.dps || 0,
+        strength: isMaterial ? 0 : result.plan.stats.strength || 0,
+        intellect: isMaterial ? 0 : result.plan.stats.intellect || 0,
+        endurance: isMaterial ? 0 : result.plan.stats.endurance || 0,
+        dexterity: isMaterial ? 0 : result.plan.stats.dexterity || 0,
+        wisdom: isMaterial ? 0 : result.plan.stats.wisdom || 0,
+        luck: isMaterial ? 0 : result.plan.stats.luck || 0,
       });
       toast.success(`Item "${result.plan.name}" salvo (rascunho)!`);
       setOpen(false);
@@ -171,7 +174,8 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
 
             <p className="text-xs text-gray-500 mb-4">
               A IA planeja o item (nome, atributos, preços) sem depender de serviços externos. Deixe Tema/Material/Cor vazios
-              para a IA escolher tudo. O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
+              para a IA escolher tudo. O tipo <span className="text-cyan-300">Material</span> gera matéria-prima empilhável
+              (usada em craft e quests de coleta). O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

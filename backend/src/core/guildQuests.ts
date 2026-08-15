@@ -32,21 +32,43 @@ function readProgress(quest: any): Record<string, QuestProgressEntry> {
   return {};
 }
 
-// Garante um lote de quests ativas para a guilda. Expirou/todas resgatadas? Gera novo lote.
+// Garante um lote de quests ativas para a guilda.
+// - Regenera todo o lote a cada 24h (mesmo que sobrem quests incompletas);
+// - Regenera imediatamente quando todas as quests do lote foram resgatadas;
+// - Só usa monstros presentes em mapas e materiais dropados por eles.
 export async function ensureGuildQuests(guildId: string, guildLevel = 1): Promise<void> {
   const now = new Date();
-  await prisma.guildQuest.updateMany({
-    where: { guildId, isActive: true, expiresAt: { lt: now } },
-    data: { isActive: false },
-  });
-  const active = await prisma.guildQuest.count({ where: { guildId, isActive: true } });
-  if (active > 0) return;
+  const active = await prisma.guildQuest.findMany({ where: { guildId, isActive: true } });
+  if (active.length > 0) {
+    const batchStart = Math.min(...active.map((q) => q.createdAt.getTime()));
+    const daily = now.getTime() - batchStart >= QUEST_DURATION_MS;
+    const batchDone = active.every((q) => {
+      const entries = Object.values(readProgress(q));
+      return entries.some((e) => e?.claimed);
+    });
+    if (!daily && !batchDone) return;
+    await prisma.guildQuest.updateMany({ where: { guildId, isActive: true }, data: { isActive: false } });
+  }
 
+  // Só monstros que estão em algum mapa; coleta só de materiais (consumable/material)
   const [monsters, monsterSources] = await Promise.all([
-    prisma.monster.findMany({ where: { isActive: true, NOT: { name: { in: GUILD_QUEST_EXCLUDED_MONSTERS } } }, take: 50 }),
     prisma.monster.findMany({
-      where: { isActive: true, NOT: { name: { in: GUILD_QUEST_EXCLUDED_MONSTERS } }, drops: { some: { item: { isActive: true } } } },
-      include: { drops: { where: { item: { isActive: true } }, include: { item: true } } },
+      where: { isActive: true, mapMonsters: { some: {} }, NOT: { name: { in: GUILD_QUEST_EXCLUDED_MONSTERS } } },
+      take: 50,
+    }),
+    prisma.monster.findMany({
+      where: {
+        isActive: true,
+        mapMonsters: { some: {} },
+        NOT: { name: { in: GUILD_QUEST_EXCLUDED_MONSTERS } },
+        drops: { some: { item: { isActive: true, type: "consumable", subtype: "material" } } },
+      },
+      include: {
+        drops: {
+          where: { item: { isActive: true, type: "consumable", subtype: "material" } },
+          include: { item: true },
+        },
+      },
       take: 30,
     }),
   ]);

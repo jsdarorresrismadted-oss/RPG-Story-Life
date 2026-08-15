@@ -27,6 +27,7 @@ export const ITEM_ICON_BY_SUBTYPE: Record<string, string> = {
   light: "/armoricon/armor.png",
   heavy: "/armoricon/armor.png",
   robe: "/armoricon/armor.png",
+  material: "/materialicon/crystal.png",
 };
 
 export const ITEM_ICON_BY_TYPE: Record<string, string> = {
@@ -37,6 +38,7 @@ export const ITEM_ICON_BY_TYPE: Record<string, string> = {
   ring: "/ringicon/ring.png",
   necklace: "/necklceicon/necklace.png",
   consumable: "/potionicon/vida.png",
+  material: "/materialicon/crystal.png",
 };
 
 export function defaultIconForItem(type: string, subtype?: string | null): string | null {
@@ -49,6 +51,7 @@ const TYPE_PT: Record<string, string> = {
   helm: "elmo",
   armor: "armadura",
   cape: "capa",
+  material: "material bruto",
 };
 
 const SLOT_RULES: Record<string, string> = {
@@ -56,6 +59,7 @@ const SLOT_RULES: Record<string, string> = {
   helm: "Apenas o elmo.",
   armor: "A armadura deve cobrir tronco, ombros e bracos.",
   cape: "Apenas a capa, vista de frente.",
+  material: "Nao e equipamento: e um MATERIAL BRUTO (minerio, pele, essencia, fragmento, cristal, erva), objeto isolado como no inventario.",
 };
 
 const RARITY_PT: Record<string, string> = {
@@ -105,34 +109,45 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
   if (!key) throw new AppError(503, "GROQ_API_KEY nao definida - o gerador de itens precisa dela (variavel do Railway)");
 
   const auto = !input.theme && !input.material && !input.color;
+  const isMaterial = input.type === "material";
+  const specLines = isMaterial
+    ? [
+        "REGRA MATERIAL: o item e um MATERIAL BRUTO (materia-prima usada em craft) — minerio, pele, escama, essencia, fragmento, cristal, erva, etc. NAO e equipamento.",
+        "NAO tem slot, NAO tem stats (todos 0), NAO tem attackSpeedMs nem dps. subtype DEVE ser 'material'.",
+        "Nome curto em portugues de materia-prima. Descricao: para que serve como materia-prima.",
+        "PRECOS: buyPrice entre 50 e 50000, sellPrice ~20% do buyPrice.",
+      ]
+    : [
+        "Regra do slot (respeite fielmente):",
+        SLOT_RULES[input.type],
+        "",
+        "ATRIBUTOS (stats): TODOS os equipamentos (arma, elmo, armadura, capa, anel, colar) fornecem os 6 atributos — TODOS acima de zero. O atributo principal do tipo recebe o maior valor:",
+        "- arma fisica (sword/dagger/axe): strength e dexterity altos; arma magica (staff/tome): intellect e wisdom altos",
+        "- elmo e armadura: endurance e dexterity altos",
+        "- capa: wisdom e luck altos",
+        "- anel e colar: luck alto + um secundario",
+        "Os 4 atributos restantes recebem valores menores (20-60% do principal), mas NUNCA zero. Valores inteiros, proporcionais ao nivel (base ~1.2 x nivel) e a raridade (multiplicador " + RARITY_MULT[input.rarity] + "x), entre 1 e 200.",
+        "",
+        "ARMAS: inclua tambem attackSpeedMs (500 a 2600, velocidade de ataque em milissegundos — mais rapido = melhor) e dps (dano por segundo, proporcional ao nivel e raridade, entre 1 e 100000).",
+        "",
+        "PRECOS: buyPrice entre 50 e 500000, sellPrice = ~20% do buyPrice, coerentes com nivel e raridade.",
+      ];
   const userPrompt = [
-    "Crie um novo equipamento para o RPG.",
+    "Crie um novo item para o RPG.",
     "Tipo: " + TYPE_PT[input.type] + " (" + input.type + ")",
     "Raridade: " + RARITY_PT[input.rarity] + " (" + input.rarity + ")",
     "Nivel: " + input.level,
     input.theme ? "Tema: " + input.theme : "",
     input.material ? "Material: " + input.material : "",
     input.color ? "Cor principal: " + input.color : "",
-    auto ? "Escolha voce mesmo nome, tema, material, cor, estilo, formato, design e ornamentos. O equipamento deve parecer unico, sem copiar itens famosos, respeitando a raridade informada." : "",
+    auto ? "Escolha voce mesmo nome, tema, material, cor, estilo, formato, design e ornamentos. O item deve parecer unico, sem copiar itens famosos, respeitando a raridade informada." : "",
     "",
-    "Regra do slot (respeite fielmente):",
-    SLOT_RULES[input.type],
-    "",
-    "ATRIBUTOS (stats): TODOS os equipamentos (arma, elmo, armadura, capa, anel, colar) fornecem os 6 atributos — TODOS acima de zero. O atributo principal do tipo recebe o maior valor:",
-    "- arma fisica (sword/dagger/axe): strength e dexterity altos; arma magica (staff/tome): intellect e wisdom altos",
-    "- elmo e armadura: endurance e dexterity altos",
-    "- capa: wisdom e luck altos",
-    "- anel e colar: luck alto + um secundario",
-    "Os 4 atributos restantes recebem valores menores (20-60% do principal), mas NUNCA zero. Valores inteiros, proporcionais ao nivel (base ~1.2 x nivel) e a raridade (multiplicador " + RARITY_MULT[input.rarity] + "x), entre 1 e 200.",
-    "",
-    "ARMAS: inclua tambem attackSpeedMs (500 a 2600, velocidade de ataque em milissegundos — mais rapido = melhor) e dps (dano por segundo, proporcional ao nivel e raridade, entre 1 e 100000).",
-    "",
-    "PRECOS: buyPrice entre 50 e 500000, sellPrice = ~20% do buyPrice, coerentes com nivel e raridade.",
+    ...specLines,
     "",
     "Responda SOMENTE com JSON valido neste formato:",
     '{"name":"Nome em portugues, curto e fantastico",',
     '"description":"1-2 frases em portugues descrevendo visual e lendinha",',
-    '"subtype":"um de: sword, dagger, staff, axe, tome, bow (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | vazio para capa/anel/colar",',
+    '"subtype":"um de: sword, dagger, staff, axe, tome, bow (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | material (material bruto) | vazio para capa/anel/colar",',
     '"stats":{"strength":0,"intellect":0,"endurance":0,"dexterity":0,"wisdom":0,"luck":0},',
     '"attackSpeedMs":0,"dps":0,"buyPrice":0,"sellPrice":0}',
   ]
@@ -173,6 +188,10 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
   const STAT_KEYS = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
   const stats: Record<string, number> = {};
   for (const k of STAT_KEYS) {
+    if (isMaterial) {
+      stats[k] = 0;
+      continue;
+    }
     const v = Number(raw.stats?.[k]) || 0;
     stats[k] = Math.max(1, Math.min(200, Math.round(v)));
   }
@@ -180,13 +199,17 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
   return {
     name: String(raw.name).slice(0, 60),
     description: String(raw.description || "").slice(0, 300),
-    subtype: String(raw.subtype || "").slice(0, 20),
-    icon: defaultIconForItem(input.type, String(raw.subtype || "")),
+    subtype: isMaterial ? "material" : String(raw.subtype || "").slice(0, 20),
+    icon: defaultIconForItem(input.type, isMaterial ? "material" : String(raw.subtype || "")),
     stats,
     attackSpeedMs: isWeapon ? Math.max(500, Math.min(2600, Math.round(Number(raw.attackSpeedMs) || 2000))) : 0,
     dps: isWeapon ? Math.max(0, Math.round(Number(raw.dps) || 0)) : 0,
-    buyPrice: Math.max(0, Math.round(Number(raw.buyPrice) || 0)),
-    sellPrice: Math.max(0, Math.round(Number(raw.sellPrice) || 0)),
+    buyPrice: isMaterial
+      ? Math.max(0, Math.min(50000, Math.round(Number(raw.buyPrice) || 0)))
+      : Math.max(0, Math.round(Number(raw.buyPrice) || 0)),
+    sellPrice: isMaterial
+      ? Math.max(0, Math.min(10000, Math.round(Number(raw.sellPrice) || 0)))
+      : Math.max(0, Math.round(Number(raw.sellPrice) || 0)),
   };
 }
 
@@ -198,12 +221,14 @@ const STRENGTH_NAMES: Record<string, string[]> = {
   helm: ["Elmo", "Capacete", "Coroa", "Aureola", "Viseira", "Fronte", "Sentinela", "Cume"],
   armor: ["Couraça", "Malha", "Peito", "Blindagem", "Camisa", "Vestes", "Redoma", "Baluarte"],
   cape: ["Capa", "Manto", "Traje", "Bornal", "Vela", "Sombra", "Aura", "Voe"],
+  material: ["Fragmento", "Essencia", "Cristal", "Minério", "Pele", "Escama", "Núcleo", "Plasma", "Pó", "Seiva", "Garra", "Osso"],
 };
 const STRENGTH_DESC: Record<string, string[]> = {
   weapon: ["gume infalivel", "peso ancestral", "eco de batalhas antigas", "espirito forjado", "marca do destino", "fio incansavel"],
   helm: ["viseira imponente", "coroa de autoridade", "penacho de guerra", "olhar que inspira", "crista ancestral", "brilho de lideranca"],
   armor: ["placas entrelacadas", "malha reforcada", "aca vermelho", "espessura de muralha", "revestimento de aço", "costura de mestre"],
   cape: ["tecido vaporoso", "cauda longa", "forro real", "bordado de estrelas", "manto de vento", "fibra luminosa"],
+  material: ["materia-prima de forja", "usado em receitas de craft", "extraido de criaturas selvagens", "instavel ao toque", "cobiçado por alquimistas", "fermentado em cavernas profundas"],
 };
 
 const PRICE_NAMES: Record<string, string[]> = {
@@ -211,6 +236,7 @@ const PRICE_NAMES: Record<string, string[]> = {
   helm: ["do Guardiao", "do Norte", "do Destino", "da Batalha", "do Crepusculo", "da Legiao", "do Altar", "da Fronteira"],
   armor: ["do Guardiao", "do Norte", "da Batalha", "do Crepusculo", "da Legiao", "do Altar", "da Fronteira", "do Cerco"],
   cape: ["do Andarilho", "da Aurora", "do Crepusculo", "do Vento", "da Viagem", "do Horizonte", "das Sombras", "do Peregrino"],
+  material: ["das Cavernas", "do Abismo", "da Floresta", "das Marés", "do Vulcão", "do Norte", "da Ruína", "do Pântano", "do Vale", "das Dunas"],
 };
 
 const SUBTYPES: Record<string, string[]> = {
@@ -218,6 +244,7 @@ const SUBTYPES: Record<string, string[]> = {
   helm: ["cap", "helmet", "crown", "hood"],
   armor: ["light", "heavy", "robe"],
   cape: [""],
+  material: ["material"],
 };
 
 // Hash determinista a partir de uma string (FNV-1a 32 bits).
@@ -254,6 +281,21 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const motif = pick(STRENGTH_DESC[input.type] || STRENGTH_DESC.weapon, `${input.type}|${input.rarity}|${seed}`, 4);
   const desc = `Equipamento ${RARITY_PT[input.rarity]} com ${motif}.` + (input.theme ? ` Inspirado em ${input.theme}.` : "");
   const description = desc.slice(0, 300);
+
+  // Material bruto: sem stats, empilhável, preços baixos.
+  if (input.type === "material") {
+    return {
+      name,
+      description: `Material ${RARITY_PT[input.rarity]} ${motif}.` + (input.theme ? ` Inspirado em ${input.theme}.` : ""),
+      subtype: "material",
+      icon: defaultIconForItem("material", "material"),
+      stats: { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 },
+      attackSpeedMs: 0,
+      dps: 0,
+      buyPrice: clampInt(20 + base * rarMult * 6 + (seed % 80), 20, 50000),
+      sellPrice: clampInt(5 + (20 + base * rarMult * 6 + (seed % 80)) * 0.2, 5, 10000),
+    };
+  }
 
   // Stats: 6 atributos sempre > 0; principal do tipo recebe o maior valor.
   const STAT_KEYS: Record<string, number> = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
