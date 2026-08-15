@@ -240,9 +240,6 @@ export function createInventoryModule(app: Express): void {
           throw new AppError(403, "Este encantamento é exclusivo para VIP.");
         }
       }
-      if (inv.item.rank < (enchantment.minRank || 1)) {
-        throw new AppError(400, `Encantamento requer item de rank ${enchantment.minRank}`);
-      }
       // Encantamento de nível alto não pode ser aplicado em item de nível menor
       if (inv.item.level < enchantment.level) {
         throw new AppError(400, `Encantamento nível ${enchantment.level} exige item de nível ${enchantment.level} ou superior`);

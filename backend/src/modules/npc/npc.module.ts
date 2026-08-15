@@ -193,9 +193,6 @@ export function createNpcModule(app: Express): void {
             if (!ENCHANTABLE_SLOTS.includes(inv.item.type as any)) {
               throw new AppError(400, "Este item não aceita encantamentos");
             }
-            if (inv.item.rank < (enchant.minRank || 1)) {
-              throw new AppError(400, `Encantamento requer item de rank ${enchant.minRank}`);
-            }
             if (inv.item.level < enchant.level) {
               throw new AppError(400, `Encantamento nível ${enchant.level} exige item de nível ${enchant.level} ou superior`);
             }

@@ -70,7 +70,6 @@ interface Enchantment {
   category: string;
   rarity: string;
   level: number;
-  minRank: number;
   price: number;
   compatibleSlots: string;
   strength: number;
@@ -101,7 +100,6 @@ const emptyForm = () => ({
   category: "strength",
   rarity: "common",
   level: 1,
-  minRank: 1,
   price: 0,
   compatibleSlots: [] as string[],
   strength: 10,
@@ -175,7 +173,6 @@ export default function EnchantmentsPage() {
       category: ENCHANTMENT_CATEGORIES.includes(item.category) ? item.category : "strength",
       rarity: item.rarity,
       level: Number(item.level) || 1,
-      minRank: Number(item.minRank) || 1,
       price: Number(item.price) || 0,
       compatibleSlots: parseSlots(item.compatibleSlots),
       strength: Number(item.strength) || 1,
@@ -199,7 +196,6 @@ export default function EnchantmentsPage() {
         category: item.category,
         rarity: item.rarity,
         level: Number(item.level) || 1,
-        minRank: Number(item.minRank) || 1,
         price: Number(item.price) || 0,
         compatibleSlots: item.compatibleSlots,
         strength: Number(item.strength) || 1,
@@ -258,7 +254,6 @@ export default function EnchantmentsPage() {
         ...form,
         level: clampLevel(Number(form.level) || 1),
         price: Number(form.price) || 0,
-        minRank: Number(form.minRank) || 1,
         compatibleSlots: form.compatibleSlots,
       };
       if (editing?.id) {
@@ -524,10 +519,6 @@ export default function EnchantmentsPage() {
                     className={inputClass}
                   />
                   <p className="text-[11px] text-gray-500 mt-1">Valores exibidos/vendidos neste nível — a progressão completa é calculada pela fórmula.</p>
-                </div>
-                <div>
-                  <label className={labelClass}>Rank mín. do equipamento</label>
-                  <input type="number" min={1} value={form.minRank} onChange={(e) => setForm({ ...form, minRank: parseInt(e.target.value) || 1 })} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Preço (ouro)</label>

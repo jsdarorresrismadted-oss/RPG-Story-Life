@@ -49,7 +49,6 @@ export function EnchantItemPicker({ enchantment, items, busyId, loading, onApply
       return [];
     }
   })();
-  const minRank = Number(enchantment.minRank) || 1;
   const levelReq = Number(enchantment.level) || 1;
 
   const groups = CATEGORIES.map((c) => ({ ...c, rows: items.filter((i) => i.item?.type === c.type) }));
@@ -107,15 +106,12 @@ export function EnchantItemPicker({ enchantment, items, busyId, loading, onApply
                     {g.rows.map((inv) => {
                       const item = inv.item;
                       const ok =
-                        Number(item.rank) >= minRank &&
                         Number(item.level) >= levelReq &&
                         (slots.length === 0 || slots.includes(item.type));
                       const reason = !ok
-                        ? Number(item.rank) < minRank
-                          ? `Requer rank ${minRank}`
-                          : Number(item.level) < levelReq
-                            ? `Requer item Nv. ${levelReq}`
-                            : "Incompatível"
+                        ? Number(item.level) < levelReq
+                          ? `Requer item Nv. ${levelReq}`
+                          : "Incompatível"
                         : "";
                       const busy = busyId === inv.id;
                       return (

@@ -186,7 +186,6 @@ export function InventoryPage() {
     return ownedEnchants.filter((ue) => {
       const en = ue.enchantment;
       if (!en || ue.quantity < 1) return false;
-      if (item.item.rank < (en.minRank || 1)) return false;
       if (item.item.level < en.level) return false;
       if (slots.length > 0 && !slots.includes(item.item.type)) return false;
       return true;
