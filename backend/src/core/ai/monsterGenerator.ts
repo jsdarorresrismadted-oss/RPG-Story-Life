@@ -81,14 +81,17 @@ CONTRATO (responda apenas com JSON válido, sem markdown):
 REGRAS DE QUANTIDADE:
 - Se o usuário pedir uma quantidade (ex.: "6 monstros"), gere EXATAMENTE essa quantidade (máximo 8).
 - Se não pedir quantidade, gere 1 monstro.
-- Nomes e temas coerentes entre si (um grupo do mesmo habitat/fantasia), variando nível quando o usuário pedir faixa (ex.: "nível 10 a 15" → distribua os níveis nessa faixa).
+- Nomes e temas coerentes entre si (um grupo do mesmo habitat/fantasia), variando nível quando o usuário pedir faixa (ex.: "nível 1 a 5" → distribua os níveis nessa faixa, um por nível se possível).
 
 REGRAS DE STATS (por monstro):
 - level 1 a 99. hp 30 a 500000 (bosses podem ter muito mais), attack 2 a 5000.
+- defense e magicDefense entre 20% e 40% do attack (o sistema ainda adiciona +30% de defesa e +20% de dano).
 - criticalChance 0 a 50 (%), criticalDamage 100 a 300 (%), dodge 0 a 30 (%), accuracy 70 a 100 (%).
 - attackSpeed 1200 a 5000 (ms entre ataques).
+- O sistema calcula xpReward/goldReward automaticamente pelo nível (você pode ignorar esses campos ou chutar valores).
 
 REGRAS DE SKILLS (1 a 4 skills por monstro):
+- NOMES CRIATIVOS E ÚNICOS em pt-BR, coerentes com a criatura (ex.: "Corte Espectral", "Uivo da Maré", "Presas Sombrias", "Aura Pestilenta"). NUNCA "Ataque 1", "Skill 2", "Ataque Básico" genérico.
 - A PRIMEIRA é o ataque automático: trigger "auto", kind "attack", cooldown 2000, actions: [{ action: "damage", amount: <n>, scaling: [{ stat: "attack"|"magic", factor: 0.8-1.2 }], damageType: "physical"|"magic" }].
 - Demais: trigger "active", cooldown 3000-20000, actions válidas:
   • { action: "damage", amount: <n>, scaling: [{ stat: "attack"|"magic", factor: <0.5-2> }], damageType: "physical"|"magic" }
@@ -97,9 +100,12 @@ REGRAS DE SKILLS (1 a 4 skills por monstro):
   • { action: "mana", amount: <n>, restore: true }
 - Cada skill: { name, description, kind, trigger, target: "enemy"|"self", cooldown, manaCost, rankRequired: 1, sortOrder, actions }.
 
-REGRAS DE DROPS (2 a 5 itens por monstro):
-- drops: [{ "itemName": "Nome EXATO do item existente no jogo (ex: Espada de Ferro, Poção de Vida, Fragmento do Abismo)", "dropChance": <1-100 %>, "minQuantity": 1, "maxQuantity": 1, "minLevel": 1, "maxLevel": 99, "guaranteed": false }]
-- Distribua dropChance de forma coerente: itens fracos mais comuns (30-70%), raros mais raros (1-10%).
+REGRAS DE DROPS (2 a 5 itens por monstro) — RECURSOS TEMÁTICOS DA PRÓPRIA CRIATURA:
+- Crie para cada monstro itens de DROP TEMÁTICO (matéria-prima/recursos do corpo ou essência da criatura, usados em craft). Exemplos:
+  espectro da floresta → "Essência de Espectro da Floresta"; goblin → "Osso de Goblin"; lobo → "Presa de Lobo"; aranha → "Veno de Aranha"; dragao → "Escama de Dragao".
+- Formato de drop NOVO (item será criado automaticamente): { "name": "Nome do recurso em pt-BR", "description": "1 frase (ex.: matéria-prima de craft)", "dropChance": <1-100%>, "minQuantity": 1, "maxQuantity": 2, "guaranteed": false }
+- Recurso principal (mais comum): dropChance 40-70%. Recursos secundários: 15-35%. Recursos raros (essências, núcleos): 5-15%.
+- (Opcional) NO MÁXIMO 1 drop de item JÁ EXISTENTE no jogo: { "itemName": "Nome EXATO de item existente (ex.: Poção de Vida)", "dropChance": 3-10%, "minQuantity": 1, "maxQuantity": 1, "guaranteed": false }.
 
 PEDIDO DO USUÁRIO (atenda fielmente o tema, fantasia e mecânicas pedidos):
 "${idea}"`;
@@ -164,6 +170,18 @@ export function extractJson(text: string): any {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
+// Recompensas determinísticas por nível: XP = 12 * level^1.35; ouro = 40% do XP;
+// CXP (XP de classe) = 50% do XP. Elite x1.5, Boss x3.
+export function rewardsForLevel(level: number, isElite = false, isBoss = false): { xpReward: number; goldReward: number; classXpReward: number } {
+  const mult = isBoss ? 3 : isElite ? 1.5 : 1;
+  const xp = Math.round(12 * Math.pow(level, 1.35) * mult);
+  return {
+    xpReward: xp,
+    goldReward: Math.round(xp * 0.4),
+    classXpReward: Math.round(xp * 0.5),
+  };
+}
+
 function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } {
   if (!m || !m.name) throw new Error("JSON inválido: campo monster.name ausente");
 
@@ -202,19 +220,33 @@ function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } 
     };
   });
 
+  // Drops: item NOVO temático (name/description) OU item existente (itemName).
   const drops = Array.isArray(m.drops)
     ? m.drops
-        .map((d: any) => ({
-          itemName: String(d?.itemName || d?.item || "").trim(),
-          dropChance: clamp(Math.round(num(d?.dropChance, 1)), 0, 100),
-          minQuantity: Math.max(1, Math.round(num(d?.minQuantity, 1))),
-          maxQuantity: Math.max(1, Math.round(num(d?.maxQuantity, 1))),
-          minLevel: clamp(Math.round(num(d?.minLevel, 1)), 1, 99),
-          maxLevel: clamp(Math.round(num(d?.maxLevel, 99)), 1, 99),
-          guaranteed: !!d?.guaranteed,
-        }))
-        .filter((d: any) => d.itemName)
+        .map((d: any) => {
+          const existing = String(d?.itemName || d?.item || "").trim();
+          const newName = String(d?.name || "").trim();
+          const name = existing || newName;
+          if (!name) return null;
+          return {
+            itemName: existing || null,
+            newName: existing ? null : newName,
+            description: String(d?.description || "").slice(0, 200),
+            dropChance: clamp(Math.round(num(d?.dropChance, 1)), 0, 100),
+            minQuantity: Math.max(1, Math.round(num(d?.minQuantity, 1))),
+            maxQuantity: Math.max(1, Math.round(num(d?.maxQuantity, 1))),
+            minLevel: clamp(Math.round(num(d?.minLevel, 1)), 1, 99),
+            maxLevel: clamp(Math.round(num(d?.maxLevel, 99)), 1, 99),
+            guaranteed: !!d?.guaranteed,
+          };
+        })
+        .filter((d: any) => d !== null)
     : [];
+
+  const rewards = rewardsForLevel(level, !!m.isElite, !!m.isBoss);
+  // "Pouco mais" de dano e defesa do que a IA sugere (pedido do dono):
+  const attack = clamp(Math.round(num(m.attack, 10) * 1.2), 1, 50000);
+  const defense = clamp(Math.round(num(m.defense, 5) * 1.3), 0, 50000);
 
   return {
     monster: {
@@ -227,8 +259,8 @@ function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } 
       element: VALID_ELEMENTS.includes(m.element) ? m.element : "none",
       hp: clamp(Math.round(num(m.hp, 50)), 1, 5000000),
       mana: clamp(Math.round(num(m.mana, 20)), 0, 500000),
-      attack: clamp(Math.round(num(m.attack, 10)), 1, 50000),
-      defense: clamp(Math.round(num(m.defense, 5)), 0, 50000),
+      attack,
+      defense,
       magic: clamp(Math.round(num(m.magic, 5)), 0, 50000),
       magicDefense: clamp(Math.round(num(m.magicDefense, 5)), 0, 50000),
       speed: clamp(Math.round(num(m.speed, 10)), 1, 500),
@@ -237,8 +269,9 @@ function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } 
       dodge: clamp(num(m.dodge, 1), 0, 30),
       accuracy: clamp(num(m.accuracy, 90), 70, 100),
       attackSpeed: clamp(Math.round(num(m.attackSpeed, 2000)), 1200, 5000),
-      xpReward: Math.max(0, Math.round(num(m.xpReward, 10))),
-      goldReward: Math.max(0, Math.round(num(m.goldReward, 5))),
+      xpReward: rewards.xpReward,
+      goldReward: rewards.goldReward,
+      classXpReward: rewards.classXpReward,
       behavior: m.behavior || "",
       skills: normalizedSkills,
     },
@@ -359,6 +392,7 @@ export async function persistMonsterData(monster: any, drops: any[]): Promise<{ 
       accuracy: monster.accuracy,
       attackSpeed: monster.attackSpeed,
       xpReward: monster.xpReward,
+      classXpReward: monster.classXpReward ?? 0,
       goldReward: monster.goldReward,
       behavior: monster.behavior || null,
       skills: JSON.stringify(monster.skills || []),
@@ -368,16 +402,54 @@ export async function persistMonsterData(monster: any, drops: any[]): Promise<{ 
 
   const warnings: string[] = [];
   for (const d of drops || []) {
-    if (!d?.itemName) continue;
-    const item = await prisma.item.findFirst({ where: { name: { contains: d.itemName, mode: "insensitive" } } });
-    if (!item) {
-      warnings.push(`Item "${d.itemName}" não encontrado — drop ignorado`);
-      continue;
+    if (!d?.itemName && !d?.newName) continue;
+    let itemId: string | null = null;
+
+    if (d.newName) {
+      // Drop temático novo: cria (ou reusa) um material de craft do monstro.
+      const existing = await prisma.item.findFirst({
+        where: { name: { equals: d.newName, mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (existing) {
+        itemId = existing.id;
+      } else {
+        const chance = clamp(Math.round(num(d.dropChance, 20)), 1, 100);
+        const rarity = chance >= 40 ? "common" : chance >= 15 ? "uncommon" : chance >= 6 ? "rare" : "epic";
+        const sellPrice = Math.max(2, Math.round(num(monster.xpReward, 10) * 0.08));
+        const item = await prisma.item.create({
+          data: {
+            name: String(d.newName).slice(0, 60),
+            description: String(d.description || `Matéria-prima de ${monster.name}. Usada em receitas de craft.`).slice(0, 300),
+            type: "consumable",
+            subtype: "material",
+            rarity,
+            level: monster.level,
+            rank: monster.level,
+            isStackable: true,
+            maxStack: 99,
+            buyPrice: sellPrice * 2,
+            sellPrice,
+            icon: "/materialicon/crystal.png",
+          },
+        });
+        itemId = item.id;
+        warnings.push(`Item criado: ${item.name}`);
+      }
+    } else if (d.itemName) {
+      const item = await prisma.item.findFirst({ where: { name: { contains: d.itemName, mode: "insensitive" } } });
+      if (!item) {
+        warnings.push(`Item "${d.itemName}" não encontrado — drop ignorado`);
+        continue;
+      }
+      itemId = item.id;
     }
+
+    if (!itemId) continue;
     await prisma.dropItem.create({
       data: {
         monsterId: created.id,
-        itemId: item.id,
+        itemId,
         dropChance: d.dropChance,
         minQuantity: d.minQuantity,
         maxQuantity: d.maxQuantity,
