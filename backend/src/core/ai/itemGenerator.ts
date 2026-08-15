@@ -145,9 +145,9 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     ...specLines,
     "",
     "Responda SOMENTE com JSON valido neste formato:",
-    '{"name":"Nome em portugues, curto e fantastico",',
+    '{"name":"Nome em portugues, curto e fantastico — SE o tema pedir um tipo especifico (cajado, espada, adaga, machado, arco, grimorio), o nome DEVE comecar com ele (ex.: tema cajado -> \\"Cajado do Alvorecer\\")",',
     '"description":"1-2 frases em portugues descrevendo visual e lendinha",',
-    '"subtype":"um de: sword, dagger, staff, axe, tome, bow (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | material (material bruto) | vazio para capa/anel/colar",',
+    '"subtype":"um de (em INGLES): sword, dagger, staff, axe, tome, bow — staff=cajado, sword=espada, dagger=adaga, axe=machado, bow=arco, tome=grimorio/tomo (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | material (material bruto) | vazio para capa/anel/colar",',
     '"stats":{"strength":0,"intellect":0,"endurance":0,"dexterity":0,"wisdom":0,"luck":0},',
     '"attackSpeedMs":0,"dps":0,"buyPrice":0,"sellPrice":0}',
   ]
@@ -199,8 +199,8 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
   return {
     name: String(raw.name).slice(0, 60),
     description: String(raw.description || "").slice(0, 300),
-    subtype: isMaterial ? "material" : String(raw.subtype || "").slice(0, 20),
-    icon: defaultIconForItem(input.type, isMaterial ? "material" : String(raw.subtype || "")),
+    subtype: isMaterial ? "material" : normalizeSubtype(input.type, raw.subtype, input.theme),
+    icon: defaultIconForItem(input.type, isMaterial ? "material" : normalizeSubtype(input.type, raw.subtype, input.theme)),
     stats,
     attackSpeedMs: isWeapon ? Math.max(500, Math.min(2600, Math.round(Number(raw.attackSpeedMs) || 2000))) : 0,
     dps: isWeapon ? Math.max(0, Math.round(Number(raw.dps) || 0)) : 0,
@@ -247,6 +247,48 @@ const SUBTYPES: Record<string, string[]> = {
   material: ["material"],
 };
 
+// Sinônimos em português/inglês → subtipo canônico do sistema.
+const SUBTYPE_PT_MAP: Record<string, string> = {
+  cajado: "staff", staff: "staff", bastao: "staff", "cajado magico": "staff",
+  espada: "sword", sword: "sword", lamina: "sword",
+  adaga: "dagger", dagger: "dagger", faca: "dagger", punhal: "dagger",
+  machado: "axe", axe: "axe", machadinha: "axe",
+  arco: "bow", bow: "bow", besta: "bow",
+  grimorio: "tome", grimório: "tome", tomo: "tome", tome: "tome", livro: "tome",
+  capuz: "hood", hood: "hood", "capuz de tecido": "hood",
+  coroa: "crown", crown: "crown",
+  capacete: "helmet", helmet: "helmet", elmo: "helmet",
+  gorro: "cap", cap: "cap",
+  leve: "light", light: "light", couro: "light",
+  pesada: "heavy", heavy: "heavy", pesado: "heavy", malha: "heavy", placa: "heavy",
+  tunica: "robe", túnica: "robe", robe: "robe", vestes: "robe",
+  material: "material",
+};
+
+// Detecta o subtipo a partir do tema digitado (ex.: "cajado" → staff).
+function detectSubtypeFromTheme(theme?: string): string | null {
+  const t = String(theme || "").toLowerCase();
+  if (!t) return null;
+  for (const [word, subtype] of Object.entries(SUBTYPE_PT_MAP)) {
+    if (t.includes(word)) return subtype;
+  }
+  return null;
+}
+
+// Normaliza o subtipo vindo da IA (pode vir em português) e valida contra o tipo.
+function normalizeSubtype(type: string, raw: string | undefined, theme?: string): string {
+  const st = String(raw || "").trim().toLowerCase();
+  const fromMap = SUBTYPE_PT_MAP[st] || detectSubtypeFromTheme(theme);
+  const allowed = SUBTYPES[type] || [""];
+  if (fromMap && allowed.includes(fromMap)) return fromMap;
+  if (st && allowed.includes(st)) return st;
+  // Fallback por tipo: arma física padrão, elmo cap, armadura leve.
+  if (type === "weapon") return "sword";
+  if (type === "helm") return "cap";
+  if (type === "armor") return "light";
+  return "";
+}
+
 // Hash determinista a partir de uma string (FNV-1a 32 bits).
 function hashStr(s: string): number {
   let h = 2166136261;
@@ -268,12 +310,17 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const rarMult = RARITY_MULT[input.rarity];
   const base = 1.2 * input.level;
 
-  // Subtype determinado pela seed (estabilidade por tipo/raridade/nivel).
+  // Subtype: tema tem prioridade (ex.: "cajado" → staff), senão escolha pela seed.
   const subtypes = SUBTYPES[input.type];
-  const subtype = pick(subtypes, `${input.type}|${input.rarity}|${input.level}|${seed}`, 1);
+  const fromTheme = detectSubtypeFromTheme(input.theme);
+  const subtype = fromTheme && subtypes.includes(fromTheme) ? fromTheme : pick(subtypes, `${input.type}|${input.rarity}|${input.level}|${seed}`, 1);
 
   // nome = [substantivo forte] + [aposito ambientico]
-  const root = pick(STRENGTH_NAMES[input.type] || STRENGTH_NAMES.weapon, `${input.type}|${seed}`, 2);
+  const WEAPON_PT: Record<string, string> = { sword: "Espada", dagger: "Adaga", staff: "Cajado", axe: "Machado", bow: "Arco", tome: "Grimório" };
+  const root =
+    fromTheme && WEAPON_PT[subtype]
+      ? WEAPON_PT[subtype]
+      : pick(STRENGTH_NAMES[input.type] || STRENGTH_NAMES.weapon, `${input.type}|${seed}`, 2);
   const ep = pick(PRICE_NAMES[input.type] || PRICE_NAMES.weapon, `${input.type}|${input.rarity}|${seed}`, 3);
   const materialWord = input.material ? " de " + (input.material ?? "") : "";
   const name = (root + " " + ep + materialWord).slice(0, 60);
