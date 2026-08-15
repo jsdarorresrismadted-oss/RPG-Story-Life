@@ -1,6 +1,7 @@
 import { prisma } from "../database";
 import { AppError } from "../middleware/errorHandler";
 import { computeStats } from "../classEngine/stat-calculator";
+import { generateSkillIcons } from "./skillIconGenerator";
 
 // ===== Gerador de classes via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
 // Chaves: GEMINI_API_KEY e GROQ_API_KEY (variáveis de ambiente).
@@ -161,9 +162,10 @@ REGRAS DE CORE STATS (${CORE_KEYS.join(", ")}):
 - Valores inteiros de 0 a 999999 (pontos altos são permitidos: cada ponto converte pouco, então classes fortes precisam de pontos altos — ex.: 200+ pontos para chance de crítico relevante).
 - SOMA TOTAL livre (sem limite máximo). Distribua de acordo com a fantasy da classe (tank = endurance/strength; mage = intellect; assassino = dexterity/luck; suporte = wisdom/intellect).
 
-REGRAS DE SKILLS (2 a 5 skills):
-- A PRIMEIRA skill é o ataque automático: trigger "auto", kind "attack", target "enemy", cooldown 2000, manaCost 0, rankRequired 1, sortOrder 1, actions: [{ action: "damage", amount: 6-10, scaling: [{ stat: "attack"|"magic", factor: 0.8-1.2 }], damageType: "physical"|"magic" }].
-- Demais skills: trigger "active" (rankRequired 1, 3 ou 5) ou "ultimate" (rankRequired 8), cooldown 3000-30000, manaCost 5-35, sortOrder crescente.
+REGRAS DE SKILLS (EXATAMENTE 5 skills, NUNCA mais nem menos):
+- Skill 1: o ataque automático — trigger "auto", kind "attack", target "enemy", cooldown 2000, manaCost 0, rankRequired 1, sortOrder 1, actions: [{ action: "damage", amount: 6-10, scaling: [{ stat: "attack"|"magic", factor: 0.8-1.2 }], damageType: "physical"|"magic" }].
+- Skills 2, 3 e 4: trigger "active", rankRequired 1, 3 e 4 (respectivamente, sortOrder 2, 3 e 4), cooldown 3000-30000, manaCost 5-35.
+- Skill 5: a ULTIMATE — trigger "ultimate" (sempre), rankRequired 5 (sempre), sortOrder 5, cooldown 25000-45000, manaCost 20-40, poderosa (dano/heal/buff forte, condizente com ser a skill definitiva da classe).
 - Ações válidas (actions):
   • { action: "damage", amount: <n>, scaling: [{ stat: "attack"|"magic", factor: <0.5-2> }], damageType: "physical"|"magic" }
   • { action: "heal", amount: <n>, scaling: [{ stat: "magic", factor: <0.5-1.5> }] }
@@ -269,7 +271,9 @@ function normalize(raw: any, errors: string[]): GeneratedClass {
 
   const skills = Array.isArray(raw.skills) && raw.skills.length > 0 ? raw.skills : [];
   if (skills.length === 0) errors.push("Nenhuma skill gerada");
+  if (skills.length !== 5) errors.push(`Padrão de classe: esperado EXATAMENTE 5 skills (auto + 3 ativas + ultimate), veio ${skills.length}`);
   if (!skills.some((s: any) => s.trigger === "auto")) errors.push("Falta o ataque automático (trigger 'auto')");
+  if (!skills.some((s: any) => s.trigger === "ultimate")) errors.push("Falta a skill ultimate (trigger 'ultimate' liberada no rank 5)");
 
   const passives = Array.isArray(raw.passives) ? raw.passives : [];
   if (passives.length !== 3) errors.push(`Esperado 3 passivas, veio ${passives.length}`);
@@ -314,7 +318,8 @@ function normalize(raw: any, errors: string[]): GeneratedClass {
       target: VALID_TARGETS.includes(s.target) ? s.target : "enemy",
       cooldown: Math.max(0, Math.round(num(s.cooldown, 0))),
       manaCost: Math.max(0, Math.round(num(s.manaCost, 0))),
-      rankRequired: [1, 3, 5, 8].includes(num(s.rankRequired, 1)) ? num(s.rankRequired, 1) : i === 0 ? 1 : 3,
+      rankRequired:
+        s.trigger === "ultimate" ? 5 : [1, 3, 4].includes(num(s.rankRequired, 1)) ? num(s.rankRequired, 1) : i === 0 ? 1 : 3,
       sortOrder: Math.round(num(s.sortOrder, i + 1)),
       actions,
     };
@@ -540,15 +545,27 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
     },
   });
 
-  // 4) Skills + passivas
+  // 4) Skills + passivas — cada skill recebe ARTE REAL gerada por IA de imagem
+  //    (Gemini Image se configurado, senão Pollinations). Se a arte falhar,
+  //    mantém o ícone padrão e registra o aviso — a classe continua salva.
+  const iconWarnings: string[] = [];
   for (const s of gen.skills) {
-    const icon: string | null = s.icon || null;
+    let icon: string | null = s.icon || null;
+    let iconSecondary: string | null = null;
+    try {
+      const art = await generateSkillIcons({ name: s.name, description: s.description, kind: s.kind });
+      icon = art.icon;
+      iconSecondary = art.iconSecondary;
+    } catch (err: any) {
+      iconWarnings.push(`Skill "${s.name}": arte não gerada (${(err as Error).message?.slice(0, 120)}), usando ícone padrão`);
+    }
     await prisma.skill.create({
       data: {
         name: s.name,
         slug: s.slug,
         description: s.description || "",
         icon,
+        iconSecondary,
         kind: s.kind,
         trigger: s.trigger,
         target: s.target,
@@ -603,6 +620,6 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
     effects: gen.effects.map((e: any) => e.slug),
     coreStats: gen.sm.coreStats,
     preview: gen.preview,
-    warnings: (gen as any).errors || [],
+    warnings: [...((gen as any).errors || []), ...iconWarnings],
   };
 }

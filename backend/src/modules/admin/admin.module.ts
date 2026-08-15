@@ -52,6 +52,22 @@ function aiCooldown(req: Request, _res: Response, next: NextFunction): void {
 }
 const aiGuard = [requireAdmin, aiLimiter, aiCooldown];
 
+// Cooldown para GERAÇÃO DE ARTE (imagem via API paga): 30min por padrão
+// (SKILL_ICON_COOLDOWN_MS em ms; ex.: 3600000 = 1h).
+const lastSkillIconCall = new Map<string, number>();
+const SKILL_ICON_COOLDOWN_MS = parseInt(process.env.SKILL_ICON_COOLDOWN_MS || String(30 * 60 * 1000), 10);
+function aiImageCooldown(req: Request, _res: Response, next: NextFunction): void {
+  const now = Date.now();
+  const last = lastSkillIconCall.get("global") || 0;
+  const waitMs = SKILL_ICON_COOLDOWN_MS - (now - last);
+  if (waitMs > 0) {
+    const mins = Math.ceil(waitMs / 60000);
+    return next(new AppError(429, `Geração de arte em cooldown — aguarde ${mins} min (limite de 30min a 1h entre gerações).`));
+  }
+  lastSkillIconCall.set("global", now);
+  next();
+}
+
 // Tenta apagar de verdade; se o registro estiver referenciado por outros dados
 // (inventário, lojas, drops, craft, etc.), aplica soft-delete (isActive=false)
 // para não quebrar o banco nem destruir dados de jogadores.
@@ -823,7 +839,30 @@ export function createAdminModule(app: Express): void {
   });
 
   app.delete("/api/admin/classes/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
-    try { const r = await deleteWithSoftFallback(prisma.gameClass, req, "class"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+    try {
+      const cls = await prisma.gameClass.findUnique({ where: { id: req.params.id } });
+      if (!cls) throw new AppError(404, "Classe não encontrada");
+      // Deleta de verdade em cascata (skills, passivas, unlocks) e realoca os
+      // personagens que usam a classe para a primeira classe starter restante.
+      await prisma.$transaction(async (tx) => {
+        const fallback = await tx.gameClass.findFirst({
+          where: { id: { not: cls.id } },
+          orderBy: [{ isStarter: "desc" }, { name: "asc" }],
+        });
+        if (!fallback) throw new AppError(400, "Não é possível excluir a última classe do jogo");
+        await tx.skill.deleteMany({ where: { classId: cls.id } });
+        await tx.passive.deleteMany({ where: { classId: cls.id } });
+        await tx.characterClass.deleteMany({ where: { classId: cls.id } });
+        await tx.character.updateMany({ where: { classId: cls.id }, data: { classId: fallback.id } });
+        await tx.shopItem.updateMany({ where: { classId: cls.id }, data: { classId: null } });
+        await tx.shopProduct.updateMany({ where: { classId: cls.id }, data: { classId: null } });
+        await tx.gameClass.delete({ where: { id: cls.id } });
+      });
+      logDelete(req, "class", cls.id, "delete");
+      res.json({ message: "Classe deletada (skills, passivas e vínculos removidos)" });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // IA: gerar classe automaticamente (rascunho) — Gemini com fallback Groq
@@ -831,7 +870,7 @@ export function createAdminModule(app: Express): void {
     try { res.json(aiProvidersAvailable()); } catch (err) { next(err); }
   });
 
-  app.post("/api/admin/classes/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/classes/generate", ...aiGuard, aiImageCooldown, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { prompt, count } = req.body || {};
       const idea = String(prompt || "").trim();
@@ -1310,7 +1349,7 @@ export function createAdminModule(app: Express): void {
 
   // Gera o par de artes da skill (ícone principal + secundário) via IA de imagem
   // (Gemini Image se GEMINI_API_KEY estiver definida; senão Pollinations.ai grátis).
-  app.post("/api/admin/skills/ai-icons", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/admin/skills/ai-icons", requireAdmin, aiImageCooldown, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = req.body ?? {};
       const name = String(body.name ?? "").trim();
