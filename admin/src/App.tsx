@@ -11,6 +11,7 @@ import EffectsPage from "./pages/EffectsPage";
 import ShopsPage from "./pages/ShopsPage";
 import EnchantmentsPage from "./pages/EnchantmentsPage";
 import MonsterPage from "./pages/MonstersPage";
+import NpcsPage from "./pages/NpcsPage";
 import MapsPage from "./pages/MapsPage";
 import EventsPage from "./pages/EventsPage";
 import GachaPage from "./pages/GachaPage";
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/effects" element={<EffectsPage />} />
         <Route path="/shops" element={<ShopsPage />} />
         <Route path="/monsters" element={<MonsterPage />} />
+        <Route path="/npcs" element={<NpcsPage />} />
         <Route path="/maps" element={<MapsPage />} />
         <Route path="/events" element={<EventsPage />} />
         <Route path="/users" element={<UsersPage />} />

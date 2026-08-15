@@ -150,6 +150,7 @@ export const adminApi = {
     create: (data: any) => api.post("/admin/npcs", data),
     update: (id: string, data: any) => api.put(`/admin/npcs/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/npcs/${id}`, { params }),
+    generate: (prompt: string, mapId?: string) => api.post("/admin/npcs/generate", { prompt, mapId }),
   },
   shopItems: {
     list: () => api.get("/admin/shopitems"),

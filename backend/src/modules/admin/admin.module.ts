@@ -10,6 +10,7 @@ import { DEFAULT_GAME_LIMITS, invalidateGameLimits } from "../../core/gameLimits
 import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../../core/ai/classGenerator";
 import { generateItemSprite, defaultIconForItem } from "../../core/ai/itemGenerator";
 import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
+import { generateNpcs, persistGeneratedNpcs } from "../../core/ai/npcGenerator";
 import { generateSkillIcons } from "../../core/ai/skillIconGenerator";
 import { generateMap, persistGeneratedMap } from "../../core/ai/mapGenerator";
 import { generateEvent, persistGeneratedEvent } from "../../core/ai/eventGenerator";
@@ -1177,6 +1178,19 @@ export function createAdminModule(app: Express): void {
       const providerLog: string[] = [];
       const gen = await generateMonster(idea, providerLog);
       const saved = await persistGeneratedMonster(gen);
+      res.status(201).json({ data: saved, providers: providerLog });
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/npcs/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      const mapId = String((req.body || {}).mapId || "").trim() || undefined;
+      if (!idea) throw new AppError(400, "Descreva o NPC que a IA deve criar (ex.: 'ferreiro da vila de pedra')");
+      requireAi();
+      const providerLog: string[] = [];
+      const gen = await generateNpcs(idea, providerLog);
+      const saved = await persistGeneratedNpcs(gen, { mapId });
       res.status(201).json({ data: saved, providers: providerLog });
     } catch (err) { next(err); }
   });
