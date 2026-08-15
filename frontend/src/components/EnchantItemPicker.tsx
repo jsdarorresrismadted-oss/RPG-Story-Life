@@ -32,6 +32,7 @@ const RARITY_TEXT: Record<string, string> = {
 interface Props {
   enchantment: any;
   items: any[];
+  playerLevel?: number;
   busyId?: string | null;
   loading?: boolean;
   onApply: (inventoryId: string) => void;
@@ -39,7 +40,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function EnchantItemPicker({ enchantment, items, busyId, loading, onApply, onKeep, onClose }: Props) {
+export function EnchantItemPicker({ enchantment, items, playerLevel = 1, busyId, loading, onApply, onKeep, onClose }: Props) {
   const stats = effectiveEnchantmentStats(enchantment);
   const slots = (() => {
     try {
@@ -106,11 +107,11 @@ export function EnchantItemPicker({ enchantment, items, busyId, loading, onApply
                     {g.rows.map((inv) => {
                       const item = inv.item;
                       const ok =
-                        Number(item.level) >= levelReq &&
+                        Number(playerLevel) >= levelReq &&
                         (slots.length === 0 || slots.includes(item.type));
                       const reason = !ok
-                        ? Number(item.level) < levelReq
-                          ? `Requer item Nv. ${levelReq}`
+                        ? Number(playerLevel) < levelReq
+                          ? `Requer jogador Nv. ${levelReq}`
                           : "Incompatível"
                         : "";
                       const busy = busyId === inv.id;

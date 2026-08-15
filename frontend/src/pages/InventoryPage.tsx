@@ -186,7 +186,7 @@ export function InventoryPage() {
     return ownedEnchants.filter((ue) => {
       const en = ue.enchantment;
       if (!en || ue.quantity < 1) return false;
-      if (item.item.level < en.level) return false;
+      if ((user?.level ?? 0) < en.level) return false;
       if (slots.length > 0 && !slots.includes(item.item.type)) return false;
       return true;
     });
@@ -570,7 +570,7 @@ export function InventoryPage() {
                         <div className="min-w-0">
                           <p className="text-sm">{ue.enchantment.name} <span className="text-gray-500 text-xs">x{ue.quantity}</span></p>
                           <p className="text-[11px] text-gray-500">
-                            {ue.enchantment.level > 1 ? `Requer item Nv. ${ue.enchantment.level} • ` : ""}
+                            {ue.enchantment.level > 1 ? `Requer jogador Nv. ${ue.enchantment.level} • ` : ""}
                             {(() => {
                               const stats = effectiveEnchantmentStats(ue.enchantment);
                               return CORE_STAT_LABELS.map(({ key, label }) =>
@@ -715,6 +715,7 @@ export function InventoryPage() {
         <EnchantItemPicker
           enchantment={enchantPick.enchantment}
           items={items}
+          playerLevel={user?.level}
           busyId={applyingInvId}
           onApply={handleEnchantPickApply}
           onKeep={() => setEnchantPick(null)}

@@ -230,19 +230,16 @@ export function createInventoryModule(app: Express): void {
       if (!enchantment || !enchantment.isActive) {
         throw new AppError(404, "Encantamento não encontrado");
       }
-      // Encantamento exclusivo para VIP
-      if (enchantment.requiredVip) {
-        const user = await prisma.user.findUnique({
-          where: { id: req.user!.userId },
-          select: { vipOwned: true },
-        });
-        if (!user?.vipOwned) {
-          throw new AppError(403, "Este encantamento é exclusivo para VIP.");
-        }
+      // Encantamento exige nível do JOGADOR (não do item) e pode ser exclusivo para VIP
+      const player = await prisma.user.findUnique({
+        where: { id: req.user!.userId },
+        select: { vipOwned: true, level: true },
+      });
+      if (enchantment.requiredVip && !player?.vipOwned) {
+        throw new AppError(403, "Este encantamento é exclusivo para VIP.");
       }
-      // Encantamento de nível alto não pode ser aplicado em item de nível menor
-      if (inv.item.level < enchantment.level) {
-        throw new AppError(400, `Encantamento nível ${enchantment.level} exige item de nível ${enchantment.level} ou superior`);
+      if ((player?.level ?? 0) < enchantment.level) {
+        throw new AppError(400, `Encantamento nível ${enchantment.level} exige jogador de nível ${enchantment.level} ou superior`);
       }
       const compatible = parseSlots(enchantment.compatibleSlots);
       if (compatible.length > 0 && !compatible.includes(inv.item.type)) {
