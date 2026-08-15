@@ -90,16 +90,16 @@ async function characterCombatStats(character: any): Promise<any> {
     ...["weapon", "classItem", "helm", "armor", "cape", "ring", "necklace"].map((slot) => {
       const item = (equipment as any)?.[slot];
       if (!item) return null;
-      const itemStats = {
-        strength: item.strength ?? 0,
-        intellect: item.intellect ?? 0,
-        endurance: item.endurance ?? 0,
-        dexterity: item.dexterity ?? 0,
-        wisdom: item.wisdom ?? 0,
-        luck: item.luck ?? 0,
+      // Encantamento SUBSTITUI os valores do item (ex.: todos 2, forte 4)
+      const src = item.enchantment ? computeEnchantmentStats(item.enchantment) : item;
+      return {
+        strength: src.strength ?? 0,
+        intellect: src.intellect ?? 0,
+        endurance: src.endurance ?? 0,
+        dexterity: src.dexterity ?? 0,
+        wisdom: src.wisdom ?? 0,
+        luck: src.luck ?? 0,
       };
-      const ench = item.enchantment ? computeEnchantmentStats(item.enchantment) : null;
-      return ench ? sumCoreStats([itemStats, ench]) : itemStats;
     }),
   ]);
 

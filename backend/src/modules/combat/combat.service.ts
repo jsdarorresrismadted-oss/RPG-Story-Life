@@ -217,22 +217,22 @@ export class CombatService {
       .filter((p: any) => (p.rankRequired ?? 1) <= rank)
       .map(parsePassive);
 
-    // Core Stats de equipamento — o encantamento SOMA com os atributos do item:
-    // item + encantamento (nunca substitui).
+    // Core Stats de equipamento — o encantamento SUBSTITUI os valores do item:
+    // sem encantamento, soma os valores do item; encantado, vale o encantamento
+    // (todos os atributos 2, atributo forte 4 — fórmulas de progressão).
     const coreStats = sumCoreStats([
       ...["weapon", "classItem", "helm", "armor", "cape", "ring", "necklace"].map((slot) => {
         const item = (character.equipment as any)?.[slot];
         if (!item) return null;
-        const itemStats = {
-          strength: item.strength ?? 0,
-          intellect: item.intellect ?? 0,
-          endurance: item.endurance ?? 0,
-          dexterity: item.dexterity ?? 0,
-          wisdom: item.wisdom ?? 0,
-          luck: item.luck ?? 0,
+        const src = item.enchantment ? computeEnchantmentStats(item.enchantment) : item;
+        return {
+          strength: src.strength ?? 0,
+          intellect: src.intellect ?? 0,
+          endurance: src.endurance ?? 0,
+          dexterity: src.dexterity ?? 0,
+          wisdom: src.wisdom ?? 0,
+          luck: src.luck ?? 0,
         };
-        const ench = item.enchantment ? computeEnchantmentStats(item.enchantment) : null;
-        return ench ? sumCoreStats([itemStats, ench]) : itemStats;
       }),
     ]);
 
