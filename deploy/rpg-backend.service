@@ -1,0 +1,16 @@
+[Unit]
+Description=RPG Story Life backend
+After=network.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/rpg-story-life
+EnvironmentFile=/opt/rpg-story-life/.env
+ExecStart=/usr/bin/node backend/dist/server.js
+Restart=always
+RestartSec=3
+# 24GB de RAM na Always Free: folga tranquila para build e runtime
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

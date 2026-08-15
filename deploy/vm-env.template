@@ -1,0 +1,45 @@
+# =====================================================================
+# .env da VM (Oracle Cloud Always Free) — copiar para /opt/rpg-story-life/.env
+# Preencha com os MESMOS valores do Railway (secrets) + banco local.
+# =====================================================================
+
+# --- Banco local (PostgreSQL instalado na VM) ---
+DB_USER=rpgstory
+DB_PASSWORD=CHANGE_ME
+DB_NAME=rpgstorylife
+DATABASE_URL=postgresql://rpgstory:CHANGE_ME@127.0.0.1:5432/rpgstorylife?schema=public
+REDIS_URL=redis://127.0.0.1:6379
+
+# --- Somente durante a migracao de dados (depois pode apagar):
+# RAILWAY_DATABASE_URL=postgresql://...
+
+# --- Server ---
+NODE_ENV=production
+PORT=3001
+JWT_SECRET=COLOQUE_O_MESMO_DO_RAILWAY
+JWT_EXPIRES_IN=7d
+
+# --- URLs (dominio final — se continuar no mesmo dominio, e so apontar o DNS) ---
+FRONTEND_URL=https://seu-dominio.com
+ADMIN_URL=https://seu-dominio.com
+CORS_ORIGIN=https://seu-dominio.com
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=https://seu-dominio.com/api/auth/discord/callback
+
+# --- Admin inicial ---
+ADMIN_EMAIL=admin@rpgstorylife.com
+ADMIN_PASSWORD=COLOQUE_O_MESMO_DO_RAILWAY
+
+# --- Rate limiting / combat ---
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX_REQUESTS=100
+COMBAT_TICK_RATE=1000
+COOLDOWN_RESOLUTION=100
+REDIS_PREFIX=rpgsl:
+
+# --- AI ---
+GEMINI_API_KEY=COLOQUE_O_MESMO_DO_RAILWAY
+GROQ_API_KEY=COLOQUE_O_MESMO_DO_RAILWAY
+GEMINI_MODEL=gemini-flash-latest
+GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
