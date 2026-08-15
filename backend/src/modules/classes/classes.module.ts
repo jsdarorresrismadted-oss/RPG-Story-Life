@@ -103,6 +103,18 @@ async function characterCombatStats(character: any): Promise<any> {
     }),
   ]);
 
+  // Total de Status Class exibido = base da classe + itens/encantamentos equipados
+  const classBase = parseJson(character.class?.statModel?.coreStats, {});
+  const baseCore = sumCoreStats([{
+    strength: Number(classBase.strength) || 0,
+    intellect: Number(classBase.intellect) || 0,
+    endurance: Number(classBase.endurance) || 0,
+    dexterity: Number(classBase.dexterity) || 0,
+    wisdom: Number(classBase.wisdom) || 0,
+    luck: Number(classBase.luck) || 0,
+  }]);
+  const totalCore = sumCoreStats([baseCore, coreStats]);
+
   const passives = (character.class?.passives || [])
     .filter((p: any) => (p.rankRequired ?? 1) <= rank)
     .map(parsePassiveForStats);
@@ -125,6 +137,7 @@ async function characterCombatStats(character: any): Promise<any> {
   });
 
   return {
+    coreStats: totalCore,
     hp: stats.hp,
     mana: stats.mana,
     maxHp: stats.maxHp,

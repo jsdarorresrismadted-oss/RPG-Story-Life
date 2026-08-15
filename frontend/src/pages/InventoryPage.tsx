@@ -184,6 +184,7 @@ export function InventoryPage() {
       const en = ue.enchantment;
       if (!en || ue.quantity < 1) return false;
       if (item.item.rank < (en.minRank || 1)) return false;
+      if (item.item.level < en.level) return false;
       if (slots.length > 0 && !slots.includes(item.item.type)) return false;
       return true;
     });
@@ -523,6 +524,7 @@ export function InventoryPage() {
                         <div className="min-w-0">
                           <p className="text-sm">{ue.enchantment.name} <span className="text-gray-500 text-xs">x{ue.quantity}</span></p>
                           <p className="text-[11px] text-gray-500">
+                            {ue.enchantment.level > 1 ? `Requer item Nv. ${ue.enchantment.level} • ` : ""}
                             {(() => {
                               const stats = effectiveEnchantmentStats(ue.enchantment);
                               return CORE_STAT_LABELS.map(({ key, label }) =>

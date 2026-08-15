@@ -1,5 +1,6 @@
 import { prisma } from "../database";
 import { AppError } from "../middleware/errorHandler";
+import { getGameLimits } from "../gameLimits";
 
 // ===== Gerador de monstros via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
 // Mesmo padrão do classGenerator: Gemini primeiro, Groq como fallback.
@@ -42,7 +43,7 @@ export function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
-function buildPrompt(idea: string): string {
+function buildPrompt(idea: string, xpPerLevel: number): string {
   return `Você é um designer de monstros de um MMORPG de texto. Gere UM OU VÁRIOS monstros (o usuário pode pedir uma quantidade, ex.: "6 monstros") seguindo EXATAMENTE o contrato abaixo.
 
 CONTRATO (responda apenas com JSON válido, sem markdown):
@@ -88,7 +89,7 @@ REGRAS DE STATS (por monstro):
 - defense e magicDefense entre 20% e 40% do attack (o sistema ainda adiciona +30% de defesa e +20% de dano).
 - criticalChance 0 a 50 (%), criticalDamage 100 a 300 (%), dodge 0 a 30 (%), accuracy 70 a 100 (%).
 - attackSpeed 1200 a 5000 (ms entre ataques).
-- O sistema calcula xpReward/goldReward automaticamente pelo nível (você pode ignorar esses campos ou chutar valores).
+- O sistema calcula xpReward/goldReward/classXpReward automaticamente pelo nível, SEMPRE alinhado ao custo real de subir de nível: o XP para subir do nível N é N × ${xpPerLevel} (base do jogo). Um mob comum dá 5% desse valor (elite 7,5%, boss 15%), ouro = 40% do XP e CXP = 50% do XP — o ganho nunca fica mais alto nem mais baixo que esse padrão. Você pode ignorar esses campos ou chutar valores (serão normalizados).
 
 REGRAS DE SKILLS (1 a 4 skills por monstro):
 - NOMES CRIATIVOS E ÚNICOS em pt-BR, coerentes com a criatura (ex.: "Corte Espectral", "Uivo da Maré", "Presas Sombrias", "Aura Pestilenta"). NUNCA "Ataque 1", "Skill 2", "Ataque Básico" genérico.
@@ -170,11 +171,14 @@ export function extractJson(text: string): any {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-// Recompensas determinísticas por nível: XP = 12 * level^1.35; ouro = 40% do XP;
-// CXP (XP de classe) = 50% do XP. Elite x1.5, Boss x3.
-export function rewardsForLevel(level: number, isElite = false, isBoss = false): { xpReward: number; goldReward: number; classXpReward: number } {
+// Recompensas determinísticas por nível, ALINHADAS ao custo de subir de nível:
+// XP para upar no nível N = N × xpPerLevel (game limits). Mob comum dá 5% desse
+// XP (elite 7,5%, boss 15%) — o ganho fica proporcional à barra, nem maior nem menor.
+// Ouro = 40% do XP; CXP (XP de classe) = 50% do XP.
+export function rewardsForLevel(level: number, isElite = false, isBoss = false, xpPerLevel = 1250): { xpReward: number; goldReward: number; classXpReward: number } {
   const mult = isBoss ? 3 : isElite ? 1.5 : 1;
-  const xp = Math.round(12 * Math.pow(level, 1.35) * mult);
+  const xpToNext = Math.max(1, Math.floor(level * xpPerLevel));
+  const xp = Math.max(1, Math.round(xpToNext * 0.05 * mult));
   return {
     xpReward: xp,
     goldReward: Math.round(xp * 0.4),
@@ -182,7 +186,7 @@ export function rewardsForLevel(level: number, isElite = false, isBoss = false):
   };
 }
 
-function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } {
+function normalizeOne(m: any, errors: string[], xpPerLevel = 1250): { monster: any; drops: any[] } {
   if (!m || !m.name) throw new Error("JSON inválido: campo monster.name ausente");
 
   const level = clamp(Math.round(num(m.level, 1)), 1, 99);
@@ -243,7 +247,7 @@ function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } 
         .filter((d: any) => d !== null)
     : [];
 
-  const rewards = rewardsForLevel(level, !!m.isElite, !!m.isBoss);
+  const rewards = rewardsForLevel(level, !!m.isElite, !!m.isBoss, xpPerLevel);
   // "Pouco mais" de dano e defesa do que a IA sugere (pedido do dono):
   const attack = clamp(Math.round(num(m.attack, 10) * 1.2), 1, 50000);
   const defense = clamp(Math.round(num(m.defense, 5) * 1.3), 0, 50000);
@@ -279,7 +283,7 @@ function normalizeOne(m: any, errors: string[]): { monster: any; drops: any[] } 
   };
 }
 
-function normalize(raw: any, errors: string[]): GeneratedMonster {
+function normalize(raw: any, errors: string[], xpPerLevel = 1250): GeneratedMonster {
   // Aceita: { "monsters": [...] }, { "monster": {...} }, objeto único ou array puro
   let arr: any[];
   if (Array.isArray(raw)) arr = raw;
@@ -289,7 +293,7 @@ function normalize(raw: any, errors: string[]): GeneratedMonster {
   const entries: { monster: any; drops: any[] }[] = [];
   for (const item of arr.slice(0, MAX_MONSTERS)) {
     try {
-      entries.push(normalizeOne(item, errors));
+      entries.push(normalizeOne(item, errors, xpPerLevel));
     } catch (err: any) {
       errors.push(err?.message?.includes("name ausente") ? "Monstro sem nome ignorado" : err.message);
     }
@@ -317,7 +321,8 @@ function normalize(raw: any, errors: string[]): GeneratedMonster {
 }
 
 export async function generateMonster(idea: string, providerLog: string[]): Promise<GeneratedMonster> {
-  const prompt = buildPrompt(idea);
+  const limits = await getGameLimits();
+  const prompt = buildPrompt(idea, limits.xpPerLevel);
   const attempts = [
     { name: "Gemini", fn: callGemini, key: () => process.env.GEMINI_API_KEY },
     { name: "Groq", fn: callGroq, key: () => process.env.GROQ_API_KEY },
@@ -330,7 +335,7 @@ export async function generateMonster(idea: string, providerLog: string[]): Prom
         const text = await attempt.fn(prompt);
         providerLog.push(`${attempt.name}${retry > 0 ? ` (após ${retry} retry)` : ""}`);
         const errors: string[] = [];
-        const gen = normalize(extractJson(text), errors);
+        const gen = normalize(extractJson(text), errors, limits.xpPerLevel);
         gen.errors = errors;
         return gen;
       } catch (err: any) {

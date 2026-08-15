@@ -298,7 +298,9 @@ export function ClassPage() {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
           {CORE_STATUS.map(({ key, label, icon: Icon, color }) => {
-            const points = coreStats[key] ?? 0;
+            const points = Number(charStats.coreStats?.[key]) || Number(coreStats[key]) || 0;
+            const base = Number(coreStats[key]) || 0;
+            const itemPart = points - base;
             const conv = conversion[key] || {};
             return (
               <div key={key} className="bg-dark-800/50 rounded-lg p-3">
@@ -308,6 +310,11 @@ export function ClassPage() {
                   </span>
                   <span className="font-mono text-sm font-bold">{points}</span>
                 </div>
+                {itemPart > 0 && (
+                  <p className="text-[10px] text-green-400 mb-1.5">
+                    Base {base} · Itens +{itemPart}
+                  </p>
+                )}
                 <div className="space-y-1">
                   {Object.entries(conv).map(([target, factor]) => (
                     <p key={target} className="text-[11px] text-gray-500 flex items-center justify-between">
