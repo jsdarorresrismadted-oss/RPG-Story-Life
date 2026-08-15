@@ -75,6 +75,7 @@ export const inventoryApi = {
   removeEnchant: (data: { inventoryId: string }) =>
     api.post("/inventory/enchant/remove", data),
   enchantments: () => api.get("/inventory/enchantments"),
+  remove: (id: string) => api.delete(`/inventory/${id}`),
 };
 
 export const mapsApi = {

@@ -197,6 +197,19 @@ export function createInventoryModule(app: Express): void {
     }
   });
 
+  // Descarta um item do inventário (não vende — remove permanentemente)
+  app.delete("/api/inventory/:id", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const inv = await prisma.inventory.findUnique({ where: { id: req.params.id } });
+      if (!inv || inv.userId !== req.user!.userId) throw new AppError(404, "Item not found");
+      if (inv.isEquipped) throw new AppError(400, "Desequipe o item antes de descartar");
+      await prisma.inventory.delete({ where: { id: inv.id } });
+      res.json({ message: "Item descartado" });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // Encantamentos que o jogador possui
   app.get("/api/inventory/enchantments", authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {

@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { inventoryApi, authApi, marketApi, classesApi, craftApi } from "../services/api";
 import { InventoryItem, UserEnchantment } from "../types";
 import {
-  Backpack, Search, Star, Coins,
+  Backpack, Search, Star, Coins, Trash2,
   Shield, Sparkles, Swords,
 } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
@@ -50,6 +50,7 @@ export function InventoryPage() {
   const [ownedEnchants, setOwnedEnchants] = useState<UserEnchantment[]>([]);
   const [enchantBusy, setEnchantBusy] = useState(false);
   const [enchantPick, setEnchantPick] = useState<UserEnchantment | null>(null);
+  const [enchantSlotFilter, setEnchantSlotFilter] = useState<string>("all");
   const [applyingInvId, setApplyingInvId] = useState<string | null>(null);
   const [unlockedClasses, setUnlockedClasses] = useState<any[]>([]);
   const [switchingClass, setSwitchingClass] = useState<string | null>(null);
@@ -118,13 +119,58 @@ export function InventoryPage() {
     if (!selectedItem) return;
     setSelling(true);
     try {
-      await marketApi.sellNow({ inventoryId: selectedItem.id });
-      toast.success(`Vendido por ${selectedItem.item.sellPrice}G!`);
+      const { data } = await marketApi.sellNow({ inventoryId: selectedItem.id });
+      toast.success(`Vendido por ${data?.gold ?? selectedItem.item.sellPrice}G!`);
       setSelectedItem(null);
       loadItems();
       refreshUser();
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Falha ao vender");
+    } finally {
+      setSelling(false);
+    }
+  };
+
+  const handleSellCard = async (inv: InventoryItem) => {
+    const total = Number(inv.item.sellPrice) * inv.quantity;
+    if (!window.confirm(`Vender ${inv.quantity > 1 ? `${inv.quantity}x ` : ""}${inv.item.name} por ${total}G?`)) return;
+    setSelling(true);
+    try {
+      await marketApi.sellNow({ inventoryId: inv.id, quantity: inv.quantity });
+      toast.success(`Vendido por ${total}G!`);
+      loadItems();
+      refreshUser();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha ao vender");
+    } finally {
+      setSelling(false);
+    }
+  };
+
+  const handleDiscardCard = async (inv: InventoryItem) => {
+    if (!window.confirm(`Descartar ${inv.quantity > 1 ? `${inv.quantity}x ` : ""}${inv.item.name}? Essa ação não pode ser desfeita.`)) return;
+    try {
+      await inventoryApi.remove(inv.id);
+      toast.success("Item descartado");
+      loadItems();
+      refreshUser();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha ao descartar");
+    }
+  };
+
+  const handleDiscardSelected = async () => {
+    if (!selectedItem) return;
+    if (!window.confirm(`Descartar ${selectedItem.quantity > 1 ? `${selectedItem.quantity}x ` : ""}${selectedItem.item.name}? Essa ação não pode ser desfeita.`)) return;
+    setSelling(true);
+    try {
+      await inventoryApi.remove(selectedItem.id);
+      toast.success("Item descartado");
+      setSelectedItem(null);
+      loadItems();
+      refreshUser();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Falha ao descartar");
     } finally {
       setSelling(false);
     }
@@ -266,7 +312,37 @@ export function InventoryPage() {
     .filter(i => !search || i.item.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => (rarityOrder[b.item.rarity] || 0) - (rarityOrder[a.item.rarity] || 0));
 
-  const types = ["all", "classes", ...new Set(items.map(i => i.item.type))];
+  const types = ["all", "classes", "enchants", ...new Set(items.map(i => i.item.type))];
+
+  const ENCHANT_SLOT_LABELS: Record<string, string> = {
+    weapon: "Armas",
+    armor: "Armaduras",
+    helm: "Elmos",
+    cape: "Capas",
+  };
+
+  const enchantsOfType = (ue: UserEnchantment): string[] => {
+    let slots: string[] = [];
+    try {
+      const parsed = JSON.parse(ue.enchantment.compatibleSlots || "[]");
+      slots = Array.isArray(parsed) ? parsed : [];
+    } catch {}
+    return slots;
+  };
+
+  const ownedEnchantsList = ownedEnchants.filter((ue) => ue.quantity > 0);
+  const enchantSlotChips = useMemo(() => {
+    const set = new Set<string>();
+    for (const ue of ownedEnchantsList) {
+      for (const s of enchantsOfType(ue)) set.add(s);
+    }
+    return ["all", ...Array.from(set).filter((s) => ENCHANT_SLOT_LABELS[s])];
+  }, [ownedEnchants]);
+
+  const filteredEnchants = ownedEnchantsList
+    .filter((ue) => enchantSlotFilter === "all" || enchantsOfType(ue).length === 0 || enchantsOfType(ue).includes(enchantSlotFilter))
+    .filter((ue) => !search || ue.enchantment.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => (b.enchantment.level || 1) - (a.enchantment.level || 1));
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -301,7 +377,7 @@ export function InventoryPage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder={filterType === "classes" ? "Buscar classe..." : "Buscar itens..."}
+            placeholder={filterType === "classes" ? "Buscar classe..." : filterType === "enchants" ? "Buscar encantamento..." : "Buscar itens..."}
             className="input-rpg pl-9"
           />
         </div>
@@ -316,42 +392,78 @@ export function InventoryPage() {
                   : "bg-dark-700 text-gray-400 hover:text-gray-200"
               }`}
             >
-              {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+              {type === "all" ? "All" : type === "classes" ? "Classes" : type === "enchants" ? "Encantamentos" : type.charAt(0).toUpperCase() + type.slice(1)}
             </button>
           ))}
         </div>
       </div>
 
-      {ownedEnchants.filter((ue) => ue.quantity > 0).length > 0 && (
-        <div className="panel p-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-yellow-400 mb-2 flex items-center gap-1.5">
-            <Sparkles size={13} /> Seus encantamentos
-          </p>
-          <p className="text-[11px] text-gray-600 mb-2">Selecione um encantamento e depois escolha a arma/armadura/elmo/capa para aplicar.</p>
-          <div className="flex flex-wrap gap-2">
-            {ownedEnchants.filter((ue) => ue.quantity > 0).map((ue) => (
+      {filterType === "enchants" ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {enchantSlotChips.map((slot) => (
               <button
-                key={ue.id}
-                onClick={() => setEnchantPick(ue)}
-                className="flex items-center gap-2 bg-dark-700 hover:bg-dark-600 rounded-lg px-2.5 py-1.5 text-left transition-colors border border-dark-600 hover:border-purple-500/40"
+                key={slot}
+                onClick={() => setEnchantSlotFilter(slot)}
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                  enchantSlotFilter === slot
+                    ? "bg-yellow-600 text-white"
+                    : "bg-dark-700 text-gray-400 hover:text-gray-200"
+                }`}
               >
-                {ue.enchantment.icon ? (
-                  <EntityIcon src={ue.enchantment.icon} size={14} className="text-yellow-400" imgClassName="w-4 h-4 object-contain" />
-                ) : (
-                  <Sparkles size={14} className="text-yellow-400" />
-                )}
-                <span className="text-xs font-medium">{ue.enchantment.name}</span>
-                {ue.enchantment.level > 1 && (
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-yellow-500/15 text-yellow-400">Nv. {ue.enchantment.level}</span>
-                )}
-                <span className="text-[10px] text-gray-400">x{ue.quantity}</span>
+                {slot === "all" ? "Todos" : ENCHANT_SLOT_LABELS[slot]}
               </button>
             ))}
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filteredEnchants.map((ue) => {
+              const slots = enchantsOfType(ue);
+              return (
+                <div key={ue.id} className="bg-dark-800/50 rounded-xl p-3 border border-yellow-500/20">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    {ue.enchantment.icon ? (
+                      <EntityIcon src={ue.enchantment.icon} size={16} className="text-yellow-400" imgClassName="w-5 h-5 object-contain" />
+                    ) : (
+                      <Sparkles size={16} className="text-yellow-400" />
+                    )}
+                    <p className="font-medium text-sm text-white">{ue.enchantment.name}</p>
+                    {ue.enchantment.level > 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-400">Nv. {ue.enchantment.level}</span>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap mb-2">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-300">
+                      {ue.enchantment.level > 1 ? `Requer jogador Nv. ${ue.enchantment.level}` : "Sem requisito de nível"}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-300 capitalize">
+                      {slots.length === 0 ? "Qualquer equipamento" : slots.map((s) => ENCHANT_SLOT_LABELS[s] ?? s).join(", ")}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-400">x{ue.quantity}</span>
+                  </div>
+                  <p className="text-[11px] text-yellow-300/90 mb-3">
+                    {CORE_STAT_LABELS.map(({ key, label }) => {
+                      const v = effectiveEnchantmentStats(ue.enchantment)[key];
+                      return v ? `${label} +${v}` : null;
+                    }).filter(Boolean).join(" • ") || "Sem core stats"}
+                  </p>
+                  <button
+                    onClick={() => setEnchantPick(ue)}
+                    className="w-full text-xs px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg font-medium transition-colors"
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {filteredEnchants.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              <Sparkles size={48} className="mx-auto mb-3 opacity-50" />
+              <p>Nenhum encantamento aqui — compre na loja de um NPC ou no gacha.</p>
+            </div>
+          )}
         </div>
-      )}
-
-      {filterType === "classes" ? (
+      ) : filterType === "classes" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {unlockedClasses
             .filter((cp: any) => !search || (cp.gameClass?.name || "").toLowerCase().includes(search.toLowerCase()))
@@ -390,14 +502,37 @@ export function InventoryPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {filtered.map(inv => (
-          <button
+          <div
             key={inv.id}
             onClick={() => setSelectedItem(inv)}
-            className={`card-hover text-left relative border-rarity-${inv.item.rarity || "common"} border`}
+            role="button"
+            className={`card-hover text-left relative border-rarity-${inv.item.rarity || "common"} border cursor-pointer`}
           >
             {inv.isEquipped && (
               <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded font-bold">
                 EQUIPPED
+              </div>
+            )}
+            {!inv.isEquipped && (
+              <div className="absolute top-2 right-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                {inv.item.isSellable && (
+                  <button
+                    onClick={() => handleSellCard(inv)}
+                    disabled={selling}
+                    title={`Vender por ${Number(inv.item.sellPrice) * inv.quantity}G`}
+                    className="w-7 h-7 flex items-center justify-center rounded-md bg-dark-700/90 hover:bg-green-600 text-green-400 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <Coins size={13} />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDiscardCard(inv)}
+                  disabled={selling}
+                  title="Descartar"
+                  className="w-7 h-7 flex items-center justify-center rounded-md bg-dark-700/90 hover:bg-red-600 text-red-400 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             )}
             {inv.item.enchantment && (
@@ -439,12 +574,12 @@ export function InventoryPage() {
                 )}
               </div>
             </div>
-          </button>
+          </div>
         ))}
         </div>
       )}
 
-      {filterType !== "classes" && filtered.length === 0 && (
+      {filterType !== "classes" && filterType !== "enchants" && filtered.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           <Backpack size={48} className="mx-auto mb-3 opacity-50" />
           <p>No items found</p>
@@ -690,6 +825,13 @@ export function InventoryPage() {
                   className="btn-secondary flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <Coins size={14} /> {selling ? "Vendendo..." : `Vender (${selectedItem.item.sellPrice}G)`}
+                </button>
+                <button
+                  onClick={handleDiscardSelected}
+                  disabled={selling}
+                  className="btn-secondary flex items-center gap-1.5 text-red-400 hover:text-red-300 disabled:opacity-50"
+                >
+                  <Trash2 size={14} /> Descartar
                 </button>
               </div>
             )}
