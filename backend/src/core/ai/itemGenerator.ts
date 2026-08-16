@@ -483,29 +483,33 @@ function parsePrompt(prompt: string): {
   if (sub) out.subtype = sub;
 
   // "pontos entre 5 e 10" / "5 a 8 pontos" / "atributos de 5 a 10" (número pode vir antes ou depois)
-  // Lookahead (?![^0-9]*dps) impede o par do DPS ("20 a 30 dps") de ser roubado como stats.
-  const stM =
-    p.match(/(?:pontos|stats|atributos)[^0-9]{0,12}(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)(?![^0-9]*dps)/) ||
-    p.match(/(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)(?![^0-9]*dps)[^0-9]{0,12}(?:pontos|stats|atributos)/);
-  if (stM) {
-    const lo = parseInt(stM[1], 10);
-    const hi = parseInt(stM[2], 10);
-    if (hi >= lo) out.statsRange = [lo, hi];
-  }
+  // Lookahead (?![^0-9]*dps) impede o par do DPS ("20 a 30 dps") de ser roubado como stats,
+  // mas o backtrack pode cortar o dígito ("30" -> "3"): validar SEMPRE hi >= lo e tentar o outro padrão.
+  const pickRange = (m1: RegExpMatchArray | null, m2: RegExpMatchArray | null): [number, number] | null => {
+    for (const m of [m1, m2]) {
+      if (!m) continue;
+      const lo = parseInt(m[1], 10);
+      const hi = parseInt(m[2], 10);
+      if (hi >= lo) return [lo, hi];
+    }
+    return null;
+  };
+  const stM = pickRange(
+    p.match(/(?:pontos|stats|atributos)[^0-9]{0,12}(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)(?![^0-9]*dps)/),
+    p.match(/(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)(?![^0-9]*dps)[^0-9]{0,12}(?:pontos|stats|atributos)/)
+  );
+  if (stM) out.statsRange = stM;
   // "... em tudo" / "em todos os atributos" → aplica a faixa a TODAS as stats (não só às principais)
   if (out.statsRange && /em tudo|em todos|em todas|todos (?:os )?atributos|todas (?:as )?atributos|todos (?:os )?pontos|todas (?:as )?stats/.test(p)) {
     out.statsAll = true;
   }
 
   // "dps de 10 a 50" / "dps 10-50" / "10 a 50 dps" / "entre 10 a 50 dps"
-  const dM =
-    p.match(/dps[^0-9]{0,12}(\d+)[^0-9]{0,8}(?:e|a|at[eé]|-)[^0-9]{0,8}(\d+)/) ||
-    p.match(/(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)[^0-9]{0,12}dps/);
-  if (dM) {
-    const lo = parseInt(dM[1], 10);
-    const hi = parseInt(dM[2], 10);
-    if (hi >= lo) out.dpsRange = [lo, hi];
-  }
+  const dM = pickRange(
+    p.match(/dps[^0-9]{0,12}(\d+)[^0-9]{0,8}(?:e|a|at[eé]|-)[^0-9]{0,8}(\d+)/),
+    p.match(/(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)[^0-9]{0,12}dps/)
+  );
+  if (dM) out.dpsRange = dM;
 
   // "velocidade entre 2s a 2.5s" / "velocidade 2 a 2.5 segundos" / "1.5s a 2s de velocidade"
   const vM =
