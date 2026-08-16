@@ -96,11 +96,9 @@ export interface ItemPlan {
 
 interface PlanInput {
   type: string;
-  theme?: string;
-  material?: string;
-  color?: string;
   rarity: string;
   level: number;
+  subtype?: string;
   mobs?: string[];
   maps?: string[];
 }
@@ -110,7 +108,7 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new AppError(503, "GROQ_API_KEY nao definida - o gerador de itens precisa dela (variavel do Railway)");
 
-  const auto = !input.theme && !input.material && !input.color;
+  const auto = true;
   const isMaterial = input.type === "material";
   const mobsHint = (input.mobs || []).slice(0, 30).join(", ");
   const mapsHint = (input.maps || []).slice(0, 20).join(", ");
@@ -142,18 +140,15 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     "Tipo: " + TYPE_PT[input.type] + " (" + input.type + ")",
     "Raridade: " + RARITY_PT[input.rarity] + " (" + input.rarity + ")",
     "Nivel: " + input.level,
-    input.theme ? "Tema: " + input.theme : "",
-    input.material ? "Material: " + input.material : "",
-    input.color ? "Cor principal: " + input.color : "",
-    auto ? "Escolha voce mesmo nome, tema, material, cor, estilo, formato, design e ornamentos. O item deve parecer unico, sem copiar itens famosos, respeitando a raridade informada." : "",
+    input.subtype && input.type === "weapon" ? "Subtipo da arma (obrigatorio): " + input.subtype : "",
+    input.subtype && input.type !== "weapon" && input.type !== "material" ? "Subtipo: " + input.subtype : "",
     mobsHint ? "CRIATURAS EXISTENTES NO JOGO (use estes nomes em materiais): " + mobsHint : "",
     mapsHint ? "LOCAIS EXISTENTES NO JOGO (use estes nomes em materiais): " + mapsHint : "",
-    auto ? "Escolha voce mesmo nome, tema, material, cor, estilo, formato, design e ornamentos. O item deve parecer unico, sem copiar itens famosos, respeitando a raridade informada." : "",
     "",
     ...specLines,
     "",
     "Responda SOMENTE com JSON valido neste formato:",
-    '{"name":"Nome em portugues, curto e fantastico — SE o tema pedir um tipo especifico (cajado, espada, adaga, machado, arco, grimorio), o nome DEVE comecar com ele (ex.: tema cajado -> \\"Cajado do Alvorecer\\")",',
+    '{"name":"Nome em portugues, curto e fantastico — SE um subtipo especifico foi pedido (cajado, espada, adaga, machado, arco, grimorio), o nome DEVE comecar com ele (ex.: subtipo cajado -> \\"Cajado do Alvorecer\\")",',
     '"description":"1-2 frases em portugues descrevendo visual e lendinha",',
     '"subtype":"um de (em INGLES): sword, dagger, staff, axe, tome, bow — staff=cajado, sword=espada, dagger=adaga, axe=machado, bow=arco, tome=grimorio/tomo (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | material (material bruto) | vazio para capa/anel/colar",',
     '"stats":{"strength":0,"intellect":0,"endurance":0,"dexterity":0,"wisdom":0,"luck":0},',
@@ -204,11 +199,12 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     stats[k] = Math.max(1, Math.min(200, Math.round(v)));
   }
   const isWeapon = input.type === "weapon";
+  const subtype = isMaterial ? "material" : normalizeSubtype(input.type, raw.subtype, input.subtype);
   return {
     name: String(raw.name).slice(0, 60),
     description: String(raw.description || "").slice(0, 300),
-    subtype: isMaterial ? "material" : normalizeSubtype(input.type, raw.subtype, input.theme),
-    icon: defaultIconForItem(input.type, isMaterial ? "material" : normalizeSubtype(input.type, raw.subtype, input.theme)),
+    subtype,
+    icon: defaultIconForItem(input.type, subtype),
     stats,
     attackSpeedMs: isWeapon ? Math.max(500, Math.min(2600, Math.round(Number(raw.attackSpeedMs) || 2000))) : 0,
     dps: isWeapon ? Math.max(0, Math.round(Number(raw.dps) || 0)) : 0,
@@ -349,10 +345,10 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const rarMult = RARITY_MULT[input.rarity];
   const base = 1.2 * input.level;
 
-  // Subtype: tema tem prioridade (ex.: "cajado" → staff), senão escolha pela seed.
+  // Subtype: escolha do admin tem prioridade (ex.: "staff" → cajado),
+  // senão escolha pela seed.
   const subtypes = SUBTYPES[input.type];
-  const fromTheme = detectSubtypeFromTheme(input.theme);
-  const subtype = fromTheme && subtypes.includes(fromTheme) ? fromTheme : pick(subtypes, `${input.type}|${input.rarity}|${input.level}|${seed}`, 1);
+  const subtype = input.subtype && subtypes.includes(input.subtype) ? input.subtype : pick(subtypes, `${input.type}|${input.rarity}|${input.level}|${seed}`, 1);
 
   // Material bruto: nome derivado de criaturas/locais do mundo (mais criativo).
   if (input.type === "material") {
@@ -376,10 +372,9 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
 
   // nome = [substantivo forte] + [aposito ambientico]
   const WEAPON_PT: Record<string, string> = { sword: "Espada", dagger: "Adaga", staff: "Cajado", axe: "Machado", bow: "Arco", tome: "Grimório" };
-  const root =
-    fromTheme && WEAPON_PT[subtype]
-      ? WEAPON_PT[subtype]
-      : pick(STRENGTH_NAMES[input.type] || STRENGTH_NAMES.weapon, `${input.type}|${seed}`, 2);
+  const root = WEAPON_PT[subtype]
+    ? WEAPON_PT[subtype]
+    : pick(STRENGTH_NAMES[input.type] || STRENGTH_NAMES.weapon, `${input.type}|${seed}`, 2);
   const ep = pick(PRICE_NAMES[input.type] || PRICE_NAMES.weapon, `${input.type}|${input.rarity}|${seed}`, 3);
   const name = (root + " " + ep).slice(0, 60);
 
@@ -445,8 +440,11 @@ export interface GenerateItemInput {
   type: string;
   rarity?: string;
   level?: number;
+  subtype?: string;
   seed?: number;
   variants?: number;
+  mobs?: string[];
+  maps?: string[];
   // Overrides manuais do admin (opcional). Se não informados, stats/DPS/velocidade
   // são balanceados automaticamente pela raridade e nível.
   stats?: Partial<Record<string, number>>;
@@ -469,8 +467,8 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
   // Plano: por padrao usa a IA LOCAL (deterministica, sem API externa).
   //    Groq fica opcional (GROQ_PLANNER=on) para nomes/textos via LLM.
   const plan = process.env.GROQ_PLANNER === "on"
-    ? await planItem({ type, rarity, level })
-    : planItemLocal({ type, rarity, level }, seed);
+    ? await planItem({ type, rarity, level, subtype: input.subtype })
+    : planItemLocal({ type, rarity, level, subtype: input.subtype, mobs: input.mobs, maps: input.maps }, seed);
 
   // Overrides manuais do admin (opcionais). Sem eles, o plano já vem balanceado
   // pela raridade e nível (stats principais = 1.2 × nível × multiplicador da raridade).

@@ -22,7 +22,34 @@ const TYPE_OPTIONS = [
   { value: "helm", label: "Elmo" },
   { value: "armor", label: "Armadura" },
   { value: "cape", label: "Capa" },
+  { value: "material", label: "Material (drop de mobs)" },
 ];
+
+const SUBTYPE_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  weapon: [
+    { value: "auto", label: "Automático (IA escolhe)" },
+    { value: "sword", label: "Espada" },
+    { value: "dagger", label: "Adaga" },
+    { value: "staff", label: "Cajado" },
+    { value: "axe", label: "Machado" },
+    { value: "bow", label: "Arco" },
+    { value: "tome", label: "Grimório" },
+  ],
+  helm: [
+    { value: "auto", label: "Automático (IA escolhe)" },
+    { value: "cap", label: "Gorro" },
+    { value: "helmet", label: "Capacete" },
+    { value: "crown", label: "Coroa" },
+    { value: "hood", label: "Capuz" },
+  ],
+  armor: [
+    { value: "auto", label: "Automático (IA escolhe)" },
+    { value: "light", label: "Leve" },
+    { value: "heavy", label: "Pesada" },
+    { value: "robe", label: "Túnica" },
+  ],
+  cape: [{ value: "auto", label: "Automático (IA escolhe)" }],
+};
 
 const RARITY_OPTIONS = [
   { value: "common", label: "Comum" },
@@ -51,6 +78,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [type, setType] = useState("weapon");
   const [rarity, setRarity] = useState("rare");
   const [level, setLevel] = useState(1);
+  const [subtype, setSubtype] = useState("auto");
   const [manual, setManual] = useState(false);
   const [stats, setStats] = useState<Record<string, string>>({});
   const [dps, setDps] = useState("");
@@ -76,6 +104,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         type,
         rarity,
         level,
+        subtype: type !== "material" && subtype !== "auto" ? subtype : undefined,
         seed,
         variants,
         stats: manual
@@ -102,12 +131,13 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
     if (!result) return;
     setSaving(true);
     try {
+      const isMaterial = type === "material";
       await adminApi.items.create({
         name: result.plan.name,
         description: result.plan.description,
         icon: result.plan.icon || undefined,
-        type,
-        subtype: result.plan.subtype || undefined,
+        type: isMaterial ? "consumable" : type,
+        subtype: isMaterial ? "material" : result.plan.subtype || undefined,
         rarity,
         level,
         rank: 1,
@@ -116,16 +146,16 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         isActive: false,
         isTradable: true,
         isSellable: true,
-        isStackable: false,
-        maxStack: 1,
-        attackSpeedMs: result.plan.attackSpeedMs || 0,
-        dps: result.plan.dps || 0,
-        strength: result.plan.stats.strength || 0,
-        intellect: result.plan.stats.intellect || 0,
-        endurance: result.plan.stats.endurance || 0,
-        dexterity: result.plan.stats.dexterity || 0,
-        wisdom: result.plan.stats.wisdom || 0,
-        luck: result.plan.stats.luck || 0,
+        isStackable: isMaterial,
+        maxStack: isMaterial ? 99 : 1,
+        attackSpeedMs: isMaterial ? 0 : result.plan.attackSpeedMs || 0,
+        dps: isMaterial ? 0 : result.plan.dps || 0,
+        strength: isMaterial ? 0 : result.plan.stats.strength || 0,
+        intellect: isMaterial ? 0 : result.plan.stats.intellect || 0,
+        endurance: isMaterial ? 0 : result.plan.stats.endurance || 0,
+        dexterity: isMaterial ? 0 : result.plan.stats.dexterity || 0,
+        wisdom: isMaterial ? 0 : result.plan.stats.wisdom || 0,
+        luck: isMaterial ? 0 : result.plan.stats.luck || 0,
       });
       toast.success(`Item "${result.plan.name}" salvo (rascunho)!`);
       setOpen(false);
@@ -177,10 +207,12 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             </div>
 
             <p className="text-xs text-gray-500 mb-4">
-              A IA planeja o item (nome, atributos, preços) sem depender de serviços externos. Todos os itens nascem no{" "}
-              <span className="text-cyan-300">nível 1</span> — use o campo Nível para pedir um nível específico. Os
-              atributos, DPS e velocidade são balanceados automaticamente pela raridade, ou você pode defini-los
-              manualmente na seção "Ajustes manuais". O item nasce como{" "}
+              A IA planeja o item (nome, atributos, preços) sem depender de serviços externos. Escolha o{" "}
+              <span className="text-cyan-300">subtipo</span> (ex.: cajado, adaga) ou deixe "Automático". Todos os itens
+              nascem no <span className="text-cyan-300">nível 1</span> — use o campo Nível para um nível específico. Os
+              atributos, DPS e velocidade são balanceados pela raridade, ou defina manualmente em "Ajustes manuais". O
+              tipo <span className="text-cyan-300">Material</span> gera matéria-prima empilhável com nome de criatura do
+              mundo (pronta para usar como drop de mobs). O item nasce como{" "}
               <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
 
@@ -201,6 +233,21 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                   ))}
                 </select>
               </label>
+              {type !== "material" && (
+                <label className="text-xs text-gray-400">
+                  Subtipo
+                  <select
+                    value={subtype}
+                    onChange={(e) => setSubtype(e.target.value)}
+                    className={inputClass + " mt-1"}
+                    disabled={!SUBTYPE_OPTIONS[type]}
+                  >
+                    {(SUBTYPE_OPTIONS[type] || SUBTYPE_OPTIONS.weapon).map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="text-xs text-gray-400">
                 Nível
                 <input type="number" min={1} max={150} value={level} onChange={(e) => setLevel(parseInt(e.target.value) || 1)} className={inputClass + " mt-1"} />

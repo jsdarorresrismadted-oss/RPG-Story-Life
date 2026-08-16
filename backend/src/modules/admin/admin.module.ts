@@ -941,13 +941,21 @@ export function createAdminModule(app: Express): void {
       // IA LOCAL: nao precisa de GROQ_API_KEY. Groq fica opcional via GROQ_PLANNER=on.
       const body = req.body || {};
       const log: string[] = [];
+      // Hints para nomes criativos de materiais: mobs e mapas existentes no mundo.
+      const [mobsRes, mapsRes] = await Promise.all([
+        prisma.monster.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+        prisma.map.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+      ]);
       const { plan } = await generateItemSprite(
         {
           type: String(body.type || "weapon"),
           rarity: body.rarity ? String(body.rarity) : undefined,
           level: body.level !== undefined ? Number(body.level) : undefined,
+          subtype: body.subtype ? String(body.subtype) : undefined,
           seed: body.seed !== undefined ? Number(body.seed) : undefined,
           variants: body.variants !== undefined ? Number(body.variants) : undefined,
+          mobs: mobsRes.map((m) => m.name),
+          maps: mapsRes.map((m) => m.name),
           stats: body.stats && typeof body.stats === "object" ? body.stats : undefined,
           dps: body.dps !== undefined ? Number(body.dps) : undefined,
           attackSpeedMs: body.attackSpeedMs !== undefined ? Number(body.attackSpeedMs) : undefined,
