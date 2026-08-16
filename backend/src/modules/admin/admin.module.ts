@@ -779,6 +779,15 @@ export function createAdminModule(app: Express): void {
 
   async function saveWithFk(model: string, id: string | null, body: any) {
     const data = normalizeBody(model, body);
+    // FK opcionais de shopitem: classId órfão (classe deletada) NÃO deve bloquear a oferta de item/encantamento.
+    // Restrição de classe inválida vira "qualquer classe" (null).
+    if (model === "shopItem" && typeof data.classId === "string" && data.classId !== "") {
+      const exists = await prisma.gameClass.count({ where: { id: data.classId } });
+      if (!exists) {
+        console.warn(`[admin] shopitem classId órfão ignorado (${data.classId}) — oferta salva sem restrição de classe. Body:`, JSON.stringify(body));
+        data.classId = null;
+      }
+    }
     try {
       const client = prisma as any;
       return id
