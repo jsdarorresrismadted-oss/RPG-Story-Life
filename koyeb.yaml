@@ -1,0 +1,78 @@
+# =====================================================================
+# Koyeb (Free Tier) — config declarativa do deploy.
+# Grátis: 1 serviço nano (backend) + Postgres nano + Redis nano.
+# Como usar: no console da Koyeb -> "Create App" -> GitHub (seu repo)
+# -> a Koyeb detecta este koyeb.yaml sozinho.
+#
+# ATENCAO (free tier): o serviço nano hiberna ~5-15min sem requisições
+# e acorda sozinho no próximo acesso (primeira resposta demora 20-60s).
+# Dica: monitore o /api/health com UptimeRobot (grátis, ping a cada 5min)
+# para manter a instância sempre acordada.
+# =====================================================================
+app:
+  name: rpg-story-life
+
+  services:
+    - name: backend
+      git:
+        repository: bdabsdbabsdbabsfasbfbsafbbf/RPG-Story-Life-Text
+        branch: main
+        build:
+          build_command: npm install --no-audit --no-fund && npm run build
+          run_command: cd backend && npx prisma db push --accept-data-loss --skip-generate && node dist/server.js
+      instance_types:
+        - free
+      ports:
+        - port: 3001
+          protocol: http
+      health_checks:
+        - port: 3001
+          path: /api/health
+      env:
+        - key: NODE_ENV
+          value: production
+        - key: PORT
+          value: "3001"
+        - key: JWT_EXPIRES_IN
+          value: 7d
+        - key: RATE_LIMIT_WINDOW_MS
+          value: "60000"
+        - key: RATE_LIMIT_MAX_REQUESTS
+          value: "100"
+        - key: COMBAT_TICK_RATE
+          value: "1000"
+        - key: COOLDOWN_RESOLUTION
+          value: "100"
+        - key: REDIS_PREFIX
+          value: "rpgsl:"
+        # Segredos: crie no console Koyeb (Settings > Secrets) com os
+        # MESMOS valores do Railway:
+        #   JWT_SECRET, GEMINI_API_KEY, GROQ_API_KEY,
+        #   ADMIN_EMAIL, ADMIN_PASSWORD,
+        #   FRONTEND_URL, ADMIN_URL, CORS_ORIGIN (https://rpg-story-life-<seu>.koyeb.app)
+        - key: DATABASE_URL
+          secret: DATABASE_URL
+        - key: REDIS_URL
+          secret: REDIS_URL
+        - key: JWT_SECRET
+          secret: JWT_SECRET
+        - key: GEMINI_API_KEY
+          secret: GEMINI_API_KEY
+        - key: GROQ_API_KEY
+          secret: GROQ_API_KEY
+        - key: ADMIN_EMAIL
+          secret: ADMIN_EMAIL
+        - key: ADMIN_PASSWORD
+          secret: ADMIN_PASSWORD
+        - key: FRONTEND_URL
+          secret: FRONTEND_URL
+        - key: ADMIN_URL
+          secret: ADMIN_URL
+        - key: CORS_ORIGIN
+          secret: CORS_ORIGIN
+
+  databases:
+    - name: postgres
+      type: postgres
+    - name: redis
+      type: redis

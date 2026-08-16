@@ -15,6 +15,21 @@ apt-get update -y
 apt-get install -y ca-certificates curl gnupg lsb-release git rsync build-essential \
   postgresql postgresql-contrib redis-server nginx certbot python3-certbot-nginx
 
+echo "==> 1b/6 Swap para VMs pequenas (free tiers com 1GB de RAM)"
+TOTAL_RAM_MB=$(free -m | awk '/^Mem:/ {print $2}')
+if [ "$TOTAL_RAM_MB" -le 2048 ] && [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  echo "    Swap de 2GB criado"
+fi
+# Postgres mais magro para 1GB de RAM
+if [ "$TOTAL_RAM_MB" -le 2048 ]; then
+  sed -i "s/^#*shared_buffers = .*/shared_buffers = 128MB/; s/^#*effective_cache_size = .*/effective_cache_size = 256MB/; s/^#*work_mem = .*/work_mem = 4MB/" /etc/postgresql/*/main/postgresql.conf || true
+fi
+
 echo "==> 2/6 Node.js 20"
 if ! command -v node >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
