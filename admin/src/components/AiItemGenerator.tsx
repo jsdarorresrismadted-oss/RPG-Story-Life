@@ -4,17 +4,21 @@ import { Sparkles, Wand2, Loader2, RefreshCw, CheckCircle2 } from "lucide-react"
 import { adminApi } from "../api";
 
 interface GeneratedItemResult {
-  plan: {
-    name: string;
-    description: string;
-    subtype: string;
-    icon?: string | null;
-    stats: Record<string, number>;
-    attackSpeedMs?: number;
-    dps?: number;
-    buyPrice: number;
-    sellPrice: number;
-  };
+  plan: ItemPlan;
+  plans?: ItemPlan[];
+  providers?: string[];
+}
+
+interface ItemPlan {
+  name: string;
+  description: string;
+  subtype: string;
+  icon?: string | null;
+  stats: Record<string, number>;
+  attackSpeedMs?: number;
+  dps?: number;
+  buyPrice: number;
+  sellPrice: number;
 }
 
 const TYPE_OPTIONS = [
@@ -87,7 +91,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<GeneratedItemResult | null>(null);
   const [seed, setSeed] = useState(1);
-  const [variants, setVariants] = useState(3);
+  const [prompt, setPrompt] = useState("");
 
   useEffect(() => {
     adminApi.classes
@@ -106,7 +110,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         level,
         subtype: type !== "material" && subtype !== "auto" ? subtype : undefined,
         seed,
-        variants,
+        prompt: prompt.trim() || undefined,
         stats: manual
           ? Object.fromEntries(
               Object.entries(stats)
@@ -119,7 +123,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
       });
       setResult(data);
       setSeed((s) => s + 1);
-      toast.success("Item gerado! Revise e salve.");
+      toast.success((data.plans?.length || 1) > 1 ? `${data.plans.length} itens gerados! Revise e salve.` : "Item gerado! Revise e salve.");
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Falha ao gerar item");
     } finally {
@@ -127,37 +131,36 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
     }
   };
 
-  const handleSave = async () => {
-    if (!result) return;
+  const handleSave = async (plan: ItemPlan) => {
     setSaving(true);
     try {
       const isMaterial = type === "material";
       await adminApi.items.create({
-        name: result.plan.name,
-        description: result.plan.description,
-        icon: result.plan.icon || undefined,
+        name: plan.name,
+        description: plan.description,
+        icon: plan.icon || undefined,
         type: isMaterial ? "consumable" : type,
-        subtype: isMaterial ? "material" : result.plan.subtype || undefined,
+        subtype: isMaterial ? "material" : plan.subtype || undefined,
         rarity,
         level,
         rank: 1,
-        buyPrice: result.plan.buyPrice,
-        sellPrice: result.plan.sellPrice,
+        buyPrice: plan.buyPrice,
+        sellPrice: plan.sellPrice,
         isActive: false,
         isTradable: true,
         isSellable: true,
         isStackable: isMaterial,
         maxStack: isMaterial ? 99 : 1,
-        attackSpeedMs: isMaterial ? 0 : result.plan.attackSpeedMs || 0,
-        dps: isMaterial ? 0 : result.plan.dps || 0,
-        strength: isMaterial ? 0 : result.plan.stats.strength || 0,
-        intellect: isMaterial ? 0 : result.plan.stats.intellect || 0,
-        endurance: isMaterial ? 0 : result.plan.stats.endurance || 0,
-        dexterity: isMaterial ? 0 : result.plan.stats.dexterity || 0,
-        wisdom: isMaterial ? 0 : result.plan.stats.wisdom || 0,
-        luck: isMaterial ? 0 : result.plan.stats.luck || 0,
+        attackSpeedMs: isMaterial ? 0 : plan.attackSpeedMs || 0,
+        dps: isMaterial ? 0 : plan.dps || 0,
+        strength: isMaterial ? 0 : plan.stats.strength || 0,
+        intellect: isMaterial ? 0 : plan.stats.intellect || 0,
+        endurance: isMaterial ? 0 : plan.stats.endurance || 0,
+        dexterity: isMaterial ? 0 : plan.stats.dexterity || 0,
+        wisdom: isMaterial ? 0 : plan.stats.wisdom || 0,
+        luck: isMaterial ? 0 : plan.stats.luck || 0,
       });
-      toast.success(`Item "${result.plan.name}" salvo (rascunho)!`);
+      toast.success(`Item "${plan.name}" salvo (rascunho)!`);
       setOpen(false);
       setResult(null);
       onSaved();
@@ -215,6 +218,20 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
               mundo (pronta para usar como drop de mobs). O item nasce como{" "}
               <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
+
+            <label className="text-xs text-gray-400 block">
+              Prompt livre (opcional)
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={2}
+                placeholder='Ex.: "5 itens, pontos entre 5 e 10, dps de 10 a 50, velocidade entre 2s a 2.5s, cajados de gelo nível 20"'
+                className={inputClass + " mt-1 resize-y"}
+              />
+              <span className="block text-[10px] text-gray-500 mt-0.5">
+                Entende: quantidade de itens, nível, subtipo (cajado, adaga...), pontos/stats, dps e velocidade em segundos.
+              </span>
+            </label>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <label className="text-xs text-gray-400">
@@ -325,44 +342,68 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             </div>
 
             {result && (
-              <div className="mt-5 bg-dark-900/60 border border-dark-600 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  {result.plan.icon && (
-                    <img
-                      src={result.plan.icon}
-                      alt={result.plan.name}
-                      className="w-12 h-12 rounded-lg bg-dark-800 border border-dark-600 object-contain p-1"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-white">{result.plan.name}</p>
-                      {result.plan.subtype && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-300">{result.plan.subtype}</span>}
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-300">{RARITY_OPTIONS.find((r) => r.value === rarity)?.label}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-300">Nv. {level}</span>
+              <div className="mt-5 space-y-4">
+                {result.plans && result.plans.length > 1 && (
+                  <p className="text-xs text-gray-400">
+                    <span className="text-cyan-300">{result.plans.length} itens gerados</span> — revise e salve cada um
+                    individualmente.
+                  </p>
+                )}
+                {(result.plans && result.plans.length > 0 ? result.plans : [result.plan]).map((plan, idx) => (
+                  <div key={idx} className="bg-dark-900/60 border border-dark-600 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      {plan.icon && (
+                        <img
+                          src={plan.icon}
+                          alt={plan.name}
+                          className="w-12 h-12 rounded-lg bg-dark-800 border border-dark-600 object-contain p-1"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-white">{plan.name}</p>
+                          {plan.subtype && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-300">{plan.subtype}</span>}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-300">{RARITY_OPTIONS.find((r) => r.value === rarity)?.label}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-300">Nv. {level}</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 line-clamp-2">{plan.description}</p>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-1 line-clamp-2">{result.plan.description}</p>
+
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {Object.entries(plan.stats).map(([k, v]) =>
+                        v > 0 ? (
+                          <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-800 text-gray-300">
+                            {STAT_LABELS[k] || k}: <span className="text-white font-medium">{v}</span>
+                          </span>
+                        ) : null
+                      )}
+                      {type === "weapon" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-orange-500/15 text-orange-300">
+                          DPS: {Number(plan.dps || 0).toLocaleString()} · Velocidade: {(Number(plan.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s
+                        </span>
+                      )}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Compra: {Number(plan.buyPrice).toLocaleString()}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Venda: {Number(plan.sellPrice).toLocaleString()}</span>
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      {(result.plans?.length || 1) > 1 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-800 text-gray-500 self-center">{idx + 1}/{result.plans!.length}</span>
+                      )}
+                      <button
+                        onClick={() => handleSave(plan)}
+                        disabled={saving}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                      >
+                        {saving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                        {saving ? "Salvando..." : "Salvar item (rascunho)"}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ))}
 
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {Object.entries(result.plan.stats).map(([k, v]) =>
-                    v > 0 ? (
-                      <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-800 text-gray-300">
-                        {STAT_LABELS[k] || k}: <span className="text-white font-medium">{v}</span>
-                      </span>
-                    ) : null
-                  )}
-                  {type === "weapon" && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-orange-500/15 text-orange-300">
-                      DPS: {Number(result.plan.dps || 0).toLocaleString()} · Velocidade: {(Number(result.plan.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s
-                    </span>
-                  )}
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Compra: {Number(result.plan.buyPrice).toLocaleString()}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Venda: {Number(result.plan.sellPrice).toLocaleString()}</span>
-                </div>
-
-                <div className="mt-4 flex justify-end gap-2">
+                <div className="flex justify-end">
                   <button
                     onClick={handleGenerate}
                     disabled={busy}
@@ -370,14 +411,6 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                   >
                     {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                     Gerar de novo
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                  >
-                    {saving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                    {saving ? "Salvando..." : "Salvar item (rascunho)"}
                   </button>
                 </div>
               </div>

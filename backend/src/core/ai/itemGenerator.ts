@@ -443,6 +443,7 @@ export interface GenerateItemInput {
   subtype?: string;
   seed?: number;
   variants?: number;
+  prompt?: string;
   mobs?: string[];
   maps?: string[];
   // Overrides manuais do admin (opcional). Se não informados, stats/DPS/velocidade
@@ -454,6 +455,56 @@ export interface GenerateItemInput {
 
 export interface GeneratedItem {
   plan: ItemPlan;
+  plans: ItemPlan[];
+}
+
+// Interpreta o prompt livre do admin (ex.: "5 itens, pontos entre 5 e 10, dps de 10 a 50, velocidade entre 2s a 2.5s").
+function parsePrompt(prompt: string): {
+  count: number;
+  level?: number;
+  subtype?: string;
+  statsRange?: [number, number];
+  dpsRange?: [number, number];
+  speedRange?: [number, number];
+} {
+  const p = String(prompt || "").toLowerCase();
+  const out: ReturnType<typeof parsePrompt> = { count: 1 };
+
+  // "5 itens", "3 cajados", "2 adagas de veneno" — número + substantivo no plural
+  const countM = p.match(/(\d+)\s+(?:de\s+)?[a-zá-úãõ]+s\b/);
+  if (countM) out.count = clampInt(parseInt(countM[1], 10), 1, 12);
+
+  const lvM = p.match(/n[ií]vel\s*(\d+)/);
+  if (lvM) out.level = clampInt(parseInt(lvM[1], 10), 1, 150);
+
+  const sub = detectSubtypeFromTheme(p);
+  if (sub) out.subtype = sub;
+
+  // "pontos entre 5 e 10" / "atributos de 5 a 10"
+  const stM = p.match(/(?:pontos|stats|atributos)[^0-9]*(\d+)[^0-9]*(?:e|a|at[eé])[^0-9]*(\d+)/);
+  if (stM) {
+    const lo = parseInt(stM[1], 10);
+    const hi = parseInt(stM[2], 10);
+    if (hi >= lo) out.statsRange = [lo, hi];
+  }
+
+  // "dps de 10 a 50" / "dps 10-50"
+  const dM = p.match(/dps[^0-9]*(\d+)[^0-9]*(?:e|a|at[eé]|-)[^0-9]*(\d+)/);
+  if (dM) {
+    const lo = parseInt(dM[1], 10);
+    const hi = parseInt(dM[2], 10);
+    if (hi >= lo) out.dpsRange = [lo, hi];
+  }
+
+  // "velocidade entre 2s a 2.5s" / "velocidade 2 a 2.5 segundos"
+  const vM = p.match(/velocidade[^0-9]*(\d+(?:[.,]\d+)?)\s*s?[^0-9]*(?:e|a|at[eé])[^0-9]*(\d+(?:[.,]\d+)?)\s*s?/);
+  if (vM) {
+    const lo = parseFloat(vM[1].replace(",", ".")) * 1000;
+    const hi = parseFloat(vM[2].replace(",", ".")) * 1000;
+    if (hi >= lo) out.speedRange = [clampInt(Math.round(lo), 500, 2600), clampInt(Math.round(hi), 500, 2600)];
+  }
+
+  return out;
 }
 
 export async function generateItemSprite(input: GenerateItemInput, log: string[]): Promise<GeneratedItem> {
@@ -464,26 +515,58 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
   const level = Math.max(1, Math.min(150, Number(input.level) || 1));
   const seed = Math.floor(Number(input.seed) || Date.now() % 1000000);
 
-  // Plano: por padrao usa a IA LOCAL (deterministica, sem API externa).
-  //    Groq fica opcional (GROQ_PLANNER=on) para nomes/textos via LLM.
-  const plan = process.env.GROQ_PLANNER === "on"
-    ? await planItem({ type, rarity, level, subtype: input.subtype })
-    : planItemLocal({ type, rarity, level, subtype: input.subtype, mobs: input.mobs, maps: input.maps }, seed);
+  // Prompt livre: interpreta quantidade, nível, subtipo e faixas de pontos/DPS/velocidade.
+  const parsed = input.prompt ? parsePrompt(input.prompt) : { count: 1 };
+  const count = parsed.count || 1;
+  const baseSubtype = input.subtype || parsed.subtype;
+  const baseLevel = parsed.level ?? level;
 
-  // Overrides manuais do admin (opcionais). Sem eles, o plano já vem balanceado
-  // pela raridade e nível (stats principais = 1.2 × nível × multiplicador da raridade).
-  const STAT_KEYS = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
-  if (input.stats && typeof input.stats === "object") {
-    for (const k of STAT_KEYS) {
-      const v = Number((input.stats as any)[k]);
-      if (Number.isFinite(v)) plan.stats[k] = Math.max(1, Math.min(200, Math.round(v)));
+  const plans: ItemPlan[] = [];
+  for (let i = 0; i < count; i++) {
+    const s = seed + i * 7919;
+    // Plano: por padrao usa a IA LOCAL (deterministica, sem API externa).
+    //    Groq fica opcional (GROQ_PLANNER=on) para nomes/textos via LLM.
+    const plan = process.env.GROQ_PLANNER === "on"
+      ? await planItem({ type, rarity, level: baseLevel, subtype: baseSubtype })
+      : planItemLocal({ type, rarity, level: baseLevel, subtype: baseSubtype, mobs: input.mobs, maps: input.maps }, s);
+
+    // Overrides: manual (campos individuais) ou faixas vindas do prompt.
+    const STAT_KEYS = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
+    if (parsed.statsRange) {
+      const [lo, hi] = parsed.statsRange;
+      const main = lo + (s % (hi - lo + 1));
+      // Distribui: principal = valor escolhido na faixa, secundários proporcionalmente.
+      const primaryKeys = type === "weapon"
+        ? (plan.subtype === "staff" || plan.subtype === "tome" ? ["intellect", "wisdom"] : ["strength", "dexterity"])
+        : type === "cape" ? ["wisdom", "luck"] : ["endurance", "dexterity"];
+      for (const k of STAT_KEYS) {
+        if (primaryKeys[0] === k) plan.stats[k] = main;
+        else if (primaryKeys[1] === k) plan.stats[k] = Math.max(1, Math.round(main * 0.85));
+        else plan.stats[k] = Math.max(1, Math.round(main * 0.4));
+      }
+    } else if (input.stats && typeof input.stats === "object") {
+      for (const k of STAT_KEYS) {
+        const v = Number((input.stats as any)[k]);
+        if (Number.isFinite(v)) plan.stats[k] = Math.max(1, Math.min(200, Math.round(v)));
+      }
     }
-  }
-  if (type === "weapon") {
-    if (Number.isFinite(Number(input.dps))) plan.dps = Math.max(1, Math.min(100000, Math.round(Number(input.dps))));
-    if (Number.isFinite(Number(input.attackSpeedMs))) plan.attackSpeedMs = Math.max(500, Math.min(2600, Math.round(Number(input.attackSpeedMs))));
+    if (type === "weapon") {
+      if (parsed.dpsRange) {
+        const [lo, hi] = parsed.dpsRange;
+        plan.dps = lo + (s % (hi - lo + 1));
+      } else if (Number.isFinite(Number(input.dps))) {
+        plan.dps = Math.max(1, Math.min(100000, Math.round(Number(input.dps))));
+      }
+      if (parsed.speedRange) {
+        const [lo, hi] = parsed.speedRange;
+        plan.attackSpeedMs = lo + (s % (hi - lo + 1));
+      } else if (Number.isFinite(Number(input.attackSpeedMs))) {
+        plan.attackSpeedMs = Math.max(500, Math.min(2600, Math.round(Number(input.attackSpeedMs))));
+      }
+    }
+    plans.push(plan);
   }
 
-  log.push((process.env.GROQ_PLANNER === "on" ? "Groq" : "IA local") + " (plano)");
-  return { plan };
+  log.push((process.env.GROQ_PLANNER === "on" ? "Groq" : "IA local") + ` (plano${plans.length > 1 ? `s x${plans.length}` : ""})`);
+  return { plan: plans[0], plans };
 }

@@ -954,6 +954,7 @@ export function createAdminModule(app: Express): void {
           subtype: body.subtype ? String(body.subtype) : undefined,
           seed: body.seed !== undefined ? Number(body.seed) : undefined,
           variants: body.variants !== undefined ? Number(body.variants) : undefined,
+          prompt: body.prompt ? String(body.prompt) : undefined,
           mobs: mobsRes.map((m) => m.name),
           maps: mapsRes.map((m) => m.name),
           stats: body.stats && typeof body.stats === "object" ? body.stats : undefined,
