@@ -1368,7 +1368,12 @@ export function createAdminModule(app: Express): void {
 
   // Quests CRUD
   app.get("/api/admin/quests", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
-    try { res.json(await prisma.quest.findMany({ orderBy: { title: "asc" } })); } catch (err) { next(err); }
+    try {
+      res.json(await prisma.quest.findMany({
+        include: { giverNpc: { select: { id: true, name: true, type: true } } },
+        orderBy: { title: "asc" },
+      }));
+    } catch (err) { next(err); }
   });
 
   app.post("/api/admin/quests", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
@@ -1479,7 +1484,11 @@ export function createAdminModule(app: Express): void {
   app.get("/api/admin/npcs", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(await prisma.npc.findMany({
-        include: { mapNpcs: { include: { map: true } }, shopItems: { include: { item: true, enchantment: true } } },
+        include: {
+          mapNpcs: { include: { map: true } },
+          shopItems: { include: { item: true, enchantment: true } },
+          quests: { select: { id: true, title: true, type: true, requiredLevel: true, isActive: true } },
+        },
         orderBy: { name: "asc" },
       }));
     } catch (err) { next(err); }

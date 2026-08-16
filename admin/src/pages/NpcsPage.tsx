@@ -60,7 +60,7 @@ export default function NpcsPage() {
   const [filter, setFilter] = useState("");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"geral" | "mapas" | "vendas">("geral");
+  const [tab, setTab] = useState<"geral" | "mapas" | "vendas" | "quests">("geral");
   const [creating, setCreating] = useState(false);
 
   const [form, setForm] = useState<Record<string, any>>(npcDefaults());
@@ -72,6 +72,10 @@ export default function NpcsPage() {
   const [shopForm, setShopForm] = useState({ ...DEFAULT_SHOP });
   const [shopBusy, setShopBusy] = useState(false);
 
+  const [quests, setQuests] = useState<any[]>([]);
+  const [questLinkId, setQuestLinkId] = useState("");
+  const [questBusy, setQuestBusy] = useState(false);
+
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
   const [aiMapId, setAiMapId] = useState("");
@@ -80,16 +84,18 @@ export default function NpcsPage() {
   const load = async (keepSelection = true) => {
     setLoading(true);
     try {
-      const [nRes, mapRes, iRes, eRes] = await Promise.all([
+      const [nRes, mapRes, iRes, eRes, qRes] = await Promise.all([
         adminApi.npcs.list(),
         adminApi.maps.list(),
         adminApi.items.list(),
         adminApi.enchantments.list(),
+        adminApi.quests.list(),
       ]);
       setNpcs(Array.isArray(nRes.data) ? nRes.data : []);
       setMaps(Array.isArray(mapRes.data) ? mapRes.data : []);
       setItems(Array.isArray(iRes.data) ? iRes.data : []);
       setEnchantments(Array.isArray(eRes.data) ? eRes.data : []);
+      setQuests(Array.isArray(qRes.data) ? qRes.data : []);
       if (!keepSelection) setSelectedId(null);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to load data");
@@ -132,7 +138,7 @@ export default function NpcsPage() {
     setForm(npcDefaults());
   };
 
-  const handleTab = (t: "geral" | "mapas" | "vendas") => {
+  const handleTab = (t: "geral" | "mapas" | "vendas" | "quests") => {
     setTab(t);
     if (t !== "geral" && !selectedId) {
       toast.error("Selecione um NPC primeiro");
@@ -263,6 +269,36 @@ export default function NpcsPage() {
       await load();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
+    }
+  };
+
+  const handleLinkQuest = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedId || !questLinkId) {
+      toast.error("Escolha uma quest");
+      return;
+    }
+    setQuestBusy(true);
+    try {
+      await adminApi.quests.update(questLinkId, { giverNpcId: selectedId });
+      toast.success("Quest vinculada ao NPC");
+      setQuestLinkId("");
+      await load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.response?.data?.message || "Falha ao vincular");
+    } finally {
+      setQuestBusy(false);
+    }
+  };
+
+  const handleUnlinkQuest = async (q: any) => {
+    if (!window.confirm(`Desvincular a quest "${q.title}" deste NPC?`)) return;
+    try {
+      await adminApi.quests.update(q.id, { giverNpcId: null });
+      toast.success("Quest desvinculada");
+      await load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Falha ao desvincular");
     }
   };
 
@@ -424,6 +460,12 @@ export default function NpcsPage() {
                       >
                         Vendas {!creating && Array.isArray(selected?.shopItems) && selected!.shopItems.length > 0 ? `(${selected!.shopItems.length})` : ""}
                       </button>
+                      <button
+                        onClick={() => handleTab("quests")}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${tab === "quests" ? "bg-accent-600 text-white" : "text-gray-400 hover:text-white"}`}
+                      >
+                        Quests {!creating && Array.isArray(selected?.quests) && selected!.quests.length > 0 ? `(${selected!.quests.length})` : ""}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -518,7 +560,7 @@ export default function NpcsPage() {
                     </table>
                   </div>
                 </div>
-              ) : (
+              ) : tab === "vendas" ? (
                 <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 border-b border-dark-600">
                     <div className="flex items-center justify-between">
@@ -625,6 +667,70 @@ export default function NpcsPage() {
                         ))}
                         {(Array.isArray(selected?.shopItems) ? selected!.shopItems : []).length === 0 && (
                           <tr><td colSpan={6} className="py-6 text-center text-gray-500">Nenhuma oferta configurada</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-dark-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium text-white">Quests entregues</h3>
+                        <p className="text-xs text-gray-500">
+                          Quests que {selected?.name} entrega no jogo — cada quest pertence a UM único NPC (evita duplicidade)
+                        </p>
+                      </div>
+                    </div>
+                    <form onSubmit={handleLinkQuest} className="mt-3 flex flex-wrap items-end gap-3">
+                      <div className="flex-1 min-w-[220px]">
+                        <label className={labelClass}>Vincular quest (que ainda não tem NPC)</label>
+                        <select value={questLinkId} onChange={(e) => setQuestLinkId(e.target.value)} className={inputClass}>
+                          <option value="">Selecionar quest...</option>
+                          {quests
+                            .filter((q) => !q.giverNpcId || q.giverNpcId === selectedId)
+                            .filter((q) => q.isActive !== false)
+                            .map((q) => (
+                              <option key={q.id} value={q.id}>
+                                {q.title} (Nv {q.requiredLevel})
+                                {q.giverNpcId ? " — este NPC" : ""}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <button type="submit" disabled={questBusy} className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                        {questBusy ? "Vinculando..." : "Vincular"}
+                      </button>
+                    </form>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-dark-600">
+                          <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Quest</th>
+                          <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Tipo</th>
+                          <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Nv mín</th>
+                          <th className="text-left py-2.5 px-4 text-gray-400 font-medium">Ativa</th>
+                          <th className="text-right py-2.5 px-4 text-gray-400 font-medium">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(selected?.quests) ? selected!.quests : []).map((q: any) => (
+                          <tr key={q.id} className="border-b border-dark-700 hover:bg-dark-800/50">
+                            <td className="py-2.5 px-4 font-medium text-white">{q.title}</td>
+                            <td className="py-2.5 px-4 text-xs">
+                              <span className="px-1.5 py-0.5 rounded-full bg-dark-700 text-gray-400">{q.type}</span>
+                            </td>
+                            <td className="py-2.5 px-4 font-mono text-xs">{q.requiredLevel}</td>
+                            <td className="py-2.5 px-4">{q.isActive ? <span className="text-green-400">Sim</span> : <span className="text-gray-600">Não</span>}</td>
+                            <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                              <button onClick={() => handleUnlinkQuest(q)} className="text-red-400 hover:text-red-300">Desvincular</button>
+                            </td>
+                          </tr>
+                        ))}
+                        {(Array.isArray(selected?.quests) ? selected!.quests : []).length === 0 && (
+                          <tr><td colSpan={5} className="py-6 text-center text-gray-500">Nenhuma quest vinculada a este NPC</td></tr>
                         )}
                       </tbody>
                     </table>

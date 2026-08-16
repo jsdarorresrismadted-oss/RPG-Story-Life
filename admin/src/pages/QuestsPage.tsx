@@ -77,6 +77,7 @@ function questDefaults(): Record<string, any> {
   for (const f of QUEST_FIELDS) {
     d[f.name] = f.type === "boolean" ? !!f.defaultValue : f.defaultValue ?? (f.type === "json" ? [] : "");
   }
+  d.giverNpcId = "";
   return d;
 }
 
@@ -95,11 +96,13 @@ function fillFromQuest(q: any): Record<string, any> {
   } catch {
     values.itemRewards = [];
   }
+  values.giverNpcId = q.giverNpcId || "";
   return values;
 }
 
 export default function QuestsPage() {
   const [quests, setQuests] = useState<any[]>([]);
+  const [npcs, setNpcs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
 
@@ -116,8 +119,9 @@ export default function QuestsPage() {
   const load = async (keepSelection = true) => {
     setLoading(true);
     try {
-      const res = await adminApi.quests.list();
-      setQuests(Array.isArray(res.data) ? res.data : []);
+      const [qRes, nRes] = await Promise.all([adminApi.quests.list(), adminApi.npcs.list()]);
+      setQuests(Array.isArray(qRes.data) ? qRes.data : []);
+      setNpcs(Array.isArray(nRes.data) ? nRes.data : []);
       if (!keepSelection) setSelectedId(null);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to load data");
@@ -170,6 +174,7 @@ export default function QuestsPage() {
         toast.error("Adicione pelo menos um objetivo (matar/coletar)");
         return;
       }
+      payload.giverNpcId = String(form.giverNpcId || "").trim() || null;
       let saved;
       if (creating) {
         saved = (await adminApi.quests.create(payload)).data;
@@ -289,6 +294,7 @@ export default function QuestsPage() {
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-dark-700 text-gray-400">{q.type}</span>
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-dark-700 text-gray-400">{q.difficulty}</span>
                     <span>Nv {q.requiredLevel}</span>
+                    {q.giverNpc?.name && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-fuchsia-500/15 text-fuchsia-300">📜 {q.giverNpc.name}</span>}
                     {q.period && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/15 text-yellow-400">{q.period}</span>}
                   </span>
                 </span>
@@ -315,6 +321,24 @@ export default function QuestsPage() {
                 )}
               </div>
               <EntityFormFields fields={QUEST_FIELDS} form={form} onChange={setForm} />
+              <div>
+                <label className={labelClass}>NPC que entrega a quest</label>
+                <select
+                  value={form.giverNpcId ?? ""}
+                  onChange={(e) => setForm((f: any) => ({ ...f, giverNpcId: e.target.value }))}
+                  className={inputClass}
+                >
+                  <option value="">Nenhum NPC (quest sem entregador)</option>
+                  {npcs
+                    .filter((n) => n.type === "quest_giver" || n.type === "quest")
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>{n.name}</option>
+                    ))}
+                </select>
+                <p className="text-[11px] text-gray-600 mt-1">
+                  Cada NPC entrega suas próprias quests — uma quest pertence a UM único NPC (sem duplicidade).
+                </p>
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 {creating && (
                   <button
