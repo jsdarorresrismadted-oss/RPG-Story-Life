@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Sparkles, Wand2, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Sparkles, Wand2, Loader2, RefreshCw, CheckCircle2, Layers } from "lucide-react";
 import { adminApi } from "../api";
 
 interface GeneratedItemResult {
@@ -166,6 +166,50 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
       onSaved();
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Falha ao salvar item");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAll = async (plans: ItemPlan[]) => {
+    setSaving(true);
+    let saved = 0;
+    try {
+      for (const plan of plans) {
+        const isMaterial = type === "material";
+        await adminApi.items.create({
+          name: plan.name,
+          description: plan.description,
+          icon: plan.icon || undefined,
+          type: isMaterial ? "consumable" : type,
+          subtype: isMaterial ? "material" : plan.subtype || undefined,
+          rarity,
+          level,
+          rank: 1,
+          buyPrice: plan.buyPrice,
+          sellPrice: plan.sellPrice,
+          isActive: false,
+          isTradable: true,
+          isSellable: true,
+          isStackable: isMaterial,
+          maxStack: isMaterial ? 99 : 1,
+          attackSpeedMs: isMaterial ? 0 : plan.attackSpeedMs || 0,
+          dps: isMaterial ? 0 : plan.dps || 0,
+          strength: isMaterial ? 0 : plan.stats.strength || 0,
+          intellect: isMaterial ? 0 : plan.stats.intellect || 0,
+          endurance: isMaterial ? 0 : plan.stats.endurance || 0,
+          dexterity: isMaterial ? 0 : plan.stats.dexterity || 0,
+          wisdom: isMaterial ? 0 : plan.stats.wisdom || 0,
+          luck: isMaterial ? 0 : plan.stats.luck || 0,
+        });
+        saved++;
+      }
+      toast.success(`${saved} itens salvos (rascunho)!`);
+      setOpen(false);
+      setResult(null);
+      onSaved();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Falha ao salvar itens");
     } finally {
       setSaving(false);
     }
@@ -404,6 +448,16 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 ))}
 
                 <div className="flex justify-end">
+                  {result.plans && result.plans.length > 1 && (
+                    <button
+                      onClick={() => handleSaveAll(result.plans!)}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                    >
+                      {saving ? <Loader2 size={13} className="animate-spin" /> : <Layers size={13} />}
+                      {saving ? "Salvando..." : `Salvar todos (${result.plans.length})`}
+                    </button>
+                  )}
                   <button
                     onClick={handleGenerate}
                     disabled={busy}
