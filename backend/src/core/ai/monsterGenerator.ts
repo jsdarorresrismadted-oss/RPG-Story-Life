@@ -23,7 +23,7 @@ const VALID_DAMAGE_TYPES = ["physical", "magic", "true"];const VALID_TRIGGERS = 
 const VALID_SKILL_KINDS = ["attack", "buff", "debuff", "heal", "utility"];
 const VALID_ACTIONS = ["damage", "heal", "applyEffect", "mana"];
 
-const MAX_MONSTERS = 8;
+const MAX_MONSTERS = 12;
 
 function slugify(s: any): string {
   return String(s || "")
@@ -80,7 +80,8 @@ CONTRATO (responda apenas com JSON válido, sem markdown):
 }
 
 REGRAS DE QUANTIDADE:
-- Se o usuário pedir uma quantidade (ex.: "6 monstros"), gere EXATAMENTE essa quantidade (máximo 8).
+- Se o usuário pedir uma quantidade (ex.: "6 monstros", "10 mobs"), gere EXATAMENTE essa quantidade (máximo 12).
+- SEMPRE respeite o pedido de quantidade e de faixa de nível do usuário: ex. "10 mobs do level 1 ao level 6" → 10 monstros com níveis distribuídos de 1 a 6 (sem repetir nível se possível), e "os últimos 1 boss e 1 elite" → os 2 últimos monstros da lista devem ser isBoss: true e isElite: true.
 - Se não pedir quantidade, gere 1 monstro.
 - Nomes e temas coerentes entre si (um grupo do mesmo habitat/fantasia), variando nível quando o usuário pedir faixa (ex.: "nível 1 a 5" → distribua os níveis nessa faixa, um por nível se possível).
 
@@ -300,13 +301,19 @@ function normalize(raw: any, errors: string[], xpPerLevel = 1250): GeneratedMons
   }
   if (entries.length === 0) throw new Error("JSON inválido: campo monster.name ausente (nenhum monstro válido na resposta)");
 
-  const first = entries[0];
+  // Boss e elite vão para o FINAL da lista (pedido do dono: "os últimos 1 boss e 1 elite")
+  const sorted = [...entries].sort((a, b) => {
+    const rank = (m: any) => (m.isBoss ? 2 : m.isElite ? 1 : 0);
+    return rank(a.monster) - rank(b.monster);
+  });
+
+  const first = sorted[0];
 
   return {
     monster: first.monster,
-    monsters: entries.map((e) => e.monster),
+    monsters: sorted.map((e) => e.monster),
     drops: first.drops,
-    allDrops: entries.map((e) => e.drops),
+    allDrops: sorted.map((e) => e.drops),
     preview: {
       level: first.monster.level,
       hp: first.monster.hp,
@@ -314,7 +321,7 @@ function normalize(raw: any, errors: string[], xpPerLevel = 1250): GeneratedMons
       defense: first.monster.defense,
       speed: first.monster.speed,
       drops: first.drops.length,
-      count: entries.length,
+      count: sorted.length,
     },
     errors,
   };
