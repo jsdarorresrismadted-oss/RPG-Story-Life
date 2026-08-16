@@ -194,7 +194,8 @@ export function createNpcModule(app: Express): void {
             if (!ENCHANTABLE_SLOTS.includes(inv.item.type as any)) {
               throw new AppError(400, "Este item não aceita encantamentos");
             }
-            if ((user.level ?? 0) < enchant.level) {
+            // Nível do PERSONAGEM ATIVO (User.level é sempre 1)
+            if ((character?.level ?? 0) < enchant.level) {
               throw new AppError(400, `Encantamento nível ${enchant.level} exige jogador de nível ${enchant.level} ou superior`);
             }
             const compatible = parseSlots(enchant.compatibleSlots);

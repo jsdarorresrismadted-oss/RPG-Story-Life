@@ -1512,7 +1512,7 @@ export function MapPage() {
         <EnchantItemPicker
           enchantment={enchantPick.enchantment}
           items={enchantPickItems}
-          playerLevel={user?.level}
+          playerLevel={user?.characters?.[0]?.level ?? user?.level ?? 0}
           busyId={applyingInvId}
           loading={enchantPickLoading}
           onApply={(invId) => handleEnchantApply(enchantPick, invId)}

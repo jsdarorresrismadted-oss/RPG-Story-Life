@@ -232,7 +232,7 @@ export function InventoryPage() {
     return ownedEnchants.filter((ue) => {
       const en = ue.enchantment;
       if (!en || ue.quantity < 1) return false;
-      if ((user?.level ?? 0) < en.level) return false;
+      if ((user?.characters?.[0]?.level ?? user?.level ?? 0) < en.level) return false;
       if (slots.length > 0 && !slots.includes(item.item.type)) return false;
       return true;
     });
@@ -857,7 +857,7 @@ export function InventoryPage() {
         <EnchantItemPicker
           enchantment={enchantPick.enchantment}
           items={items}
-          playerLevel={user?.level}
+          playerLevel={user?.characters?.[0]?.level ?? user?.level ?? 0}
           busyId={applyingInvId}
           onApply={handleEnchantPickApply}
           onKeep={() => setEnchantPick(null)}
