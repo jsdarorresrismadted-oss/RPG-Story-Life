@@ -381,12 +381,10 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
       ? WEAPON_PT[subtype]
       : pick(STRENGTH_NAMES[input.type] || STRENGTH_NAMES.weapon, `${input.type}|${seed}`, 2);
   const ep = pick(PRICE_NAMES[input.type] || PRICE_NAMES.weapon, `${input.type}|${input.rarity}|${seed}`, 3);
-  const materialWord = input.material ? " de " + (input.material ?? "") : "";
-  const name = (root + " " + ep + materialWord).slice(0, 60);
+  const name = (root + " " + ep).slice(0, 60);
 
   const motif = pick(STRENGTH_DESC[input.type] || STRENGTH_DESC.weapon, `${input.type}|${input.rarity}|${seed}`, 4);
-  const desc = `Equipamento ${RARITY_PT[input.rarity]} com ${motif}.` + (input.theme ? ` Inspirado em ${input.theme}.` : "");
-  const description = desc.slice(0, 300);
+  const description = `Equipamento ${RARITY_PT[input.rarity]} com ${motif}.`.slice(0, 300);
 
   // Stats: 6 atributos sempre > 0; principal do tipo recebe o maior valor.
   const STAT_KEYS: Record<string, number> = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };

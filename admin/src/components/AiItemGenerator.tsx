@@ -51,9 +51,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [providers, setProviders] = useState<{ gemini: boolean; groq: boolean } | null>(null);
   const [type, setType] = useState("weapon");
   const [rarity, setRarity] = useState("rare");
-  const [level, setLevel] = useState(6);
-  const [theme, setTheme] = useState("");
-  const [material, setMaterial] = useState("");
+  const [level, setLevel] = useState(1);
   const [color, setColor] = useState("");
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,8 +74,6 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         type,
         rarity,
         level,
-        theme: theme.trim() || undefined,
-        material: material.trim() || undefined,
         color: color.trim() || undefined,
         seed,
         variants,
@@ -173,9 +169,10 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             </div>
 
             <p className="text-xs text-gray-500 mb-4">
-              A IA planeja o item (nome, atributos, preços) sem depender de serviços externos. Deixe Tema/Material/Cor vazios
-              para a IA escolher tudo. O tipo <span className="text-cyan-300">Material</span> gera matéria-prima empilhável
-              (usada em craft e quests de coleta). O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
+              A IA planeja o item (nome, atributos, preços) sem depender de serviços externos. Todos os itens nascem no{" "}
+              <span className="text-cyan-300">nível 1</span> — use o campo Nível para pedir um nível específico. O tipo{" "}
+              <span className="text-cyan-300">Material</span> gera matéria-prima empilhável (usada em craft e quests de
+              coleta). O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -198,14 +195,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
               <label className="text-xs text-gray-400">
                 Nível
                 <input type="number" min={1} max={100} value={level} onChange={(e) => setLevel(parseInt(e.target.value) || 1)} className={inputClass + " mt-1"} />
-              </label>
-              <label className="text-xs text-gray-400">
-                Tema (opcional)
-                <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="ex.: dragão de gelo" className={inputClass + " mt-1"} />
-              </label>
-              <label className="text-xs text-gray-400">
-                Material (opcional)
-                <input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="ex.: aço negro" className={inputClass + " mt-1"} />
+                <span className="block text-[10px] text-gray-500 mt-0.5">Padrão: 1 (nível do item)</span>
               </label>
             </div>
 
