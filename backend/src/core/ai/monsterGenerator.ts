@@ -86,7 +86,7 @@ REGRAS DE QUANTIDADE:
 - Nomes e temas coerentes entre si (um grupo do mesmo habitat/fantasia), variando nível quando o usuário pedir faixa (ex.: "nível 1 a 5" → distribua os níveis nessa faixa, um por nível se possível).
 
 REGRAS DE STATS (por monstro):
-- level 1 a 99. hp 30 a 500000 (bosses podem ter muito mais), attack 2 a 5000.
+- level 1 a 150. hp 30 a 500000 (bosses podem ter muito mais), attack 2 a 5000.
 - defense e magicDefense entre 20% e 40% do attack (o sistema ainda adiciona +30% de defesa e +20% de dano).
 - criticalChance 0 a 50 (%), criticalDamage 100 a 300 (%), dodge 0 a 30 (%), accuracy 70 a 100 (%).
 - attackSpeed 1200 a 5000 (ms entre ataques).
@@ -190,7 +190,7 @@ export function rewardsForLevel(level: number, isElite = false, isBoss = false, 
 function normalizeOne(m: any, errors: string[], xpPerLevel = 1250): { monster: any; drops: any[] } {
   if (!m || !m.name) throw new Error("JSON inválido: campo monster.name ausente");
 
-  const level = clamp(Math.round(num(m.level, 1)), 1, 99);
+  const level = clamp(Math.round(num(m.level, 1)), 1, 150);
   const skills = Array.isArray(m.skills) ? m.skills : [];
   if (skills.length === 0) errors.push(`"${m.name}": nenhuma skill gerada`);
   if (!skills.some((s: any) => s.trigger === "auto")) errors.push(`"${m.name}": falta o ataque automático (trigger 'auto')`);
@@ -240,8 +240,8 @@ function normalizeOne(m: any, errors: string[], xpPerLevel = 1250): { monster: a
             dropChance: clamp(Math.round(num(d?.dropChance, 1)), 0, 100),
             minQuantity: Math.max(1, Math.round(num(d?.minQuantity, 1))),
             maxQuantity: Math.max(1, Math.round(num(d?.maxQuantity, 1))),
-            minLevel: clamp(Math.round(num(d?.minLevel, 1)), 1, 99),
-            maxLevel: clamp(Math.round(num(d?.maxLevel, 99)), 1, 99),
+            minLevel: clamp(Math.round(num(d?.minLevel, 1)), 1, 150),
+            maxLevel: clamp(Math.round(num(d?.maxLevel, 150)), 1, 150),
             guaranteed: !!d?.guaranteed,
           };
         })

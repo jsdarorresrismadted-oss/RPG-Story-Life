@@ -22,7 +22,6 @@ const TYPE_OPTIONS = [
   { value: "helm", label: "Elmo" },
   { value: "armor", label: "Armadura" },
   { value: "cape", label: "Capa" },
-  { value: "material", label: "Material" },
 ];
 
 const RARITY_OPTIONS = [
@@ -52,7 +51,10 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [type, setType] = useState("weapon");
   const [rarity, setRarity] = useState("rare");
   const [level, setLevel] = useState(1);
-  const [color, setColor] = useState("");
+  const [manual, setManual] = useState(false);
+  const [stats, setStats] = useState<Record<string, string>>({});
+  const [dps, setDps] = useState("");
+  const [attackSpeedMs, setAttackSpeedMs] = useState("");
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<GeneratedItemResult | null>(null);
@@ -74,9 +76,17 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         type,
         rarity,
         level,
-        color: color.trim() || undefined,
         seed,
         variants,
+        stats: manual
+          ? Object.fromEntries(
+              Object.entries(stats)
+                .filter(([, v]) => v !== "" && Number.isFinite(Number(v)))
+                .map(([k, v]) => [k, Number(v)])
+            )
+          : undefined,
+        dps: manual && type === "weapon" && dps !== "" ? Number(dps) : undefined,
+        attackSpeedMs: manual && type === "weapon" && attackSpeedMs !== "" ? Number(attackSpeedMs) : undefined,
       });
       setResult(data);
       setSeed((s) => s + 1);
@@ -92,14 +102,12 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
     if (!result) return;
     setSaving(true);
     try {
-      const isMaterial = type === "material";
-      const zeroStats = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
       await adminApi.items.create({
         name: result.plan.name,
         description: result.plan.description,
         icon: result.plan.icon || undefined,
-        type: isMaterial ? "consumable" : type,
-        subtype: isMaterial ? "material" : result.plan.subtype || undefined,
+        type,
+        subtype: result.plan.subtype || undefined,
         rarity,
         level,
         rank: 1,
@@ -108,16 +116,16 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         isActive: false,
         isTradable: true,
         isSellable: true,
-        isStackable: isMaterial ? true : false,
-        maxStack: isMaterial ? 99 : 1,
-        attackSpeedMs: isMaterial ? 0 : result.plan.attackSpeedMs || 0,
-        dps: isMaterial ? 0 : result.plan.dps || 0,
-        strength: isMaterial ? 0 : result.plan.stats.strength || 0,
-        intellect: isMaterial ? 0 : result.plan.stats.intellect || 0,
-        endurance: isMaterial ? 0 : result.plan.stats.endurance || 0,
-        dexterity: isMaterial ? 0 : result.plan.stats.dexterity || 0,
-        wisdom: isMaterial ? 0 : result.plan.stats.wisdom || 0,
-        luck: isMaterial ? 0 : result.plan.stats.luck || 0,
+        isStackable: false,
+        maxStack: 1,
+        attackSpeedMs: result.plan.attackSpeedMs || 0,
+        dps: result.plan.dps || 0,
+        strength: result.plan.stats.strength || 0,
+        intellect: result.plan.stats.intellect || 0,
+        endurance: result.plan.stats.endurance || 0,
+        dexterity: result.plan.stats.dexterity || 0,
+        wisdom: result.plan.stats.wisdom || 0,
+        luck: result.plan.stats.luck || 0,
       });
       toast.success(`Item "${result.plan.name}" salvo (rascunho)!`);
       setOpen(false);
@@ -170,9 +178,10 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
 
             <p className="text-xs text-gray-500 mb-4">
               A IA planeja o item (nome, atributos, preços) sem depender de serviços externos. Todos os itens nascem no{" "}
-              <span className="text-cyan-300">nível 1</span> — use o campo Nível para pedir um nível específico. O tipo{" "}
-              <span className="text-cyan-300">Material</span> gera matéria-prima empilhável (usada em craft e quests de
-              coleta). O item nasce como <span className="text-yellow-400">rascunho (inativo)</span>.
+              <span className="text-cyan-300">nível 1</span> — use o campo Nível para pedir um nível específico. Os
+              atributos, DPS e velocidade são balanceados automaticamente pela raridade, ou você pode defini-los
+              manualmente na seção "Ajustes manuais". O item nasce como{" "}
+              <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -194,9 +203,67 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
               </label>
               <label className="text-xs text-gray-400">
                 Nível
-                <input type="number" min={1} max={100} value={level} onChange={(e) => setLevel(parseInt(e.target.value) || 1)} className={inputClass + " mt-1"} />
+                <input type="number" min={1} max={150} value={level} onChange={(e) => setLevel(parseInt(e.target.value) || 1)} className={inputClass + " mt-1"} />
                 <span className="block text-[10px] text-gray-500 mt-0.5">Padrão: 1 (nível do item)</span>
               </label>
+            </div>
+
+            <div className="mt-3 border border-dark-600 rounded-lg p-3">
+              <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={manual}
+                  onChange={(e) => setManual(e.target.checked)}
+                  className="accent-fuchsia-500"
+                />
+                Ajustes manuais: definir pontos, DPS e velocidade
+              </label>
+              {manual && (
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.entries(STAT_LABELS).map(([k, label]) => (
+                    <label key={k} className="text-xs text-gray-400">
+                      {label}
+                      <input
+                        type="number"
+                        min={1}
+                        max={200}
+                        value={stats[k] ?? ""}
+                        onChange={(e) => setStats((s) => ({ ...s, [k]: e.target.value }))}
+                        placeholder="auto"
+                        className={inputClass + " mt-1"}
+                      />
+                    </label>
+                  ))}
+                  {type === "weapon" && (
+                    <>
+                      <label className="text-xs text-gray-400">
+                        DPS
+                        <input
+                          type="number"
+                          min={1}
+                          max={100000}
+                          value={dps}
+                          onChange={(e) => setDps(e.target.value)}
+                          placeholder="auto"
+                          className={inputClass + " mt-1"}
+                        />
+                      </label>
+                      <label className="text-xs text-gray-400">
+                        Velocidade (ms)
+                        <input
+                          type="number"
+                          min={500}
+                          max={2600}
+                          value={attackSpeedMs}
+                          onChange={(e) => setAttackSpeedMs(e.target.value)}
+                          placeholder="auto"
+                          className={inputClass + " mt-1"}
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-4">

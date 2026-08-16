@@ -443,15 +443,15 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
 // ===== Orquestrador =====
 export interface GenerateItemInput {
   type: string;
-  theme?: string;
-  material?: string;
-  color?: string;
   rarity?: string;
   level?: number;
   seed?: number;
   variants?: number;
-  mobs?: string[];
-  maps?: string[];
+  // Overrides manuais do admin (opcional). Se não informados, stats/DPS/velocidade
+  // são balanceados automaticamente pela raridade e nível.
+  stats?: Partial<Record<string, number>>;
+  dps?: number;
+  attackSpeedMs?: number;
 }
 
 export interface GeneratedItem {
@@ -463,14 +463,28 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
   const validTypes = Object.keys(TYPE_PT);
   if (!validTypes.includes(type)) throw new AppError(400, "Tipo invalido: " + type);
   const rarity = VALID_RARITIES.includes(String(input.rarity || "")) ? String(input.rarity) : "common";
-  const level = Math.max(1, Math.min(100, Number(input.level) || 1));
+  const level = Math.max(1, Math.min(150, Number(input.level) || 1));
   const seed = Math.floor(Number(input.seed) || Date.now() % 1000000);
 
   // Plano: por padrao usa a IA LOCAL (deterministica, sem API externa).
   //    Groq fica opcional (GROQ_PLANNER=on) para nomes/textos via LLM.
   const plan = process.env.GROQ_PLANNER === "on"
-    ? await planItem({ type, theme: input.theme, material: input.material, color: input.color, rarity, level, mobs: input.mobs, maps: input.maps })
-    : planItemLocal({ type, theme: input.theme, material: input.material, color: input.color, rarity, level, mobs: input.mobs, maps: input.maps }, seed);
+    ? await planItem({ type, rarity, level })
+    : planItemLocal({ type, rarity, level }, seed);
+
+  // Overrides manuais do admin (opcionais). Sem eles, o plano já vem balanceado
+  // pela raridade e nível (stats principais = 1.2 × nível × multiplicador da raridade).
+  const STAT_KEYS = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
+  if (input.stats && typeof input.stats === "object") {
+    for (const k of STAT_KEYS) {
+      const v = Number((input.stats as any)[k]);
+      if (Number.isFinite(v)) plan.stats[k] = Math.max(1, Math.min(200, Math.round(v)));
+    }
+  }
+  if (type === "weapon") {
+    if (Number.isFinite(Number(input.dps))) plan.dps = Math.max(1, Math.min(100000, Math.round(Number(input.dps))));
+    if (Number.isFinite(Number(input.attackSpeedMs))) plan.attackSpeedMs = Math.max(500, Math.min(2600, Math.round(Number(input.attackSpeedMs))));
+  }
 
   log.push((process.env.GROQ_PLANNER === "on" ? "Groq" : "IA local") + " (plano)");
   return { plan };
