@@ -21,13 +21,12 @@ const RARITY_OPTIONS = [
   { value: "mythic", label: "Mítico" },
 ];
 
+// Encantamentos valem SOMENTE para arma, elmo, armadura e capa — anéis/colares nunca encantam.
 const SLOT_OPTIONS = [
   { value: "weapon", label: "Arma" },
   { value: "helm", label: "Elmo" },
   { value: "armor", label: "Armadura" },
   { value: "cape", label: "Capa" },
-  { value: "ring", label: "Anel" },
-  { value: "necklace", label: "Colar" },
 ];
 
 const STAT_LABELS: Record<string, string> = {

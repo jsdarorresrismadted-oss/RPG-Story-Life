@@ -6,7 +6,8 @@ import { withEnchantmentStats } from "../../core/enchantments/enchantmentStats";
 import { parseQuestIds } from "../../core/progression";
 import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 
-const EQUIP_SLOTS = ["weapon", "class", "helm", "armor", "cape", "ring", "necklace"] as const;
+// Encantamentos valem apenas para arma, elmo, armadura e capa — anéis e colares NUNCA encantam.
+const EQUIP_SLOTS = ["weapon", "helm", "armor", "cape"] as const;
 
 // Anexa computedStats (fórmula de progressão) ao encantamento de cada item
 const enrichItems = (rows: any[]): any[] =>

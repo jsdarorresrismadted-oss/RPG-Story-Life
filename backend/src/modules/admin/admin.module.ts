@@ -144,7 +144,9 @@ const DEFAULT_GUILD_SETTINGS = {
 // Regras do sistema de encantamentos:
 // - nível sempre entre 1 e 150 (fórmula do sistema calcula os valores);
 // - os 6 atributos NUNCA podem ficar zerados (mínimo 1);
-// - categoria = atributo principal (6 fixas).
+// - categoria = atributo principal (6 fixas);
+// - encantamentos valem SOMENTE para arma, elmo, armadura e capa (anéis/colares nunca encantam).
+const ENCHANTABLE_SLOTS = ["weapon", "helm", "armor", "cape"];
 function sanitizeEnchantment(body: any): any {
   const data = { ...body };
   if (data.level !== undefined) data.level = clampLevel(Number(data.level) || 1);
@@ -157,7 +159,9 @@ function sanitizeEnchantment(body: any): any {
     data[key] = v;
   }
   if (data.compatibleSlots !== undefined && Array.isArray(data.compatibleSlots)) {
-    data.compatibleSlots = JSON.stringify(data.compatibleSlots);
+    // Filtra qualquer slot fora da whitelist (ring, necklace, class...) e garante lista não vazia
+    const slots = data.compatibleSlots.filter((s: any) => ENCHANTABLE_SLOTS.includes(String(s)));
+    data.compatibleSlots = JSON.stringify(slots.length ? slots : ["weapon"]);
   }
   return data;
 }
@@ -1054,6 +1058,44 @@ export function createAdminModule(app: Express): void {
 
   app.delete("/api/admin/enchantments/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try { const r = await deleteWithSoftFallback(prisma.enchantment, req, "enchantment"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+  });
+
+  // Coloca TODOS os encantamentos ativos na loja do NPC de encantamentos (sem duplicar).
+  app.post("/api/admin/enchantments/sync-shop", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const npc = await prisma.npc.findFirst({ where: { type: "enchantments" }, orderBy: { createdAt: "asc" } });
+      if (!npc) throw new AppError(400, "Nenhum NPC do tipo 'enchantments' encontrado para receber os encantamentos");
+      const enchants = await prisma.enchantment.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+      // Limpa slots inválidos (ring/necklace/class...) de encantamentos existentes — regra: só 4 slots
+      for (const ench of enchants) {
+        let slots: string[] = [];
+        try { slots = JSON.parse(ench.compatibleSlots || "[]"); } catch { /* ignore */ }
+        const clean = Array.isArray(slots) ? slots.filter((s) => ENCHANTABLE_SLOTS.includes(String(s))) : [];
+        if (JSON.stringify(clean) !== JSON.stringify(slots)) {
+          await prisma.enchantment.update({ where: { id: ench.id }, data: { compatibleSlots: JSON.stringify(clean.length ? clean : ["weapon"]) } });
+        }
+      }
+      const existing = await prisma.shopItem.findMany({ where: { npcId: npc.id, enchantmentId: { not: null } }, select: { enchantmentId: true } });
+      const existingIds = new Set(existing.map((s) => s.enchantmentId).filter(Boolean));
+      let created = 0;
+      let skipped = 0;
+      for (const ench of enchants) {
+        if (existingIds.has(ench.id)) { skipped++; continue; }
+        await prisma.shopItem.create({
+          data: {
+            npcId: npc.id,
+            enchantmentId: ench.id,
+            price: ench.price > 0n ? ench.price : 100n,
+            currency: "gold",
+            stock: -1,
+            requiredLevel: Math.max(0, ench.level - 1),
+            requiredVip: ench.requiredVip,
+          },
+        });
+        created++;
+      }
+      res.json({ message: `Loja de encantamentos atualizada (${created} adicionados, ${skipped} já presentes)`, npc: npc.name, created, skipped, total: enchants.length });
+    } catch (err) { next(err); }
   });
 
   // Monsters CRUD

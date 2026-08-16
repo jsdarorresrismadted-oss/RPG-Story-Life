@@ -7,7 +7,8 @@ import { withEnchantmentStats } from "../../core/enchantments/enchantmentStats";
 
 const SHOP_TYPES = new Set(["vendor", "shop", "enchantments", "classes"]);
 const QUEST_TYPES = new Set(["quest_giver", "quest"]);
-const ENCHANTABLE_SLOTS = ["weapon", "class", "helm", "armor", "cape", "ring", "necklace"] as const;
+// Encantamentos valem apenas para arma, elmo, armadura e capa — anéis e colares NUNCA encantam.
+const ENCHANTABLE_SLOTS = ["weapon", "helm", "armor", "cape"] as const;
 
 function parseSlots(raw: string | null): string[] {
   try {
