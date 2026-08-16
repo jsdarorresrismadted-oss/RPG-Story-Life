@@ -464,6 +464,7 @@ function parsePrompt(prompt: string): {
   level?: number;
   subtype?: string;
   statsRange?: [number, number];
+  statsAll?: boolean;
   dpsRange?: [number, number];
   speedRange?: [number, number];
 } {
@@ -471,7 +472,8 @@ function parsePrompt(prompt: string): {
   const out: ReturnType<typeof parsePrompt> = { count: 1 };
 
   // "5 itens", "3 cajados", "2 adagas de veneno" — número + substantivo no plural
-  const countM = p.match(/(\d+)\s+(?:de\s+)?[a-zá-úãõ]+s\b/);
+  // (exclui palavras-chave como "pontos"/"dps" para não confundir com faixas).
+  const countM = p.match(/(\d+)\s+(?:de\s+)?(?!(?:pontos|dps|stats|atributos|segundos|milisegundos|ms)\b)[a-zá-úãõ]+s\b/);
   if (countM) out.count = clampInt(parseInt(countM[1], 10), 1, 12);
 
   const lvM = p.match(/n[ií]vel\s*(\d+)/);
@@ -480,16 +482,24 @@ function parsePrompt(prompt: string): {
   const sub = detectSubtypeFromTheme(p);
   if (sub) out.subtype = sub;
 
-  // "pontos entre 5 e 10" / "atributos de 5 a 10"
-  const stM = p.match(/(?:pontos|stats|atributos)[^0-9]*(\d+)[^0-9]*(?:e|a|at[eé])[^0-9]*(\d+)/);
+  // "pontos entre 5 e 10" / "5 a 8 pontos" / "atributos de 5 a 10" (número pode vir antes ou depois)
+  const stM =
+    p.match(/(?:pontos|stats|atributos)[^0-9]*(\d+)[^0-9]*(?:e|a|at[eé])[^0-9]*(\d+)/) ||
+    p.match(/(\d+)[^0-9]*(?:e|a|at[eé])[^0-9]*(\d+)[^0-9]*(?:pontos|stats|atributos)/);
   if (stM) {
     const lo = parseInt(stM[1], 10);
     const hi = parseInt(stM[2], 10);
     if (hi >= lo) out.statsRange = [lo, hi];
   }
+  // "... em tudo" / "em todos os atributos" → aplica a faixa a TODAS as stats (não só às principais)
+  if (out.statsRange && /em tudo|em todos|em todas|todos os pontos|todas as stats|todas as atributos/.test(p)) {
+    out.statsAll = true;
+  }
 
-  // "dps de 10 a 50" / "dps 10-50"
-  const dM = p.match(/dps[^0-9]*(\d+)[^0-9]*(?:e|a|at[eé]|-)[^0-9]*(\d+)/);
+  // "dps de 10 a 50" / "dps 10-50" / "10 a 50 dps" / "entre 10 a 50 dps"
+  const dM =
+    p.match(/dps[^0-9]*(\d+)[^0-9]*(?:e|a|at[eé]|-)[^0-9]*(\d+)/) ||
+    p.match(/(\d+)[^0-9]*(?:e|a|at[eé])[^0-9]*(\d+)[^0-9]*dps/);
   if (dM) {
     const lo = parseInt(dM[1], 10);
     const hi = parseInt(dM[2], 10);
@@ -534,15 +544,22 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
     const STAT_KEYS = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
     if (parsed.statsRange) {
       const [lo, hi] = parsed.statsRange;
-      const main = lo + (s % (hi - lo + 1));
-      // Distribui: principal = valor escolhido na faixa, secundários proporcionalmente.
-      const primaryKeys = type === "weapon"
-        ? (plan.subtype === "staff" || plan.subtype === "tome" ? ["intellect", "wisdom"] : ["strength", "dexterity"])
-        : type === "cape" ? ["wisdom", "luck"] : ["endurance", "dexterity"];
-      for (const k of STAT_KEYS) {
-        if (primaryKeys[0] === k) plan.stats[k] = main;
-        else if (primaryKeys[1] === k) plan.stats[k] = Math.max(1, Math.round(main * 0.85));
-        else plan.stats[k] = Math.max(1, Math.round(main * 0.4));
+      if (parsed.statsAll) {
+        // "... pontos em tudo" → TODAS as stats dentro da faixa
+        for (const k of STAT_KEYS) {
+          plan.stats[k] = lo + ((s * 7 + STAT_KEYS.indexOf(k) * 13) % (hi - lo + 1));
+        }
+      } else {
+        const main = lo + (s % (hi - lo + 1));
+        // Distribui: principal = valor escolhido na faixa, secundários proporcionalmente.
+        const primaryKeys = type === "weapon"
+          ? (plan.subtype === "staff" || plan.subtype === "tome" ? ["intellect", "wisdom"] : ["strength", "dexterity"])
+          : type === "cape" ? ["wisdom", "luck"] : ["endurance", "dexterity"];
+        for (const k of STAT_KEYS) {
+          if (primaryKeys[0] === k) plan.stats[k] = main;
+          else if (primaryKeys[1] === k) plan.stats[k] = Math.max(1, Math.round(main * 0.85));
+          else plan.stats[k] = Math.max(1, Math.round(main * 0.4));
+        }
       }
     } else if (input.stats && typeof input.stats === "object") {
       for (const k of STAT_KEYS) {
