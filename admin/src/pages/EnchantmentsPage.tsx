@@ -273,6 +273,20 @@ export default function EnchantmentsPage() {
 
   const preview = useMemo(() => computeEnchantmentStats(form), [form]);
 
+  const [syncingShop, setSyncingShop] = useState(false);
+  const handleSyncShop = async () => {
+    setSyncingShop(true);
+    try {
+      const { data } = await adminApi.enchantments.syncShop();
+      toast.success(data.message || "Loja de encantamentos atualizada!");
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Falha ao sincronizar a loja");
+    } finally {
+      setSyncingShop(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -284,12 +298,22 @@ export default function EnchantmentsPage() {
             do encantamento <span className="text-yellow-400">substituem</span> os do equipamento.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus size={16} /> Novo encantamento
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSyncShop}
+            disabled={syncingShop}
+            className="flex items-center gap-2 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {syncingShop ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {syncingShop ? "Sincronizando..." : "Adicionar todos na loja"}
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus size={16} /> Novo encantamento
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
