@@ -106,7 +106,7 @@ export async function applyCharacterXp(
   ) {
     updated = await tx.character.update({
       where: { id: characterId },
-      data: { level: { increment: 1 } },
+      data: { level: { increment: 1 }, experience: 0n },
       select: { id: true, level: true, experience: true },
     });
     levelUps++;

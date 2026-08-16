@@ -77,7 +77,7 @@ export function TopBar({ user, sidebarOpen, onToggleSidebar, onToggleChat, onLog
               <span className="text-emerald-500">GC</span>
             </div>
             <div className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-md">
-              <span className="text-purple-400 font-mono text-xs sm:text-sm">Lv.{user.level ?? 1}</span>
+              <span className="text-purple-400 font-mono text-xs sm:text-sm">Lv.{user.characters?.[0]?.level ?? 1}</span>
             </div>
           </div>
 
