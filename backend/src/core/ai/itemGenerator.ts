@@ -530,6 +530,10 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
 
   // Prompt livre: interpreta quantidade, nível, subtipo e faixas de pontos/DPS/velocidade.
   const parsed = input.prompt ? parsePrompt(input.prompt) : { count: 1 };
+  if (input.prompt) {
+    console.log("[ai-items] prompt:", JSON.stringify(input.prompt));
+    console.log("[ai-items] parsed:", JSON.stringify(parsed));
+  }
   const count = parsed.count || 1;
   const baseSubtype = input.subtype || parsed.subtype;
   const baseLevel = parsed.level ?? level;
