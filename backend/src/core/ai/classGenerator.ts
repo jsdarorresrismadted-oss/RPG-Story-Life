@@ -164,7 +164,7 @@ REGRAS DE CORE STATS (${CORE_KEYS.join(", ")}):
 
 REGRAS DE SKILLS (EXATAMENTE 5 skills, NUNCA mais nem menos):
 - Skill 1: o ataque automático — trigger "auto", kind "attack", target "enemy", cooldown 2000, manaCost 0, rankRequired 1, sortOrder 1, actions: [{ action: "damage", amount: 6-10, scaling: [{ stat: "attack"|"magic", factor: 0.8-1.2 }], damageType: "physical"|"magic" }].
-- Skills 2, 3 e 4: trigger "active", rankRequired 1, 3 e 4 (respectivamente, sortOrder 2, 3 e 4), cooldown 3000-30000, manaCost 5-35.
+- Skills 2, 3 e 4: trigger "active", rankRequired 2, 3 e 4 (respectivamente, sortOrder 2, 3 e 4), cooldown 3000-30000, manaCost 5-35.
 - Skill 5: a ULTIMATE — trigger "ultimate" (sempre), rankRequired 5 (sempre), sortOrder 5, cooldown 25000-45000, manaCost 20-40, poderosa (dano/heal/buff forte, condizente com ser a skill definitiva da classe).
 - Ações válidas (actions):
   • { action: "damage", amount: <n>, scaling: [{ stat: "attack"|"magic", factor: <0.5-2> }], damageType: "physical"|"magic" }
@@ -173,7 +173,7 @@ REGRAS DE SKILLS (EXATAMENTE 5 skills, NUNCA mais nem menos):
 - Toda skill que usar applyEffect DEVE referenciar um efeito existente em "effects" (você gera) ou um já existente no jogo (furia-do-guerreiro, armadura-arcana, passo-das-sombras, foco-arcano, bencao-da-luz, sangramento, chama-arcana, veneno-corrosivo).
 
 REGRAS DE PASSIVAS (exatamente 3):
-- rankRequired: 1, 4 e 7. sortOrder: 1, 2, 3.
+- rankRequired: 6, 8 e 10. sortOrder: 1, 2, 3.
 - statModifiers: { flat: { <chave>: <n> }, percent: { <chave>: <n> } } — use um ou ambos.
 - Chaves flat válidas: ${FLAT_PASSIVE_KEYS.join(", ")}.
 - Chaves percent válidas: ${PERCENT_PASSIVE_KEYS.join(", ")} (valores em %).
@@ -189,7 +189,7 @@ PEDIDO DO USUÁRIO (atenda fielmente, incluindo tema, fantasia, elementos e mec�
 
 Exemplo de skill com reflect (se o pedido for reflect):
 - effect: { name: "Armadura Espinhosa", slug: "armadura-espinhosa", description: "Espinhos mágicos refletem dano ao atacante.", kind: "reflect", category: "defense", duration: 10000, maxStacks: 1, refreshBehavior: "refresh", reflect: { percent: 30 } }
-- skill: { name: "Espinhos Arcanos", slug: "espinhos-arcanos", description: "Envolve-se em espinhos que refletem dano.", kind: "buff", trigger: "active", target: "self", cooldown: 12000, manaCost: 15, rankRequired: 3, sortOrder: 2, actions: [{ action: "applyEffect", effect: "armadura-espinhosa", target: "self", stacks: 1 }] }`;
+- skill: { name: "Espinhos Arcanos", slug: "espinhos-arcanos", description: "Envolve-se em espinhos que refletem dano.", kind: "buff", trigger: "active", target: "self", cooldown: 12000, manaCost: 15, rankRequired: 2, sortOrder: 2, actions: [{ action: "applyEffect", effect: "armadura-espinhosa", target: "self", stacks: 1 }] }`;
 }
 
 async function callGemini(prompt: string): Promise<string> {
@@ -319,7 +319,7 @@ function normalize(raw: any, errors: string[]): GeneratedClass {
       cooldown: Math.max(0, Math.round(num(s.cooldown, 0))),
       manaCost: Math.max(0, Math.round(num(s.manaCost, 0))),
       rankRequired:
-        s.trigger === "ultimate" ? 5 : [1, 3, 4].includes(num(s.rankRequired, 1)) ? num(s.rankRequired, 1) : i === 0 ? 1 : 3,
+        s.trigger === "ultimate" ? 5 : [2, 3, 4].includes(num(s.rankRequired, 1)) ? num(s.rankRequired, 1) : i === 0 ? 1 : 2,
       sortOrder: Math.round(num(s.sortOrder, i + 1)),
       actions,
     };
@@ -349,7 +349,7 @@ function normalize(raw: any, errors: string[]): GeneratedClass {
       name: p.name,
       slug: slugify(p.slug || p.name),
       description: p.description || "",
-      rankRequired: [1, 4, 7][i] || num(p.rankRequired, [1, 4, 7][i] || 1),
+      rankRequired: [6, 8, 10][i] || num(p.rankRequired, [6, 8, 10][i] || 1),
       sortOrder: i + 1,
       statModifiers: { flat, percent },
     };

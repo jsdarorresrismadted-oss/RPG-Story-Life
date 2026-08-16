@@ -11,6 +11,7 @@ import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../.
 import { generateItemSprite, defaultIconForItem } from "../../core/ai/itemGenerator";
 import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
 import { generateNpcs, persistGeneratedNpcs } from "../../core/ai/npcGenerator";
+import { generateQuests, persistGeneratedQuests } from "../../core/ai/questGenerator";
 import { generateSkillIcons } from "../../core/ai/skillIconGenerator";
 import { generateMap, persistGeneratedMap } from "../../core/ai/mapGenerator";
 import { generateEvent, persistGeneratedEvent } from "../../core/ai/eventGenerator";
@@ -1349,6 +1350,18 @@ export function createAdminModule(app: Express): void {
     try {
       const r = await deleteWithSoftFallback(prisma.eventShopItem, req, "eventshopitem");
       res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" });
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/quests/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      if (!idea) throw new AppError(400, "Descreva as quests que a IA deve criar (ex.: '5 quests de caçada na floresta, níveis 5 a 10')");
+      requireAi();
+      const providerLog: string[] = [];
+      const gen = await generateQuests(idea, providerLog);
+      const saved = await persistGeneratedQuests(gen);
+      res.status(201).json({ data: saved, providers: providerLog });
     } catch (err) { next(err); }
   });
 

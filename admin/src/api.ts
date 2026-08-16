@@ -94,6 +94,7 @@ export const adminApi = {
     create: (data: any) => api.post("/admin/quests", data),
     update: (id: string, data: any) => api.put(`/admin/quests/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/quests/${id}`, { params }),
+    generate: (prompt: string) => api.post("/admin/quests/generate", { prompt }),
   },
   skills: {
     list: (classId: string) => api.get(`/admin/classes/${classId}/skills`),
