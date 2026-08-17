@@ -143,7 +143,7 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     "Responda SOMENTE com JSON valido neste formato:",
     '{"name":"Nome em portugues, curto e fantastico — SE um subtipo especifico foi pedido (cajado, espada, adaga, machado, arco, grimorio), o nome DEVE comecar com ele (ex.: subtipo cajado -> \\"Cajado do Alvorecer\\")",',
     '"description":"1-2 frases em portugues descrevendo visual e lendinha",',
-    '"subtype":"um de (em INGLES): sword, dagger, longsword, axe, mace, spear, bow — sword=espada, dagger=adaga, longsword=espada longa, axe=machado, mace=martelo, spear=lanca, bow=arco (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | material (material bruto) | vazio para capa/anel/colar",',
+    '"subtype":"um de (em INGLES): sword, dagger, longsword, axe, mace, spear, bow, staff — sword=espada, dagger=adaga, longsword=espada longa, axe=machado, mace=martelo, spear=lanca, bow=arco, staff=cajado (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | material (material bruto) | vazio para capa/anel/colar",',
     '"stats":{"strength":0,"intellect":0,"endurance":0,"dexterity":0,"wisdom":0,"luck":0},"attackSpeedMs":0,"dps":0,"buyPrice":0,"sellPrice":0}',
   ]
     .filter(Boolean)
@@ -236,7 +236,7 @@ const PRICE_NAMES: Record<string, string[]> = {
 };
 
 const SUBTYPES: Record<string, string[]> = {
-  weapon: ["sword", "dagger", "longsword", "axe", "mace", "spear", "bow"],
+  weapon: ["sword", "dagger", "longsword", "axe", "mace", "spear", "bow", "staff"],
   helm: ["cap", "helmet", "crown", "hood"],
   armor: ["light", "heavy", "robe"],
   cape: [""],
@@ -244,7 +244,7 @@ const SUBTYPES: Record<string, string[]> = {
 };
 
 // Sinônimos em português/inglês → subtipo canônico do sistema.
-// Arsenal de armas: adaga, espada, espada longa, machado, martelo, lança, arco.
+// Arsenal de armas: adaga, espada, espada longa, machado, martelo, lança, arco, cajado.
 const SUBTYPE_PT_MAP: Record<string, string> = {
   espada: "sword", sword: "sword", lamina: "sword",
   "espada longa": "longsword", longsword: "longsword",
@@ -253,6 +253,7 @@ const SUBTYPE_PT_MAP: Record<string, string> = {
   martelo: "mace", mace: "mace", maca: "mace", maça: "mace",
   lanca: "spear", lança: "spear", spear: "spear",
   arco: "bow", bow: "bow", besta: "bow",
+  cajado: "staff", staff: "staff", bastao: "staff", "cajado magico": "staff",
   capuz: "hood", hood: "hood", "capuz de tecido": "hood",
   coroa: "crown", crown: "crown",
   capacete: "helmet", helmet: "helmet", elmo: "helmet",
@@ -365,7 +366,7 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   }
 
   // nome = [substantivo forte] + [aposito ambientico]
-  const WEAPON_PT: Record<string, string> = { sword: "Espada", dagger: "Adaga", longsword: "Espada Longa", axe: "Machado", mace: "Martelo", spear: "Lança", bow: "Arco" };
+  const WEAPON_PT: Record<string, string> = { sword: "Espada", dagger: "Adaga", longsword: "Espada Longa", axe: "Machado", mace: "Martelo", spear: "Lança", bow: "Arco", staff: "Cajado" };
   const root = WEAPON_PT[subtype]
     ? WEAPON_PT[subtype]
     : pick(STRENGTH_NAMES[input.type] || STRENGTH_NAMES.weapon, `${input.type}|${seed}`, 2);

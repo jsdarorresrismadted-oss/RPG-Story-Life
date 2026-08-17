@@ -31,7 +31,7 @@ const STARTER_KITS: Record<string, { itemName: string; quantity: number; equip?:
     { itemName: "Poção de Vida", quantity: 5 },
   ],
   mago: [
-    { itemName: "Lança de Iniciante", quantity: 1, equip: true },
+    { itemName: "Cajado do Aprendiz", quantity: 1, equip: true },
     { itemName: "Armadura de Iniciante", quantity: 1, equip: true },
     { itemName: "Capacete de Iniciante", quantity: 1, equip: true },
     { itemName: "Capa de Iniciante", quantity: 1, equip: true },
