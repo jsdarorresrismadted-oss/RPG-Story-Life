@@ -8,7 +8,7 @@ export const ENCHANT_MAX_LEVEL = 150;
 export const ENCHANT_MIN_LEVEL = 1;
 export const ENCHANT_STEP_PER_LEVEL = 2;
 export const ENCHANT_STAT_MAX = 90;
-export const ENCHANT_DPS_MAX = 90;
+export const ENCHANT_DPS_MAX = 308;
 
 export const ENCHANTMENT_CATEGORIES = [
   "strength",
@@ -25,9 +25,10 @@ export function clampLevel(level: number): number {
   return Math.max(ENCHANT_MIN_LEVEL, Math.min(ENCHANT_MAX_LEVEL, Math.floor(level) || ENCHANT_MIN_LEVEL));
 }
 
-// Níveis VIP (múltiplos de 5): +5 no DPS (em vez do +2) e velocidade sugerida 1.5s.
+// A cada 2 níveis um encantamento é VIP (pares: 2, 4, 6...) — alterna normal/VIP.
+// VIP = velocidade sugerida 1.5s e requer assinatura VIP (não muda o DPS).
 export function isVipLevel(level: number): boolean {
-  return clampLevel(level) % 5 === 0;
+  return clampLevel(level) % 2 === 0;
 }
 
 export function statAtLevel(base: number, level: number): number {
@@ -38,8 +39,7 @@ export function statAtLevel(base: number, level: number): number {
 export function dpsAtLevel(baseDps: number, level: number): number {
   const lvl = clampLevel(level);
   const linear = (Number(baseDps) || 0) + ENCHANT_STEP_PER_LEVEL * (lvl - ENCHANT_MIN_LEVEL);
-  const bonus = isVipLevel(lvl) ? 5 : 0;
-  return Math.max(1, Math.min(ENCHANT_DPS_MAX, linear + bonus));
+  return Math.max(1, Math.min(ENCHANT_DPS_MAX, linear));
 }
 
 export function speedAtLevel(baseSpeed: number | null | undefined, level: number): number {
