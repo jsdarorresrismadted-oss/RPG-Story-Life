@@ -4,15 +4,14 @@
 // fallback caso algum encantamento venha sem o campo calculado.
 // Progressão LINEAR: cada atributo cresce +2 por nível; no nível 1 o
 // atributo principal vale o dobro dos secundários (ex.: Sorte Nv.1 +2/+4).
-// DPS: 10 no nível 1 e +2 por nível (10, 12, 14... até 308 no 150) — linear puro.
-// Níveis VIP (pares: 2, 4, 6...): a cada 2 níveis um é VIP (alterna normal/VIP);
-// VIP = velocidade 1500ms e requer assinatura VIP (não muda o DPS).
+// DPS: 10 no nível 1 e +2 por nível; níveis VIP (pares: 2, 4, 6...) recebem +5
+// (ex.: lv 12 = 37, não 32). VIP = +5 DPS, velocidade 1500ms e requer assinatura VIP.
 
 export const ENCHANT_MAX_LEVEL = 150;
 export const ENCHANT_MIN_LEVEL = 1;
 export const ENCHANT_STEP_PER_LEVEL = 2;
 export const ENCHANT_STAT_MAX = 90;
-export const ENCHANT_DPS_MAX = 308;
+export const ENCHANT_DPS_MAX = 313;
 
 export const CORE_STAT_KEYS = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
 
@@ -32,7 +31,8 @@ function statAtLevel(base: number, level: number): number {
 function dpsAtLevel(baseDps: number, level: number): number {
   const lvl = clampEnchantLevel(level);
   const linear = (Number(baseDps) || 0) + ENCHANT_STEP_PER_LEVEL * (lvl - ENCHANT_MIN_LEVEL);
-  return Math.max(1, Math.min(ENCHANT_DPS_MAX, linear));
+  const bonus = isVipEnchantLevel(lvl) ? 5 : 0;
+  return Math.max(1, Math.min(ENCHANT_DPS_MAX, linear + bonus));
 }
 
 function speedAtLevel(baseSpeed: number | null | undefined, level: number): number {

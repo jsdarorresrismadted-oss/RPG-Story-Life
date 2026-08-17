@@ -5,9 +5,10 @@
 // - Progressão LINEAR: cada atributo cresce +ENCHANT_STEP_PER_LEVEL por nível.
 //   No nível 1, o atributo principal (category) vale o dobro dos secundários.
 //   Ex.: Sorte Nv.1 = +2 nos demais e +4 em Sorte; Sorte Nv.2 = +4/+6; Nv.3 = +6/+8; etc.
-// - DPS: 10 no nível 1 e +2 por nível (10, 12, 14...) até 308 no nível 150 — linear puro.
+// - DPS: 10 no nível 1 e +2 por nível (10, 12, 14...); níveis VIP (pares) recebem
+//   +5 em vez do +2 ("lv 12 = 37, não 32"). Teto 313 no nível 150 (VIP).
 // - Níveis VIP (pares): a cada 2 níveis um encantamento é VIP (2, 4, 6...) — alterna
-//   um normal e um VIP; VIP = velocidade de ataque 1500ms e requer assinatura VIP.
+//   um normal e um VIP; VIP = +5 DPS, velocidade de ataque 1500ms e requer assinatura VIP.
 // - Velocidade de ataque: base fixa do encantamento (padrão 2000ms; VIPs usam 1500ms).
 // - A Combat Engine usa os valores calculados aqui (o encantamento SUBSTITUI o item).
 
@@ -17,10 +18,10 @@ export const ENCHANT_MIN_LEVEL = 1;
 // Aumento por nível de cada atributo (linear).
 export const ENCHANT_STEP_PER_LEVEL = 2;
 
-// Teto do DPS calculado pela escala (10 no nível 1, +2 por nível, 308 no nível 150).
-// ENCHANT_STAT_MAX é o teto dos atributos.
+// Teto do DPS calculado pela escala: 10 no nível 1, +2 por nível e +5 nos níveis
+// VIP (pares) → 313 no nível 150 (que é VIP). ENCHANT_STAT_MAX é o teto dos atributos.
 export const ENCHANT_STAT_MAX = 90;
-export const ENCHANT_DPS_MAX = 308;
+export const ENCHANT_DPS_MAX = 313;
 
 // A cada 2 níveis um encantamento é VIP (pares: 2, 4, 6...) — alterna normal/VIP.
 // VIP: velocidade 1500ms e requer assinatura VIP.
@@ -74,12 +75,13 @@ export function statAtLevel(base: number, level: number): number {
 
 /**
  * DPS no nível informado: base (nível 1) +2 por nível, teto ENCHANT_DPS_MAX.
- * Linear puro — o VIP não muda o DPS (10, 12, 14... até 308 no nível 150).
+ * Níveis VIP (pares): +5 em vez do +2 ("lv 12 = 37, não 32").
  */
 export function dpsAtLevel(baseDps: number, level: number): number {
   const lvl = clampLevel(level);
   const linear = (Number(baseDps) || 0) + ENCHANT_STEP_PER_LEVEL * (lvl - ENCHANT_MIN_LEVEL);
-  return Math.max(1, Math.min(ENCHANT_DPS_MAX, linear));
+  const bonus = isVipLevel(lvl) ? 5 : 0;
+  return Math.max(1, Math.min(ENCHANT_DPS_MAX, linear + bonus));
 }
 
 /** Velocidade de ataque (ms): base fixa do encantamento (padrão 2000; VIP pode usar 1500). */

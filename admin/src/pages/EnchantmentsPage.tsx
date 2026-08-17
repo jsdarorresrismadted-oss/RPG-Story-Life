@@ -319,7 +319,7 @@ export default function EnchantmentsPage() {
           <p className="text-sm text-gray-500 mt-1">
             Definidos por atributo principal (6) e nível (1–150). Os valores de cada nível são calculados
             pela fórmula do sistema a partir da base (nível 1) — nunca aleatórios. Cada encantamento também
-            carrega <span className="text-amber-400">DPS</span> (só arma: 10 no nível 1, +2 por nível até 308) e{" "}
+            carrega <span className="text-amber-400">DPS</span> (só arma: 10 no nível 1, +2 por nível, níveis VIP +5) e{" "}
             <span className="text-cyan-400">velocidade de ataque</span>. Ao aplicar, os atributos do
             encantamento <span className="text-yellow-400">substituem</span> os do equipamento.
           </p>
@@ -649,7 +649,7 @@ export default function EnchantmentsPage() {
                       </div>
                     ))}
                     <div>
-                      <label className={labelClass}>DPS base (só arma) <span className="text-[10px] text-amber-400">10 no Nv.1, +2 por nível</span></label>
+                      <label className={labelClass}>DPS base (só arma) <span className="text-[10px] text-amber-400">10 no Nv.1, +2 por nível, +5 em níveis VIP</span></label>
                       <input
                         type="number"
                         min={1}
@@ -713,7 +713,7 @@ export default function EnchantmentsPage() {
                       const base = Number(form[form.category]) || 1;
                       return Math.max(1, base + ENCHANT_STEP_PER_LEVEL * (ENCHANT_MAX_LEVEL - 1));
                     })()}
-                    (base +2 por nível). A cada 2 níveis um encantamento é <span className="text-cyan-400">VIP</span> (2, 4, 6... — alterna normal/VIP): velocidade sugerida 1,5s e requer assinatura VIP.
+                    (base +2 por nível). A cada 2 níveis um encantamento é <span className="text-cyan-400">VIP</span> (2, 4, 6... — alterna normal/VIP): <span className="text-amber-400">+5 de DPS</span>, velocidade sugerida 1,5s e requer assinatura VIP.
                   </p>
                 </div>
 
