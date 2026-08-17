@@ -20,25 +20,38 @@ function parseJson(value: any, fallback: any): any {
 
 // Starter items granted per class (matched by item name).
 // Items with equip: true are auto-equipped in their slot on creation.
+// Kit inicial: arma + armadura + capacete + capa (tudo já equipado) + poções.
+// Equipamentos são cascas — atributos calculados por nível e raridade no item.
 const STARTER_KITS: Record<string, { itemName: string; quantity: number; equip?: boolean }[]> = {
   cavaleiro: [
     { itemName: "Espada de Iniciante", quantity: 1, equip: true },
-    { itemName: "Escudo de Madeira", quantity: 1 },
-    { itemName: "Po��o de Vida", quantity: 5 },
+    { itemName: "Armadura de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capacete de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capa de Iniciante", quantity: 1, equip: true },
+    { itemName: "Poção de Vida", quantity: 5 },
   ],
   mago: [
-    { itemName: "Cajado do Aprendiz", quantity: 1, equip: true },
-    { itemName: "Po��o de Mana", quantity: 5 },
-    { itemName: "Po��o de Vida", quantity: 3 },
+    { itemName: "Lança de Iniciante", quantity: 1, equip: true },
+    { itemName: "Armadura de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capacete de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capa de Iniciante", quantity: 1, equip: true },
+    { itemName: "Poção de Mana", quantity: 5 },
+    { itemName: "Poção de Vida", quantity: 3 },
   ],
   assassino: [
     { itemName: "Adaga de Iniciante", quantity: 1, equip: true },
-    { itemName: "Po��o de Vida", quantity: 5 },
+    { itemName: "Armadura de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capacete de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capa de Iniciante", quantity: 1, equip: true },
+    { itemName: "Poção de Vida", quantity: 5 },
   ],
   suporte: [
-    { itemName: "Cajado da Luz", quantity: 1, equip: true },
-    { itemName: "Po��o de Mana", quantity: 5 },
-    { itemName: "Po��o de Vida", quantity: 3 },
+    { itemName: "Martelo de Iniciante", quantity: 1, equip: true },
+    { itemName: "Armadura de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capacete de Iniciante", quantity: 1, equip: true },
+    { itemName: "Capa de Iniciante", quantity: 1, equip: true },
+    { itemName: "Poção de Mana", quantity: 5 },
+    { itemName: "Poção de Vida", quantity: 3 },
   ],
 };
 
