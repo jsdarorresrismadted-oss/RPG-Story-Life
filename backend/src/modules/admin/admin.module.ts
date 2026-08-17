@@ -959,7 +959,7 @@ export function createAdminModule(app: Express): void {
         prisma.monster.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
         prisma.map.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
       ]);
-      const { plan } = await generateItemSprite(
+      const { plan, plans } = await generateItemSprite(
         {
           type: String(body.type || "weapon"),
           rarity: body.rarity ? String(body.rarity) : undefined,
@@ -976,7 +976,7 @@ export function createAdminModule(app: Express): void {
         },
         log
       );
-      res.status(201).json({ plan, providers: log });
+      res.status(201).json({ plan, plans, providers: log });
     } catch (err) {
       next(err);
     }

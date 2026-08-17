@@ -482,43 +482,48 @@ function parsePrompt(prompt: string): {
   const sub = detectSubtypeFromTheme(p);
   if (sub) out.subtype = sub;
 
-  // "pontos entre 5 e 10" / "5 a 8 pontos" / "atributos de 5 a 10" (número pode vir antes ou depois)
-  // Lookahead (?![^0-9]*dps) impede o par do DPS ("20 a 30 dps") de ser roubado como stats,
-  // mas o backtrack pode cortar o dígito ("30" -> "3"): validar SEMPRE hi >= lo e tentar o outro padrão.
-  const pickRange = (m1: RegExpMatchArray | null, m2: RegExpMatchArray | null): [number, number] | null => {
-    for (const m of [m1, m2]) {
-      if (!m) continue;
-      const lo = parseInt(m[1], 10);
-      const hi = parseInt(m[2], 10);
-      if (hi >= lo) return [lo, hi];
-    }
-    return null;
+  // Faixas numéricas: "6 a 8", "6–8", "6 e 8", "6 até 8", "1.5s a 2s", "2.5 a 3 segundos".
+  // Separo: "a", "até", "e", hífen ou travessão (en/em dash — comum em texto colado do WhatsApp).
+  // Extração em ORDEM (dps → velocidade → stats), removendo o trecho já usado do texto para
+  // nenhuma faixa ser roubada por outra palavra-chave ("pontos entre 5 e 10, dps de 10 a 50").
+  const SEP = "(?:e|a|at[eé]|[-–—])";
+  const NUM = "(\\d+(?:[.,]\\d+)?)\\s*s?";
+  // Prefere "palavra ANTES da faixa" ("dps de 10 a 50"); se não houver, aceita "faixa antes da palavra"
+  // ("20 a 30 dps"). Só aceita faixas válidas (hi >= lo) — backtrack pode cortar dígitos ("30" -> "3").
+  const pickRange = (m1: RegExpMatchArray | null, m2: RegExpMatchArray | null): RegExpMatchArray | null => {
+    const valid = (m: RegExpMatchArray | null) => {
+      if (!m) return false;
+      return parseFloat(m[2].replace(",", ".")) >= parseFloat(m[1].replace(",", "."));
+    };
+    return valid(m1) ? m1 : valid(m2) ? m2 : null;
   };
-  const stM = pickRange(
-    p.match(/(?:pontos|stats|atributos)[^0-9]{0,12}(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)(?![^0-9]*dps)/),
-    p.match(/(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)(?![^0-9]*dps)[^0-9]{0,12}(?:pontos|stats|atributos)/)
+  let work = p;
+  // dps: faixa BEM próxima da palavra ("dps de 10 a 50", "dps 10-50", "10 a 50 dps") —
+  // distância curta (max 4 antes / 6 depois) para não roubar faixa de outra coisa ("dps, e entre 1.5s a 2s").
+  const dM = pickRange(
+    work.match(new RegExp(`dps[^0-9]{0,4}${NUM}[^0-9]{0,8}${SEP}[^0-9]{0,8}(\\d+(?:[.,]\\d+)?)\\s*s?`)),
+    work.match(new RegExp(`${NUM}[^0-9]{0,8}${SEP}[^0-9]{0,8}(\\d+(?:[.,]\\d+)?)\\s*s?[^0-9]{0,6}dps`))
   );
-  if (stM) out.statsRange = stM;
+  if (dM) {
+    out.dpsRange = [Math.round(parseFloat(dM[1])), Math.round(parseFloat(dM[2]))];
+    work = work.replace(dM[0], " ");
+  }
+  const vM = pickRange(
+    work.match(new RegExp(`(?:velocidade|segundos?)[^0-9]{0,12}${NUM}[^0-9]{0,8}${SEP}[^0-9]{0,8}(\\d+(?:[.,]\\d+)?)\\s*s?`)),
+    work.match(new RegExp(`${NUM}[^0-9]{0,8}${SEP}[^0-9]{0,8}(\\d+(?:[.,]\\d+)?)\\s*s?[^0-9]{0,12}(?:velocidade|segundos?)`))
+  );
+  if (vM) {
+    out.speedRange = [clampInt(Math.round(parseFloat(vM[1]) * 1000), 500, 2600), clampInt(Math.round(parseFloat(vM[2]) * 1000), 500, 2600)];
+    work = work.replace(vM[0], " ");
+  }
+  const sM = pickRange(
+    work.match(new RegExp(`(?:pontos|stats|atributos)[^0-9]{0,12}${NUM}[^0-9]{0,8}${SEP}[^0-9]{0,8}(\\d+(?:[.,]\\d+)?)\\s*s?`)),
+    work.match(new RegExp(`${NUM}[^0-9]{0,8}${SEP}[^0-9]{0,8}(\\d+(?:[.,]\\d+)?)\\s*s?[^0-9]{0,12}(?:pontos|stats|atributos)`))
+  );
+  if (sM) out.statsRange = [Math.round(parseFloat(sM[1])), Math.round(parseFloat(sM[2]))];
   // "... em tudo" / "em todos os atributos" → aplica a faixa a TODAS as stats (não só às principais)
   if (out.statsRange && /em tudo|em todos|em todas|todos (?:os )?atributos|todas (?:as )?atributos|todos (?:os )?pontos|todas (?:as )?stats/.test(p)) {
     out.statsAll = true;
-  }
-
-  // "dps de 10 a 50" / "dps 10-50" / "10 a 50 dps" / "entre 10 a 50 dps"
-  const dM = pickRange(
-    p.match(/dps[^0-9]{0,12}(\d+)[^0-9]{0,8}(?:e|a|at[eé]|-)[^0-9]{0,8}(\d+)/),
-    p.match(/(\d+)[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+)[^0-9]{0,12}dps/)
-  );
-  if (dM) out.dpsRange = dM;
-
-  // "velocidade entre 2s a 2.5s" / "velocidade 2 a 2.5 segundos" / "1.5s a 2s de velocidade"
-  const vM =
-    p.match(/velocidade[^0-9]{0,12}(\d+(?:[.,]\d+)?)\s*s?[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+(?:[.,]\d+)?)\s*s?/) ||
-    p.match(/(\d+(?:[.,]\d+)?)\s*s?[^0-9]{0,8}(?:e|a|at[eé])[^0-9]{0,8}(\d+(?:[.,]\d+)?)\s*s?[^0-9]{0,12}velocidade/);
-  if (vM) {
-    const lo = parseFloat(vM[1].replace(",", ".")) * 1000;
-    const hi = parseFloat(vM[2].replace(",", ".")) * 1000;
-    if (hi >= lo) out.speedRange = [clampInt(Math.round(lo), 500, 2600), clampInt(Math.round(hi), 500, 2600)];
   }
 
   return out;
