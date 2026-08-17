@@ -351,17 +351,28 @@ export function ShopPage() {
           </div>
         )}
 
-        {item.type !== "consumable" && CORE_STAT_LABELS.some(({ key }) => Number((item as any)[key]) > 0) && (
+        {item.type !== "consumable" &&
+          (CORE_STAT_LABELS.some(({ key }) => Number((item as any)[key]) > 0) ||
+            (["helm", "armor", "cape"].includes(item.type) && !(item as any).enchantment)) && (
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-[10px] text-gray-500 uppercase mb-1.5">Atributos</p>
             <div className="grid grid-cols-2 gap-1 text-sm">
               {CORE_STAT_LABELS.map(({ key, label, color }) => {
-                const value = Number((item as any)[key] ?? 0);
+                // Elmo/armadura/capa sem atributos recebem o MÍNIMO por nível (1-5).
+                const min = ["helm", "armor", "cape"].includes(item.type)
+                  ? Math.min(5, 1 + Math.floor((Number(item.level) || 1) / 30))
+                  : 0;
+                const value = Number((item as any)[key] ?? 0) || min;
                 if (!value) return null;
                 return (
                   <div key={key} className="flex items-center justify-between">
                     <span className={`text-xs ${color}`}>{label}</span>
-                    <span className="font-mono text-green-400">+{value}</span>
+                    <span className="font-mono text-green-400">
+                      +{value}
+                      {min > 0 && !Number((item as any)[key]) && (
+                        <span className="text-gray-500 text-[10px]"> (mínimo)</span>
+                      )}
+                    </span>
                   </div>
                 );
               })}

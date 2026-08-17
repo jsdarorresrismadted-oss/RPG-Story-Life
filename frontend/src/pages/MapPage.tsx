@@ -108,11 +108,15 @@ function itemStatRows(item: UnifiedShopItem): { label: string; value: string; va
     const ench = (item as any).enchantment;
     const enchStats = ench?.computedStats;
     const src = enchStats || item;
+    // Elmo/armadura/capa sem atributos recebem o MÍNIMO por nível (1-5), como as armas.
+    const min = ["helm", "armor", "cape"].includes(item.type)
+      ? Math.min(5, 1 + Math.floor((Number((item as any).level) || 1) / 30))
+      : 0;
     for (const { key, label, color } of CORE_STATS) {
-      const v = Number((src as any)[key] || 0);
+      const v = Number((src as any)[key] || 0) || min;
       if (v > 0) rows.push({ label, value: `+${v}`, valueColor: color });
     }
-    if (!enchStats) {
+    if (!enchStats && min === 0) {
       for (const { key, label } of CORE_STATS) {
         if (Number((item as any)[key] || 0) === 0) {
           rows.push({ label: "Sem encantamento", value: "sem atributos", valueColor: "text-gray-500" });

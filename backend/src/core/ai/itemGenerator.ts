@@ -1,4 +1,5 @@
 import { AppError } from "../middleware/errorHandler";
+import { autoEquipmentStats } from "../items/itemAutoStats";
 
 // ===== Gerador de equipamentos (somente planejamento) =====
 // - IA LOCAL (plano deterministico) gera: nome, descricao, atributos e precos.
@@ -121,7 +122,8 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
         "PRECOS: buyPrice entre 50 e 50000, sellPrice ~20% do buyPrice.",
       ]
     : [
-        "REGRA CASCA: equipamentos (arma, elmo, armadura, capa) NAO tem stats, NAO tem dps, NAO tem attackSpeedMs. Sao cascas — todos os atributos, DPS e velocidade vêm do ENCANTAMENTO que o jogador aplica depois.",
+        "REGRA ARMA CASCA: armas NAO tem stats, NAO tem dps, NAO tem attackSpeedMs — sao cascas; DPS e velocidade vêm do ENCANTAMENTO que o jogador aplica depois.",
+        "REGRA ATRIBUTOS: elmos, armaduras e capas NAO tem dps nem attackSpeedMs — o sistema calcula os atributos automaticamente por nivel e raridade, entao mande stats 0.",
         "Todo o esforco vai no nome, na descricao e no visual (icone). Nome fantastico e coerente com o subtipo (se pedido, comeca com ele: 'Cajado do Alvorecer', 'Espada ...').",
         "Descricao: 1-2 frases em portugues descrevendo visual e lendinha do item.",
         "PRECOS: buyPrice entre 50 e 500000, sellPrice = ~20% do buyPrice, coerentes com nivel e raridade.",
@@ -186,7 +188,7 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
       continue;
     }
     const v = Number(raw.stats?.[k]) || 0;
-    stats[k] = Math.max(1, Math.min(200, Math.round(v)));
+    stats[k] = Math.max(0, Math.min(200, Math.round(v)));
   }
   const isWeapon = input.type === "weapon";
   const subtype = isMaterial ? "material" : normalizeSubtype(input.type, raw.subtype, input.subtype);
@@ -371,9 +373,12 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const motif = pick(STRENGTH_DESC[input.type] || STRENGTH_DESC.weapon, `${input.type}|${input.rarity}|${seed}`, 4);
   const description = `Equipamento ${RARITY_PT[input.rarity]} com ${motif}.`.slice(0, 300);
 
-  // Equipamentos são CASCAS: sem stats próprios, sem DPS, sem velocidade —
-  // atributos, DPS e velocidade de ataque vêm TODOS do encantamento aplicado.
-  const STAT_KEYS: Record<string, number> = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
+  // Armas são CASCAS: sem stats próprios, sem DPS, sem velocidade — DPS e
+  // velocidade de ataque vêm do encantamento. Elmos, armaduras e capas têm
+  // ATRIBUTOS calculados por nível + raridade (admin só escolhe nível e raridade).
+  const STAT_KEYS: Record<string, number> = input.type === "weapon"
+    ? { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 }
+    : autoEquipmentStats(input.type, input.level, input.rarity);
 
   const buyPrice = clampInt(50 + base * rarMult * base * 0.6 + (hashStr(`${input.type}|${input.rarity}|${input.level}|${seed}`) % 300), 50, 500000);
   const sellPrice = Math.round(buyPrice * 0.2);
@@ -507,12 +512,16 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
       ? await planItem({ type, rarity, level: baseLevel, subtype: baseSubtype })
       : planItemLocal({ type, rarity, level: baseLevel, subtype: baseSubtype, mobs: input.mobs, maps: input.maps }, s);
 
-    // Equipamentos são CASCAS: stats/DPS/velocidade próprios são ZERO —
-    // atributos, DPS e velocidade de ataque vêm TODOS do encantamento aplicado.
+    // Armas são CASCAS (DPS/velocidade só via encantamento). Elmos, armaduras e
+    // capas têm ATRIBUTOS calculados por nível + raridade (o que vier do plano é
+    // substituído pela fórmula — o admin só escolhe nível e raridade).
     if (["weapon", "helm", "armor", "cape"].includes(type)) {
-      plan.stats = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
       plan.dps = 0;
       plan.attackSpeedMs = 0;
+      plan.stats =
+        type === "weapon"
+          ? { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 }
+          : autoEquipmentStats(type, baseLevel, rarity);
     }
 
     plans.push(plan);

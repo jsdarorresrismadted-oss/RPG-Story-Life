@@ -582,6 +582,11 @@ export function InventoryPage() {
                     {inv.item.enchantment && <span className="text-yellow-400 text-[10px]"> (enc.)</span>}
                   </p>
                 )}
+                {["helm", "armor", "cape"].includes(inv.item.type) &&
+                  !inv.item.enchantment &&
+                  !["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"].some((k) => Number((inv.item as any)[k]) > 0) && (
+                  <p className="text-[11px] text-green-400/80">Atributos mínimos (Lv. {inv.item.level || 1})</p>
+                )}
                 {inv.quantity > 1 && (
                   <p className="text-xs text-gray-500">x{inv.quantity}</p>
                 )}
@@ -645,7 +650,11 @@ export function InventoryPage() {
                   {CORE_STAT_LABELS.map(({ key, label, color }) => {
                     const ench = selectedItem.item.enchantment;
                     const enchStats = ench ? effectiveEnchantmentStats(ench) : null;
-                    const value = enchStats ? enchStats[key] : ((selectedItem.item as any)[key] ?? 0);
+                    // Elmo/armadura/capa sem atributos recebem o MÍNIMO por nível (1-5).
+                    const min = !ench && ["helm", "armor", "cape"].includes(selectedItem.item.type)
+                      ? Math.min(5, 1 + Math.floor((Number(selectedItem.item.level) || 1) / 30))
+                      : 0;
+                    const value = enchStats ? enchStats[key] : (((selectedItem.item as any)[key] ?? 0) || min);
                     if (!value) return null;
                     return (
                       <div key={key} className="flex items-center justify-between">
@@ -653,6 +662,9 @@ export function InventoryPage() {
                         <span className="font-mono text-green-400">
                           +{value}
                           {ench && <span className="text-yellow-400 text-xs"> (enc.)</span>}
+                          {!ench && min > 0 && !Number((selectedItem.item as any)[key]) && (
+                            <span className="text-gray-500 text-xs"> (mínimo)</span>
+                          )}
                         </span>
                       </div>
                     );

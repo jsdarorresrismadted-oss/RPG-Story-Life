@@ -227,8 +227,9 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             <p className="text-xs text-gray-500 mb-4">
               A IA planeja o item (nome, descrição, preços) sem depender de serviços externos. Escolha o{" "}
               <span className="text-cyan-300">subtipo</span> (ex.: cajado, adaga) ou deixe "Automático". Equipamentos
-              (arma, elmo, armadura, capa) são <span className="text-cyan-300">cascas</span>: nascem sem atributos, DPS e
-              velocidade — o jogador aplica um <span className="text-purple-300">encantamento</span> para ganhar poder.
+              (arma, elmo, armadura, capa) nascem sem DPS/velocidade — armas são cascas (só o{" "}
+              <span className="text-purple-300">encantamento</span> dá DPS), e elmos, armaduras e capas ganham{" "}
+              <span className="text-green-300">atributos calculados</span> por nível e raridade.
               O tipo <span className="text-cyan-300">Material</span> gera matéria-prima empilhável com nome de criatura
               do mundo (pronta para usar como drop de mobs). O item nasce como{" "}
               <span className="text-yellow-400">rascunho (inativo)</span>.
@@ -330,7 +331,9 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {type !== "material" && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-300">
-                          Casca — poder vem do encantamento
+                          {type === "weapon"
+                            ? "Arma casca — DPS só via encantamento"
+                            : "Atributos calculados por nível + raridade"}
                         </span>
                       )}
                       <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Compra: {Number(plan.buyPrice).toLocaleString()}</span>

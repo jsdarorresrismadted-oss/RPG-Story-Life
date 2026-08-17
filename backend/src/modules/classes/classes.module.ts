@@ -5,6 +5,7 @@ import { computeStats, CLASS_STAT_CONVERSION } from "../../core/classEngine/stat
 import { applyClassXp, classXpToNextRank } from "../../core/progression";
 import { sumCoreStats } from "../../core/stats/coreStats";
 import { computeEnchantmentStats, effectiveWeaponDps, effectiveWeaponSpeed } from "../../core/enchantments/enchantmentStats";
+import { hasAnyItemStat, minEquipmentStats } from "../../core/items/itemAutoStats";
 import { getTotalBoosterBonuses } from "../../core/boosters";
 import { PassiveDef } from "../../core/classEngine/types";
 
@@ -90,8 +91,13 @@ async function characterCombatStats(character: any): Promise<any> {
     ...["weapon", "classItem", "helm", "armor", "cape", "ring", "necklace"].map((slot) => {
       const item = (equipment as any)?.[slot];
       if (!item) return null;
-      // Encantamento SUBSTITUI os valores do item (ex.: todos 2, forte 4)
-      const src = item.enchantment ? computeEnchantmentStats(item.enchantment) : item;
+      // Encantamento SUBSTITUI os valores do item (ex.: todos 2, forte 4);
+      // elmo/armadura/capa sem atributos (item antigo) recebem o MÍNIMO por nível.
+      const src = item.enchantment
+        ? computeEnchantmentStats(item.enchantment)
+        : ["helm", "armor", "cape"].includes(String(item.type)) && !hasAnyItemStat(item)
+          ? minEquipmentStats(character.level)
+          : item;
       return {
         strength: src.strength ?? 0,
         intellect: src.intellect ?? 0,

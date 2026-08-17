@@ -23,6 +23,7 @@ import {
   ENCHANT_DPS_MAX,
   defaultEnchantmentScale,
 } from "../../core/enchantments/enchantmentStats";
+import { autoEquipmentStats } from "../../core/items/itemAutoStats";
 import { ensureGuildQuests } from "../../core/guildQuests";
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -831,13 +832,19 @@ export function createAdminModule(app: Express): void {
     return out;
   }
 
-  // Equipamentos são cascas: arma/elmo/armadura/capa NÃO têm stats/dps/velocidade
-  // próprios — tudo vem do encantamento. Campos de combate forçados a zero no save.
+  // Armas são cascas (DPS/velocidade só via encantamento; stats zerados).
+  // Elmos/armaduras/capas têm ATRIBUTOS calculados por nível+raridade (sem dps/velocidade).
   function zeroItemCombatFields(body: any): any {
     if (body && typeof body === "object" && !Array.isArray(body)) {
-      if (["weapon", "helm", "armor", "cape"].includes(String(body.type))) {
-        for (const k of ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck", "dps", "attackSpeedMs"]) {
-          body[k] = 0;
+      const type = String(body.type);
+      if (["weapon", "helm", "armor", "cape"].includes(type)) {
+        for (const k of ["dps", "attackSpeedMs"]) body[k] = 0;
+        if (type === "weapon") {
+          for (const k of ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"]) body[k] = 0;
+        } else if (!["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"].some((k) => Number(body[k]) > 0)) {
+          // Sem atributos informados → calcula automaticamente pelo nível e raridade.
+          const auto = autoEquipmentStats(type, Number(body.level) || 1, String(body.rarity || "common"));
+          for (const k of ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"]) body[k] = auto[k];
         }
       }
     }

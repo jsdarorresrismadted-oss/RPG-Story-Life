@@ -8,6 +8,7 @@ import { addItemsToInventory, classXpToNextRank, xpToNextLevel } from "../../cor
 import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 import { sumCoreStats } from "../../core/stats/coreStats";
 import { computeEnchantmentStats, effectiveWeaponDps, effectiveWeaponSpeed } from "../../core/enchantments/enchantmentStats";
+import { hasAnyItemStat, minEquipmentStats } from "../../core/items/itemAutoStats";
 
 function parseJson(value: any, fallback: any): any {
   if (!value) return fallback;
@@ -301,8 +302,13 @@ export function createCharacterModule(app: Express): void {
         EQUIP_SLOTS.map((slot) => {
           const item = (character.equipment as any)?.[slot];
           if (!item) return null;
-          // Encantamento SUBSTITUI os valores do item (ex.: todos 2, forte 4)
-          const src = item.enchantment ? computeEnchantmentStats(item.enchantment) : item;
+          // Encantamento SUBSTITUI os valores do item (ex.: todos 2, forte 4);
+          // elmo/armadura/capa sem atributos (item antigo) recebem o MÍNIMO por nível.
+          const src = item.enchantment
+            ? computeEnchantmentStats(item.enchantment)
+            : ["helm", "armor", "cape"].includes(String(item.type)) && !hasAnyItemStat(item)
+              ? minEquipmentStats(character.level)
+              : item;
           return {
             strength: src.strength ?? 0,
             intellect: src.intellect ?? 0,

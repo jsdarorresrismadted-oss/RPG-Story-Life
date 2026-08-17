@@ -8,6 +8,7 @@ import { SkillDef, PassiveDef, EffectDef, ActiveEffectRuntime } from "../../core
 import { StatsInput } from "../../core/classEngine/stat-calculator";
 import { sumCoreStats } from "../../core/stats/coreStats";
 import { computeEnchantmentStats, computeEnchantmentValues, effectiveWeaponDps, effectiveWeaponSpeed } from "../../core/enchantments/enchantmentStats";
+import { hasAnyItemStat, minEquipmentStats } from "../../core/items/itemAutoStats";
 import { grantPassXp } from "../seasons/seasons.module";
 import { isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "../../core/progression";
 import { getTotalBoosterBonuses } from "../../core/boosters";
@@ -220,11 +221,16 @@ export class CombatService {
     // Core Stats de equipamento — o encantamento SUBSTITUI os valores do item:
     // sem encantamento, soma os valores do item; encantado, vale o encantamento
     // (todos os atributos 2, atributo forte 4 — fórmulas de progressão).
+    // Elmo/armadura/capa sem atributos (item antigo) recebem o MÍNIMO por nível.
     const coreStats = sumCoreStats([
       ...["weapon", "classItem", "helm", "armor", "cape", "ring", "necklace"].map((slot) => {
         const item = (character.equipment as any)?.[slot];
         if (!item) return null;
-        const src = item.enchantment ? computeEnchantmentStats(item.enchantment) : item;
+        const src = item.enchantment
+          ? computeEnchantmentStats(item.enchantment)
+          : ["helm", "armor", "cape"].includes(String(item.type)) && !hasAnyItemStat(item)
+            ? minEquipmentStats(character.level)
+            : item;
         return {
           strength: src.strength ?? 0,
           intellect: src.intellect ?? 0,
