@@ -3,7 +3,7 @@ import { prisma } from "./database";
 import { AppError } from "./middleware/errorHandler";
 import { GameLimits } from "./gameLimits";
 
-// ===== VIP (bônus balanceados: +10% XP e +10% ouro) =====
+// ===== VIP (bônus balanceados: +20% XP e +20% ouro; 1 mês / 3 meses / 1 ano) =====
 
 export function isVipActive(user: { vipUntil?: Date | null } | null | undefined): boolean {
   return !!user?.vipUntil && user.vipUntil.getTime() > Date.now();
@@ -71,8 +71,8 @@ export async function assertPurchaseRequirements(
   }
 }
 
-export const VIP_XP_BONUS = 0.1;
-export const VIP_GOLD_BONUS = 0.1;
+export const VIP_XP_BONUS = 0.2;
+export const VIP_GOLD_BONUS = 0.2;
 
 // ===== Nível do personagem (limiares lineares vindos das game limits) =====
 

@@ -6,6 +6,7 @@ import {
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
 import { EntityIcon } from "../components/EntityIcon";
+import { getSocket } from "../services/socket";
 
 interface ShopEnchantment {
   name: string;
@@ -200,6 +201,7 @@ export function ShopPage() {
       if (data.note) toast(data.note, { icon: "🛒" });
       setConfirm(null);
       refreshUser();
+      if (confirm.type === "vip") getSocket()?.emit("chat:refresh");
       shopApi
         .list()
         .then(({ data }) => setProducts(Array.isArray(data) ? data : []))

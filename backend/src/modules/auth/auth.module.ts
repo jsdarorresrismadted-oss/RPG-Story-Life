@@ -151,7 +151,7 @@ export function createAuthModule(app: Express): void {
         select: {
           id: true, username: true, displayName: true, email: true, avatar: true,
           experience: true, level: true, gold: true, sfCoins: true, pvpCoins: true, gc: true,
-          role: true, createdAt: true, isOnline: true,
+          role: true, createdAt: true, isOnline: true, vipUntil: true, vipOwned: true,
           characters: {
             select: {
               id: true, name: true, level: true, classId: true,
@@ -193,7 +193,7 @@ export function createAuthModule(app: Express): void {
         select: {
           id: true, username: true, displayName: true, email: true, avatar: true,
           experience: true, level: true, gold: true, sfCoins: true, pvpCoins: true, gc: true,
-          role: true, createdAt: true, isOnline: true,
+          role: true, createdAt: true, isOnline: true, vipUntil: true, vipOwned: true,
           characters: {
             select: {
               id: true, name: true, level: true, classId: true,
