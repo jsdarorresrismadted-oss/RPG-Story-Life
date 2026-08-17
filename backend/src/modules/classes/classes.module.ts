@@ -4,7 +4,7 @@ import { authenticate } from "../../core/middleware/auth";
 import { computeStats, CLASS_STAT_CONVERSION } from "../../core/classEngine/stat-calculator";
 import { applyClassXp, classXpToNextRank } from "../../core/progression";
 import { sumCoreStats } from "../../core/stats/coreStats";
-import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStats";
+import { computeEnchantmentStats, effectiveWeaponDps, effectiveWeaponSpeed } from "../../core/enchantments/enchantmentStats";
 import { getTotalBoosterBonuses } from "../../core/boosters";
 import { PassiveDef } from "../../core/classEngine/types";
 
@@ -132,8 +132,8 @@ async function characterCombatStats(character: any): Promise<any> {
     resource: parseJson(character.class?.resource, {}),
     passives,
     coreStats,
-    attackSpeedMs: weapon && weapon.attackSpeedMs > 0 ? weapon.attackSpeedMs : undefined,
-    weaponDps: weapon && Number(weapon.dps) > 0 ? Number(weapon.dps) : undefined,
+    attackSpeedMs: effectiveWeaponSpeed(weapon),
+    weaponDps: effectiveWeaponDps(weapon, character.level),
   });
 
   return {

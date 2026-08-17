@@ -199,16 +199,7 @@ export const crudConfigs: CrudConfig[] = [
         render: (v) => <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${RARITY_COLORS[v] ?? "bg-gray-700 text-gray-300"}`}>{v || "-"}</span>,
       },
       { key: "level", label: "Nv." },
-      {
-        key: "_stats",
-        label: "Atributos",
-        render: (_v, item) => {
-          const keys = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"] as const;
-          const labels: Record<string, string> = { strength: "F", intellect: "I", endurance: "R", dexterity: "D", wisdom: "S", luck: "L" };
-          const parts = keys.filter((k) => Number(item?.[k]) > 0).map((k) => `${labels[k]} ${item[k]}`);
-          return <span className="text-[11px] text-gray-400">{parts.length ? parts.join(" · ") : "-"}</span>;
-        },
-      },
+      { key: "rarity", label: "Raridade", render: (v) => <span className="text-[11px]">{v}</span> },
       { key: "buyPrice", label: "Preço", render: (v) => <span className="text-yellow-400 text-xs">{Number(v).toLocaleString()}</span> },
       { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
     ],
@@ -247,8 +238,9 @@ export const crudConfigs: CrudConfig[] = [
         required: true,
         defaultValue: "common",
         options: ["common", "uncommon", "rare", "epic", "legendary", "mythic"],
+        hint: "Visual e preço — equipamentos são cascas: TODOS os atributos, DPS e velocidade vêm do encantamento aplicado pelo jogador.",
       },
-      { name: "level", label: "Nível", type: "number", defaultValue: 1 },
+      { name: "level", label: "Nível", type: "number", defaultValue: 1, hint: "Itens são cascas — só define preço/requisito. O poder real vem do encantamento." },
       { name: "rank", label: "Rank", type: "number", defaultValue: 1 },
       { name: "buyPrice", label: "Preço de compra", type: "number", defaultValue: 0, step: "1" },
       { name: "sellPrice", label: "Preço de venda", type: "number", defaultValue: 0, step: "1" },
@@ -256,14 +248,6 @@ export const crudConfigs: CrudConfig[] = [
           { key: "heal", label: "Cura" },
           { key: "manaRestore", label: "Recupera Mana" },
         ] } },
-      { name: "attackSpeedMs", label: "Velocidade da arma (ms)", type: "number", defaultValue: 0, visibleIf: { field: "type", values: ["weapon"] }, group: "Arma", hint: "0 = padrão 2000ms (2s entre ataques). Única fonte de velocidade de ataque — a classe não define mais." },
-      { name: "dps", label: "DPS natural da arma", type: "number", defaultValue: 0, visibleIf: { field: "type", values: ["weapon"] }, group: "Arma", hint: "Dano por segundo somado ao ataque no combate" },
-      { name: "strength", label: "Força", type: "number", defaultValue: 0, group: "Atributos (6 Core Stats)", hint: "Todos os equipamentos fornecem os 6 atributos. O atributo principal do tipo costuma ser maior (ex.: armas físicas = Força/Destreza, armaduras = Resistência, capas = Sabedoria)." },
-      { name: "intellect", label: "Intelecto", type: "number", defaultValue: 0, group: "Atributos (6 Core Stats)" },
-      { name: "endurance", label: "Resistência", type: "number", defaultValue: 0, group: "Atributos (6 Core Stats)" },
-      { name: "dexterity", label: "Destreza", type: "number", defaultValue: 0, group: "Atributos (6 Core Stats)" },
-      { name: "wisdom", label: "Sabedoria", type: "number", defaultValue: 0, group: "Atributos (6 Core Stats)" },
-      { name: "luck", label: "Sorte", type: "number", defaultValue: 0, group: "Atributos (6 Core Stats)" },
       { name: "enchantmentId", label: "Encantamento (fixo)", type: "select", optionsFrom: "enchantments", hint: "Encantamento já gravado no item (opcional)" },
       { name: "isStackable", label: "Empilhável", type: "boolean", defaultValue: false },
       { name: "maxStack", label: "Max stack", type: "number", defaultValue: 1 },

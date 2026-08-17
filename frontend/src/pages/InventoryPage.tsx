@@ -569,9 +569,17 @@ export function InventoryPage() {
                   {inv.item.rarity} • Rank {inv.item.rank}
                 </p>
                 <p className="text-xs text-gray-500 capitalize">{inv.item.type} {inv.item.level > 1 ? `• Lv.${inv.item.level}` : ""}</p>
-                {inv.item.type === "weapon" && (
+                {inv.item.type === "weapon" && (Number(inv.item.dps) > 0 || inv.item.enchantment) && (
                   <p className="text-[11px] text-orange-300/90">
-                    DPS {Number(inv.item.dps || 0).toLocaleString()} · {Number(inv.item.attackSpeedMs) > 0 ? `${(Number(inv.item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
+                    DPS {(() => {
+                      const enchStats = inv.item.enchantment ? effectiveEnchantmentStats(inv.item.enchantment) : null;
+                      return Number(enchStats?.dps || inv.item.dps || 0).toLocaleString();
+                    })()} · {(() => {
+                      const enchStats = inv.item.enchantment ? effectiveEnchantmentStats(inv.item.enchantment) : null;
+                      const speed = Number(enchStats?.attackSpeedMs || inv.item.attackSpeedMs);
+                      return speed > 0 ? `${(speed / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s";
+                    })()}
+                    {inv.item.enchantment && <span className="text-yellow-400 text-[10px]"> (enc.)</span>}
                   </p>
                 )}
                 {inv.quantity > 1 && (
@@ -655,10 +663,15 @@ export function InventoryPage() {
                       <span className="font-mono text-orange-300">
                         {(() => {
                           const enchStats = selectedItem.item.enchantment ? effectiveEnchantmentStats(selectedItem.item.enchantment) : null;
-                          const dps = enchStats?.dps || Number(selectedItem.item.dps || 0);
+                          const bare = Math.min(5, 1 + Math.floor((Number(selectedItem.item.level) || 1) / 30));
+                          const dps = enchStats?.dps || Number(selectedItem.item.dps || 0) || bare;
                           return Number(dps).toLocaleString();
                         })()}
-                        {selectedItem.item.enchantment && <span className="text-yellow-400 text-xs"> (enc.)</span>}
+                        {selectedItem.item.enchantment ? (
+                          <span className="text-yellow-400 text-xs"> (enc.)</span>
+                        ) : (
+                          <span className="text-gray-500 text-[10px]"> mínimo — encante para mais</span>
+                        )}
                       </span>
                     </div>
                   )}

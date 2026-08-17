@@ -831,6 +831,19 @@ export function createAdminModule(app: Express): void {
     return out;
   }
 
+  // Equipamentos são cascas: arma/elmo/armadura/capa NÃO têm stats/dps/velocidade
+  // próprios — tudo vem do encantamento. Campos de combate forçados a zero no save.
+  function zeroItemCombatFields(body: any): any {
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      if (["weapon", "helm", "armor", "cape"].includes(String(body.type))) {
+        for (const k of ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck", "dps", "attackSpeedMs"]) {
+          body[k] = 0;
+        }
+      }
+    }
+    return body;
+  }
+
   async function saveGameClass(id: string | null, body: any) {
     const data = normalizeBody("class", body);
     try {
@@ -975,9 +988,6 @@ export function createAdminModule(app: Express): void {
           prompt: body.prompt ? String(body.prompt) : undefined,
           mobs: mobsRes.map((m) => m.name),
           maps: mapsRes.map((m) => m.name),
-          stats: body.stats && typeof body.stats === "object" ? body.stats : undefined,
-          dps: body.dps !== undefined ? Number(body.dps) : undefined,
-          attackSpeedMs: body.attackSpeedMs !== undefined ? Number(body.attackSpeedMs) : undefined,
         },
         log
       );
@@ -994,7 +1004,7 @@ export function createAdminModule(app: Express): void {
 
   app.post("/api/admin/items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = normalizeBody("item", req.body);
+      const body = zeroItemCombatFields(normalizeBody("item", req.body));
       if (!body.icon) {
         const dflt = defaultIconForItem(body.type, body.subtype);
         if (dflt) body.icon = dflt;
@@ -1005,7 +1015,7 @@ export function createAdminModule(app: Express): void {
 
   app.put("/api/admin/items/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = normalizeBody("item", req.body);
+      const body = zeroItemCombatFields(normalizeBody("item", req.body));
       if (!body.icon) {
         const dflt = defaultIconForItem(body.type, body.subtype);
         if (dflt) body.icon = dflt;

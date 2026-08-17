@@ -327,16 +327,25 @@ export function ShopPage() {
 
         <p className="text-sm text-gray-400">{item.description}</p>
 
-        {(item.type === "weapon" || item.dps) && (
+        {(item.type === "weapon" && (Number(item.dps) > 0 || (item as any).enchantment)) && (
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-dark-800/50 rounded-lg p-2.5">
               <p className="text-[10px] text-gray-500 uppercase">Dano (DPS)</p>
-              <p className="text-sm font-mono text-orange-300">{Number(item.dps || 0).toLocaleString("pt-BR")}</p>
+              <p className="text-sm font-mono text-orange-300">
+                {(() => {
+                  const enchStats = (item as any).enchantment?.computedStats;
+                  return Number(enchStats?.dps || item.dps || 0).toLocaleString("pt-BR");
+                })()}
+              </p>
             </div>
             <div className="bg-dark-800/50 rounded-lg p-2.5">
               <p className="text-[10px] text-gray-500 uppercase">Velocidade</p>
               <p className="text-sm font-mono text-orange-300">
-                {Number(item.attackSpeedMs) > 0 ? `${(Number(item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
+                {(() => {
+                  const enchStats = (item as any).enchantment?.computedStats;
+                  const speed = Number(enchStats?.attackSpeedMs || item.attackSpeedMs);
+                  return speed > 0 ? `${(speed / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s";
+                })()}
               </p>
             </div>
           </div>

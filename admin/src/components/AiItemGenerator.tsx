@@ -83,10 +83,6 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [rarity, setRarity] = useState("rare");
   const [level, setLevel] = useState(1);
   const [subtype, setSubtype] = useState("auto");
-  const [manual, setManual] = useState(false);
-  const [stats, setStats] = useState<Record<string, string>>({});
-  const [dps, setDps] = useState("");
-  const [attackSpeedMs, setAttackSpeedMs] = useState("");
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<GeneratedItemResult | null>(null);
@@ -111,15 +107,6 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         subtype: type !== "material" && subtype !== "auto" ? subtype : undefined,
         seed,
         prompt: prompt.trim() || undefined,
-        stats: manual
-          ? Object.fromEntries(
-              Object.entries(stats)
-                .filter(([, v]) => v !== "" && Number.isFinite(Number(v)))
-                .map(([k, v]) => [k, Number(v)])
-            )
-          : undefined,
-        dps: manual && type === "weapon" && dps !== "" ? Number(dps) : undefined,
-        attackSpeedMs: manual && type === "weapon" && attackSpeedMs !== "" ? Number(attackSpeedMs) : undefined,
       });
       setResult(data);
       setSeed((s) => s + 1);
@@ -151,14 +138,6 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         isSellable: true,
         isStackable: isMaterial,
         maxStack: isMaterial ? 99 : 1,
-        attackSpeedMs: isMaterial ? 0 : plan.attackSpeedMs || 0,
-        dps: isMaterial ? 0 : plan.dps || 0,
-        strength: isMaterial ? 0 : plan.stats.strength || 0,
-        intellect: isMaterial ? 0 : plan.stats.intellect || 0,
-        endurance: isMaterial ? 0 : plan.stats.endurance || 0,
-        dexterity: isMaterial ? 0 : plan.stats.dexterity || 0,
-        wisdom: isMaterial ? 0 : plan.stats.wisdom || 0,
-        luck: isMaterial ? 0 : plan.stats.luck || 0,
       });
       toast.success(`Item "${plan.name}" salvo (rascunho)!`);
       setOpen(false);
@@ -193,14 +172,6 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
           isSellable: true,
           isStackable: isMaterial,
           maxStack: isMaterial ? 99 : 1,
-          attackSpeedMs: isMaterial ? 0 : plan.attackSpeedMs || 0,
-          dps: isMaterial ? 0 : plan.dps || 0,
-          strength: isMaterial ? 0 : plan.stats.strength || 0,
-          intellect: isMaterial ? 0 : plan.stats.intellect || 0,
-          endurance: isMaterial ? 0 : plan.stats.endurance || 0,
-          dexterity: isMaterial ? 0 : plan.stats.dexterity || 0,
-          wisdom: isMaterial ? 0 : plan.stats.wisdom || 0,
-          luck: isMaterial ? 0 : plan.stats.luck || 0,
         });
         saved++;
       }
@@ -254,12 +225,12 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
             </div>
 
             <p className="text-xs text-gray-500 mb-4">
-              A IA planeja o item (nome, atributos, preços) sem depender de serviços externos. Escolha o{" "}
-              <span className="text-cyan-300">subtipo</span> (ex.: cajado, adaga) ou deixe "Automático". Todos os itens
-              nascem no <span className="text-cyan-300">nível 1</span> — use o campo Nível para um nível específico. Os
-              atributos, DPS e velocidade são balanceados pela raridade, ou defina manualmente em "Ajustes manuais". O
-              tipo <span className="text-cyan-300">Material</span> gera matéria-prima empilhável com nome de criatura do
-              mundo (pronta para usar como drop de mobs). O item nasce como{" "}
+              A IA planeja o item (nome, descrição, preços) sem depender de serviços externos. Escolha o{" "}
+              <span className="text-cyan-300">subtipo</span> (ex.: cajado, adaga) ou deixe "Automático". Equipamentos
+              (arma, elmo, armadura, capa) são <span className="text-cyan-300">cascas</span>: nascem sem atributos, DPS e
+              velocidade — o jogador aplica um <span className="text-purple-300">encantamento</span> para ganhar poder.
+              O tipo <span className="text-cyan-300">Material</span> gera matéria-prima empilhável com nome de criatura
+              do mundo (pronta para usar como drop de mobs). O item nasce como{" "}
               <span className="text-yellow-400">rascunho (inativo)</span>.
             </p>
 
@@ -269,11 +240,11 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={2}
-                placeholder='Ex.: "5 itens, pontos entre 5 e 10, dps de 10 a 50, velocidade entre 2s a 2.5s, cajados de gelo nível 20"'
+                placeholder='Ex.: "5 cajados de gelo nível 20, temática inverno"'
                 className={inputClass + " mt-1 resize-y"}
               />
               <span className="block text-[10px] text-gray-500 mt-0.5">
-                Entende: quantidade de itens, nível, subtipo (cajado, adaga...), pontos/stats, dps e velocidade em segundos.
+                Entende: quantidade de itens, nível, subtipo (cajado, adaga...) e tema.
               </span>
             </label>
 
@@ -314,64 +285,6 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 <input type="number" min={1} max={150} value={level} onChange={(e) => setLevel(parseInt(e.target.value) || 1)} className={inputClass + " mt-1"} />
                 <span className="block text-[10px] text-gray-500 mt-0.5">Padrão: 1 (nível do item)</span>
               </label>
-            </div>
-
-            <div className="mt-3 border border-dark-600 rounded-lg p-3">
-              <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={manual}
-                  onChange={(e) => setManual(e.target.checked)}
-                  className="accent-fuchsia-500"
-                />
-                Ajustes manuais: definir pontos, DPS e velocidade
-              </label>
-              {manual && (
-                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {Object.entries(STAT_LABELS).map(([k, label]) => (
-                    <label key={k} className="text-xs text-gray-400">
-                      {label}
-                      <input
-                        type="number"
-                        min={1}
-                        max={200}
-                        value={stats[k] ?? ""}
-                        onChange={(e) => setStats((s) => ({ ...s, [k]: e.target.value }))}
-                        placeholder="auto"
-                        className={inputClass + " mt-1"}
-                      />
-                    </label>
-                  ))}
-                  {type === "weapon" && (
-                    <>
-                      <label className="text-xs text-gray-400">
-                        DPS
-                        <input
-                          type="number"
-                          min={1}
-                          max={100000}
-                          value={dps}
-                          onChange={(e) => setDps(e.target.value)}
-                          placeholder="auto"
-                          className={inputClass + " mt-1"}
-                        />
-                      </label>
-                      <label className="text-xs text-gray-400">
-                        Velocidade (ms)
-                        <input
-                          type="number"
-                          min={500}
-                          max={2600}
-                          value={attackSpeedMs}
-                          onChange={(e) => setAttackSpeedMs(e.target.value)}
-                          placeholder="auto"
-                          className={inputClass + " mt-1"}
-                        />
-                      </label>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-4">
@@ -415,16 +328,9 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {Object.entries(plan.stats).map(([k, v]) =>
-                        v > 0 ? (
-                          <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-800 text-gray-300">
-                            {STAT_LABELS[k] || k}: <span className="text-white font-medium">{v}</span>
-                          </span>
-                        ) : null
-                      )}
-                      {type === "weapon" && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-orange-500/15 text-orange-300">
-                          DPS: {Number(plan.dps || 0).toLocaleString()} · Velocidade: {(Number(plan.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s
+                      {type !== "material" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-300">
+                          Casca — poder vem do encantamento
                         </span>
                       )}
                       <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Compra: {Number(plan.buyPrice).toLocaleString()}</span>

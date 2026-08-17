@@ -77,16 +77,26 @@ const CORE_STATS: { key: keyof UnifiedShopItem; label: string; color: string }[]
 
 function itemStatRows(item: UnifiedShopItem): { label: string; value: string; valueColor: string }[] {
   const rows: { label: string; value: string; valueColor: string }[] = [];
+  // Itens são cascas: DPS/velocidade/atributos só existem via encantamento.
   if (item.type === "weapon") {
-    rows.push({ label: "DPS", value: Number(item.dps || 0).toLocaleString("pt-BR"), valueColor: "text-orange-300" });
-    rows.push({
-      label: "Intervalo de Ataque",
-      value:
-        Number(item.attackSpeedMs) > 0
-          ? `${(Number(item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s`
-          : "2s",
-      valueColor: "text-orange-300",
-    });
+    const ench = (item as any).enchantment;
+    const enchStats = ench?.computedStats;
+    if (Number(item.dps) > 0 || enchStats) {
+      rows.push({
+        label: "DPS",
+        value: Number(enchStats?.dps || item.dps || 0).toLocaleString("pt-BR"),
+        valueColor: "text-orange-300",
+      });
+      rows.push({
+        label: "Intervalo de Ataque",
+        value: `${
+          (Number(enchStats?.attackSpeedMs || item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })
+        }s`,
+        valueColor: "text-orange-300",
+      });
+    } else {
+      rows.push({ label: "Sem encantamento", value: "DPS mínimo", valueColor: "text-gray-500" });
+    }
   } else if (item.type === "consumable") {
     try {
       const fx = JSON.parse(item.effects || "{}");
@@ -95,9 +105,20 @@ function itemStatRows(item: UnifiedShopItem): { label: string; value: string; va
       /* sem efeitos */
     }
   } else {
+    const ench = (item as any).enchantment;
+    const enchStats = ench?.computedStats;
+    const src = enchStats || item;
     for (const { key, label, color } of CORE_STATS) {
-      const v = Number(item[key] || 0);
+      const v = Number((src as any)[key] || 0);
       if (v > 0) rows.push({ label, value: `+${v}`, valueColor: color });
+    }
+    if (!enchStats) {
+      for (const { key, label } of CORE_STATS) {
+        if (Number((item as any)[key] || 0) === 0) {
+          rows.push({ label: "Sem encantamento", value: "sem atributos", valueColor: "text-gray-500" });
+          break;
+        }
+      }
     }
   }
   return rows;
@@ -1213,9 +1234,16 @@ export function MapPage() {
                             </p>
                             <p className="text-[11px] text-gray-500 line-clamp-1">{description}</p>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {!isEnchantment && offer.item?.type === "weapon" && (
+                              {!isEnchantment && offer.item?.type === "weapon" && (Number(offer.item.dps) > 0 || (offer.item as any)?.enchantment) && (
                                 <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/15 text-orange-300 rounded-md">
-                                  DPS {Number(offer.item.dps || 0).toLocaleString()} · {Number(offer.item.attackSpeedMs) > 0 ? `${(Number(offer.item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
+                                  DPS {(() => {
+                                    const enchStats = (offer.item as any)?.enchantment?.computedStats;
+                                    return Number(enchStats?.dps || offer.item.dps || 0).toLocaleString("pt-BR");
+                                  })()} · {(() => {
+                                    const enchStats = (offer.item as any)?.enchantment?.computedStats;
+                                    const speed = Number(enchStats?.attackSpeedMs || offer.item.attackSpeedMs);
+                                    return speed > 0 ? `${(speed / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s";
+                                  })()}
                                 </span>
                               )}
                               {offer.item?.requiredVip && (

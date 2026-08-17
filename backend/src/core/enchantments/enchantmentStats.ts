@@ -168,3 +168,25 @@ export function enchantmentProgression(enchantment: Parameters<typeof computeEnc
 export function withEnchantmentStats<T extends Record<string, any>>(enchantment: T): T & { computedStats: EnchantmentValues } {
   return { ...enchantment, computedStats: computeEnchantmentValues(enchantment as any) };
 }
+
+// ===== DPS/Velocidade EFETIVOS da arma =====
+// Itens são CASCAS: arma sem encantamento tem DPS mínimo por nível (1-5) para o
+// jogo seguir jogável, mas o poder real vem do encantamento (que substitui tudo).
+
+/** DPS efetivo da arma: encantamento aplicado > dps natural > mínimo por nível. undefined = sem arma. */
+export function effectiveWeaponDps(weapon: { dps?: number | null; attackSpeedMs?: number | null; enchantment?: any } | null | undefined, level: number): number | undefined {
+  if (!weapon) return undefined;
+  const ench = weapon.enchantment ? computeEnchantmentValues(weapon.enchantment) : null;
+  const dps = ench ? ench.dps : Number(weapon.dps) || 0;
+  if (dps > 0) return dps;
+  // Arma nua: DPS mínimo 1 a 5 conforme o nível do jogador (itens são cascas).
+  return Math.min(5, 1 + Math.floor((Number(level) || 1) / 30));
+}
+
+/** Velocidade de ataque efetiva da arma: encantamento > item. undefined = padrão 2000ms. */
+export function effectiveWeaponSpeed(weapon: { dps?: number | null; attackSpeedMs?: number | null; enchantment?: any } | null | undefined): number | undefined {
+  if (!weapon) return undefined;
+  const ench = weapon.enchantment ? computeEnchantmentValues(weapon.enchantment) : null;
+  const speed = ench ? ench.attackSpeedMs : Number(weapon.attackSpeedMs) || 0;
+  return speed > 0 ? speed : undefined;
+}

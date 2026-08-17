@@ -7,7 +7,7 @@ import { computeStats } from "../../core/classEngine/stat-calculator";
 import { addItemsToInventory, classXpToNextRank, xpToNextLevel } from "../../core/progression";
 import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 import { sumCoreStats } from "../../core/stats/coreStats";
-import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStats";
+import { computeEnchantmentStats, effectiveWeaponDps, effectiveWeaponSpeed } from "../../core/enchantments/enchantmentStats";
 
 function parseJson(value: any, fallback: any): any {
   if (!value) return fallback;
@@ -322,8 +322,8 @@ export function createCharacterModule(app: Express): void {
         resource: parseJson(gameClass?.resource, {}),
         passives,
         coreStats,
-        attackSpeedMs: (character.equipment as any)?.weapon?.attackSpeedMs || undefined,
-        weaponDps: Number((character.equipment as any)?.weapon?.dps) || undefined,
+        attackSpeedMs: effectiveWeaponSpeed((character.equipment as any)?.weapon),
+        weaponDps: effectiveWeaponDps((character.equipment as any)?.weapon, character.level),
       });
 
       const limits = await getGameLimits();

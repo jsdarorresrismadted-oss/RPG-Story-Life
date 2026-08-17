@@ -121,18 +121,9 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
         "PRECOS: buyPrice entre 50 e 50000, sellPrice ~20% do buyPrice.",
       ]
     : [
-        "Regra do slot (respeite fielmente):",
-        SLOT_RULES[input.type],
-        "",
-        "ATRIBUTOS (stats): TODOS os equipamentos (arma, elmo, armadura, capa, anel, colar) fornecem os 6 atributos — TODOS acima de zero. O atributo principal do tipo recebe o maior valor:",
-        "- arma fisica (sword/dagger/axe): strength e dexterity altos; arma magica (staff/tome): intellect e wisdom altos",
-        "- elmo e armadura: endurance e dexterity altos",
-        "- capa: wisdom e luck altos",
-        "- anel e colar: luck alto + um secundario",
-        "Os 4 atributos restantes recebem valores menores (20-60% do principal), mas NUNCA zero. Valores inteiros, proporcionais ao nivel (base ~1.2 x nivel) e a raridade (multiplicador " + RARITY_MULT[input.rarity] + "x), entre 1 e 200.",
-        "",
-        "ARMAS: inclua tambem attackSpeedMs (500 a 2600, velocidade de ataque em milissegundos — mais rapido = melhor) e dps (dano por segundo, proporcional ao nivel e raridade, entre 1 e 100000).",
-        "",
+        "REGRA CASCA: equipamentos (arma, elmo, armadura, capa) NAO tem stats, NAO tem dps, NAO tem attackSpeedMs. Sao cascas — todos os atributos, DPS e velocidade vêm do ENCANTAMENTO que o jogador aplica depois.",
+        "Todo o esforco vai no nome, na descricao e no visual (icone). Nome fantastico e coerente com o subtipo (se pedido, comeca com ele: 'Cajado do Alvorecer', 'Espada ...').",
+        "Descricao: 1-2 frases em portugues descrevendo visual e lendinha do item.",
         "PRECOS: buyPrice entre 50 e 500000, sellPrice = ~20% do buyPrice, coerentes com nivel e raridade.",
       ];
   const userPrompt = [
@@ -151,8 +142,7 @@ async function planItem(input: PlanInput): Promise<ItemPlan> {
     '{"name":"Nome em portugues, curto e fantastico — SE um subtipo especifico foi pedido (cajado, espada, adaga, machado, arco, grimorio), o nome DEVE comecar com ele (ex.: subtipo cajado -> \\"Cajado do Alvorecer\\")",',
     '"description":"1-2 frases em portugues descrevendo visual e lendinha",',
     '"subtype":"um de (em INGLES): sword, dagger, staff, axe, tome, bow — staff=cajado, sword=espada, dagger=adaga, axe=machado, bow=arco, tome=grimorio/tomo (arma) | cap, helmet, crown, hood (elmo) | light, heavy, robe (armadura) | material (material bruto) | vazio para capa/anel/colar",',
-    '"stats":{"strength":0,"intellect":0,"endurance":0,"dexterity":0,"wisdom":0,"luck":0},',
-    '"attackSpeedMs":0,"dps":0,"buyPrice":0,"sellPrice":0}',
+    '"stats":{"strength":0,"intellect":0,"endurance":0,"dexterity":0,"wisdom":0,"luck":0},"attackSpeedMs":0,"dps":0,"buyPrice":0,"sellPrice":0}',
   ]
     .filter(Boolean)
     .join("\n");
@@ -381,45 +371,11 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
   const motif = pick(STRENGTH_DESC[input.type] || STRENGTH_DESC.weapon, `${input.type}|${input.rarity}|${seed}`, 4);
   const description = `Equipamento ${RARITY_PT[input.rarity]} com ${motif}.`.slice(0, 300);
 
-  // Stats: 6 atributos sempre > 0; principal do tipo recebe o maior valor.
+  // Equipamentos são CASCAS: sem stats próprios, sem DPS, sem velocidade —
+  // atributos, DPS e velocidade de ataque vêm TODOS do encantamento aplicado.
   const STAT_KEYS: Record<string, number> = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
-  const primary: string[] =
-    input.type === "weapon"
-      ? (subtype === "staff" || subtype === "tome" ? ["intellect", "wisdom"] : ["strength", "dexterity"])
-      : input.type === "cape"
-        ? ["wisdom", "luck"]
-        : ["endurance", "dexterity"];
 
-  const seeded = hashStr(`${input.type}|${input.rarity}|${input.level}|${seed}`);
-  const main = clampInt(base * rarMult, 1, 200);
-  let keyIdx = 0;
-  for (const k of Object.keys(STAT_KEYS) as (keyof typeof STAT_KEYS)[]) {
-    if (primary.includes(k)) {
-      STAT_KEYS[k] = main + (primary[0] === k ? 0 : Math.round(main * 0.15));
-    } else {
-      const frac = 0.2 + ((seeded >> (keyIdx * 3)) & 7) / 20; // 0.20 a 0.55
-      STAT_KEYS[k] = clampInt(main * frac, 1, 200);
-    }
-    keyIdx++;
-  }
-
-  const isWeapon = input.type === "weapon";
-  let attackSpeedMs = 0;
-  let dps = 0;
-  if (isWeapon) {
-    // Velocidade por subtipo alinhada aos itens do seed (dagger rápido, axe lento).
-    const speedBySubtype: Record<string, [number, number]> = {
-      dagger: [1300, 1600], sword: [1800, 2100], bow: [1700, 2000], staff: [2200, 2500], axe: [2300, 2600], tome: [2400, 2600],
-    };
-    const [lo, hi] = speedBySubtype[subtype] || [2000, 2300];
-    attackSpeedMs = lo + (seeded % (hi - lo + 1));
-    // DPS linear com nivel*raridade (para ~= attackPower); escala igual ao seed
-    // (lv1 comum ~7, lv10 epica ~120). independente da velocidade.
-    const powerScale = base * rarMult * 2.5;
-    dps = clampInt(powerScale + (seeded % 15), 5, 100000);
-  }
-
-  const buyPrice = clampInt(50 + base * rarMult * base * 0.6 + (seeded % 300), 50, 500000);
+  const buyPrice = clampInt(50 + base * rarMult * base * 0.6 + (hashStr(`${input.type}|${input.rarity}|${input.level}|${seed}`) % 300), 50, 500000);
   const sellPrice = Math.round(buyPrice * 0.2);
 
   return {
@@ -428,8 +384,8 @@ function planItemLocal(input: PlanInput, seed: number): ItemPlan {
     subtype,
     icon: defaultIconForItem(input.type, subtype),
     stats: { ...STAT_KEYS },
-    attackSpeedMs,
-    dps,
+    attackSpeedMs: 0,
+    dps: 0,
     buyPrice,
     sellPrice,
   };
@@ -446,11 +402,6 @@ export interface GenerateItemInput {
   prompt?: string;
   mobs?: string[];
   maps?: string[];
-  // Overrides manuais do admin (opcional). Se não informados, stats/DPS/velocidade
-  // são balanceados automaticamente pela raridade e nível.
-  stats?: Partial<Record<string, number>>;
-  dps?: number;
-  attackSpeedMs?: number;
 }
 
 export interface GeneratedItem {
@@ -556,47 +507,14 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
       ? await planItem({ type, rarity, level: baseLevel, subtype: baseSubtype })
       : planItemLocal({ type, rarity, level: baseLevel, subtype: baseSubtype, mobs: input.mobs, maps: input.maps }, s);
 
-    // Overrides: manual (campos individuais) ou faixas vindas do prompt.
-    const STAT_KEYS = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
-    if (parsed.statsRange) {
-      const [lo, hi] = parsed.statsRange;
-      if (parsed.statsAll) {
-        // "... pontos em tudo" → TODAS as stats dentro da faixa
-        for (const k of STAT_KEYS) {
-          plan.stats[k] = lo + ((s * 7 + STAT_KEYS.indexOf(k) * 13) % (hi - lo + 1));
-        }
-      } else {
-        const main = lo + (s % (hi - lo + 1));
-        // Distribui: principal = valor escolhido na faixa, secundários proporcionalmente.
-        const primaryKeys = type === "weapon"
-          ? (plan.subtype === "staff" || plan.subtype === "tome" ? ["intellect", "wisdom"] : ["strength", "dexterity"])
-          : type === "cape" ? ["wisdom", "luck"] : ["endurance", "dexterity"];
-        for (const k of STAT_KEYS) {
-          if (primaryKeys[0] === k) plan.stats[k] = main;
-          else if (primaryKeys[1] === k) plan.stats[k] = Math.max(1, Math.round(main * 0.85));
-          else plan.stats[k] = Math.max(1, Math.round(main * 0.4));
-        }
-      }
-    } else if (input.stats && typeof input.stats === "object") {
-      for (const k of STAT_KEYS) {
-        const v = Number((input.stats as any)[k]);
-        if (Number.isFinite(v)) plan.stats[k] = Math.max(1, Math.min(200, Math.round(v)));
-      }
+    // Equipamentos são CASCAS: stats/DPS/velocidade próprios são ZERO —
+    // atributos, DPS e velocidade de ataque vêm TODOS do encantamento aplicado.
+    if (["weapon", "helm", "armor", "cape"].includes(type)) {
+      plan.stats = { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 };
+      plan.dps = 0;
+      plan.attackSpeedMs = 0;
     }
-    if (type === "weapon") {
-      if (parsed.dpsRange) {
-        const [lo, hi] = parsed.dpsRange;
-        plan.dps = lo + (s % (hi - lo + 1));
-      } else if (Number.isFinite(Number(input.dps))) {
-        plan.dps = Math.max(1, Math.min(100000, Math.round(Number(input.dps))));
-      }
-      if (parsed.speedRange) {
-        const [lo, hi] = parsed.speedRange;
-        plan.attackSpeedMs = lo + (s % (hi - lo + 1));
-      } else if (Number.isFinite(Number(input.attackSpeedMs))) {
-        plan.attackSpeedMs = Math.max(500, Math.min(2600, Math.round(Number(input.attackSpeedMs))));
-      }
-    }
+
     plans.push(plan);
   }
 
