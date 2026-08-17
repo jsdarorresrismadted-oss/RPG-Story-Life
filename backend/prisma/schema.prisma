@@ -505,6 +505,10 @@ model Enchantment {
   dexterity        Int               @default(0)
   wisdom           Int               @default(0)
   luck             Int               @default(0)
+  // Base DPS e velocidade de ataque no NÍVEL 1 (escala automática por nível,
+  // mesma fórmula das stats: +2 por nível, teto 90; níveis VIP (múltiplos de 5) +5).
+  dps              Int               @default(0)
+  attackSpeedMs     Int               @default(2000)
   requiredVip      Boolean           @default(false) // Exclusivo para VIP (comprar/aplicar)
   isActive         Boolean           @default(true)
   createdAt        DateTime          @default(now())

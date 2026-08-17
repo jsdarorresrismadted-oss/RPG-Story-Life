@@ -7,7 +7,7 @@ import { Battle, TICK_MS } from "../../core/classEngine/battle";
 import { SkillDef, PassiveDef, EffectDef, ActiveEffectRuntime } from "../../core/classEngine/types";
 import { StatsInput } from "../../core/classEngine/stat-calculator";
 import { sumCoreStats } from "../../core/stats/coreStats";
-import { computeEnchantmentStats } from "../../core/enchantments/enchantmentStats";
+import { computeEnchantmentStats, computeEnchantmentValues } from "../../core/enchantments/enchantmentStats";
 import { grantPassXp } from "../seasons/seasons.module";
 import { isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "../../core/progression";
 import { getTotalBoosterBonuses } from "../../core/boosters";
@@ -239,6 +239,8 @@ export class CombatService {
     // Boosters equipados do jogador (anel/colar): dano e defesa entram no combate
     const boosterBonuses = await getTotalBoosterBonuses(character.userId, character.id);
 
+    const weapon = (character.equipment as any)?.weapon;
+    const weaponEnch = weapon?.enchantment ? computeEnchantmentValues(weapon.enchantment) : null;
     const statsInput: StatsInput = {
       level: character.level,
       statModel: {
@@ -251,8 +253,8 @@ export class CombatService {
       resource: parseJson(gameClass.resource, {}),
       passives,
       coreStats,
-      attackSpeedMs: (character.equipment as any)?.weapon?.attackSpeedMs > 0 ? (character.equipment as any).weapon.attackSpeedMs : undefined,
-      weaponDps: Number((character.equipment as any)?.weapon?.dps) > 0 ? Number((character.equipment as any).weapon.dps) : undefined,
+      attackSpeedMs: (weaponEnch ? weaponEnch.attackSpeedMs : weapon?.attackSpeedMs) > 0 ? (weaponEnch ? weaponEnch.attackSpeedMs : weapon?.attackSpeedMs) : undefined,
+      weaponDps: Number(weaponEnch ? weaponEnch.dps : weapon?.dps) > 0 ? Number(weaponEnch ? weaponEnch.dps : weapon?.dps) : undefined,
     };
 
     return { character, gameClass, rank, skills, passives, effects, coreStats, boosterBonuses, statsInput };

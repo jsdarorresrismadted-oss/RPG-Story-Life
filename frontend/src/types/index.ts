@@ -377,6 +377,9 @@ export interface Enchantment {
   dexterity: number;
   wisdom: number;
   luck: number;
+  dps?: number;
+  attackSpeedMs?: number;
+  requiredVip?: boolean;
   computedStats?: {
     strength: number;
     intellect: number;
@@ -384,6 +387,8 @@ export interface Enchantment {
     dexterity: number;
     wisdom: number;
     luck: number;
+    dps: number;
+    attackSpeedMs: number;
   };
 }
 

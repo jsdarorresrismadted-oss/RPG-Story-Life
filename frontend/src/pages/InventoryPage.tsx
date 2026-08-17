@@ -441,10 +441,15 @@ export function InventoryPage() {
                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-700 text-gray-400">x{ue.quantity}</span>
                   </div>
                   <p className="text-[11px] text-yellow-300/90 mb-3">
-                    {CORE_STAT_LABELS.map(({ key, label }) => {
-                      const v = effectiveEnchantmentStats(ue.enchantment)[key];
-                      return v ? `${label} +${v}` : null;
-                    }).filter(Boolean).join(" • ") || "Sem core stats"}
+                    {(() => {
+                      const stats = effectiveEnchantmentStats(ue.enchantment);
+                      const parts = CORE_STAT_LABELS.map(({ key, label }) =>
+                        stats[key] ? `${label} +${stats[key]}` : null
+                      ).filter(Boolean);
+                      if (Number(stats.dps || 0) > 0) parts.push(`DPS +${stats.dps}`);
+                      if (Number(stats.attackSpeedMs) > 0) parts.push(`${(Number(stats.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s`);
+                      return parts.join(" • ") || "Sem core stats";
+                    })()}
                   </p>
                   <button
                     onClick={() => setEnchantPick(ue)}
@@ -647,14 +652,26 @@ export function InventoryPage() {
                   {selectedItem.item.type === "weapon" && (
                     <div className="col-span-2 border-t border-dark-600 pt-1.5 mt-1 flex items-center justify-between">
                       <span className="text-orange-300/90">DPS</span>
-                      <span className="font-mono text-orange-300">{Number(selectedItem.item.dps || 0).toLocaleString()}</span>
+                      <span className="font-mono text-orange-300">
+                        {(() => {
+                          const enchStats = selectedItem.item.enchantment ? effectiveEnchantmentStats(selectedItem.item.enchantment) : null;
+                          const dps = enchStats?.dps || Number(selectedItem.item.dps || 0);
+                          return Number(dps).toLocaleString();
+                        })()}
+                        {selectedItem.item.enchantment && <span className="text-yellow-400 text-xs"> (enc.)</span>}
+                      </span>
                     </div>
                   )}
                   {selectedItem.item.type === "weapon" && (
                     <div className="col-span-2 flex items-center justify-between">
                       <span className="text-orange-300/90">Velocidade</span>
                       <span className="font-mono text-orange-300">
-                        {Number(selectedItem.item.attackSpeedMs) > 0 ? `${(Number(selectedItem.item.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s"}
+                        {(() => {
+                          const enchStats = selectedItem.item.enchantment ? effectiveEnchantmentStats(selectedItem.item.enchantment) : null;
+                          const speed = enchStats?.attackSpeedMs || selectedItem.item.attackSpeedMs;
+                          return Number(speed) > 0 ? `${(Number(speed) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s";
+                        })()}
+                        {selectedItem.item.enchantment && <span className="text-yellow-400 text-xs"> (enc.)</span>}
                       </span>
                     </div>
                   )}
@@ -708,9 +725,13 @@ export function InventoryPage() {
                             {ue.enchantment.level > 1 ? `Requer jogador Nv. ${ue.enchantment.level} • ` : ""}
                             {(() => {
                               const stats = effectiveEnchantmentStats(ue.enchantment);
-                              return CORE_STAT_LABELS.map(({ key, label }) =>
-                                stats[key] ? `${label} +${stats[key]}` : null
-                              ).filter(Boolean).join(" • ");
+                              return [
+                                ...CORE_STAT_LABELS.map(({ key, label }) =>
+                                  stats[key] ? `${label} +${stats[key]}` : null
+                                ).filter(Boolean),
+                                Number(stats.dps || 0) > 0 ? `DPS +${stats.dps}` : null,
+                                Number(stats.attackSpeedMs) > 0 ? `${(Number(stats.attackSpeedMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : null,
+                              ].filter(Boolean).join(" • ");
                             })()}
                           </p>
                         </div>

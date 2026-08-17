@@ -1,10 +1,13 @@
 // ===== Fórmula de progressão de encantamentos =====
 // ÚNICA fonte da verdade dos valores de encantamento:
-// - Cada encantamento guarda os valores BASE no nível 1 (colunas strength..luck).
+// - Cada encantamento guarda os valores BASE no nível 1 (colunas strength..luck, dps, attackSpeedMs).
 // - Os valores de qualquer nível são calculados por ESTA fórmula — nunca aleatórios.
 // - Progressão LINEAR: cada atributo cresce +ENCHANT_STEP_PER_LEVEL por nível.
 //   No nível 1, o atributo principal (category) vale o dobro dos secundários.
 //   Ex.: Sorte Nv.1 = +2 nos demais e +4 em Sorte; Sorte Nv.2 = +4/+6; Nv.3 = +6/+8; etc.
+// - DPS: base (nível 1) +2 por nível, teto ENCHANT_DPS_MAX (90); níveis VIP (múltiplos de 5)
+//   recebem +5 em vez do +2 ("ultimo escalo com 5 ao invés de 2").
+// - Velocidade de ataque: base fixa do encantamento (padrão 2000ms; VIPs podem usar 1500ms).
 // - A Combat Engine usa os valores calculados aqui (o encantamento SUBSTITUI o item).
 
 export const ENCHANT_MAX_LEVEL = 150;
@@ -12,6 +15,15 @@ export const ENCHANT_MIN_LEVEL = 1;
 
 // Aumento por nível de cada atributo (linear).
 export const ENCHANT_STEP_PER_LEVEL = 2;
+
+// Teto do DPS (e das stats) calculado pela escala ("10 no level 1 até level 150, dps 10-90").
+export const ENCHANT_STAT_MAX = 90;
+export const ENCHANT_DPS_MAX = 90;
+
+// A cada 5 níveis o encantamento vira VIP: +5 no DPS (em vez de +2) e pode ter 1.5s de ataque.
+export function isVipLevel(level: number): boolean {
+  return clampLevel(level) % 5 === 0;
+}
 
 export const ENCHANTMENT_CATEGORIES = [
   "strength",
@@ -42,14 +54,37 @@ export interface CoreStatValues {
   luck: number;
 }
 
+export interface EnchantmentValues extends CoreStatValues {
+  dps: number;
+  attackSpeedMs: number;
+}
+
 export function clampLevel(level: number): number {
   return Math.max(ENCHANT_MIN_LEVEL, Math.min(ENCHANT_MAX_LEVEL, Math.floor(level) || ENCHANT_MIN_LEVEL));
 }
 
-/** Valor de UM atributo no nível informado: base + STEP * (level - 1), mínimo 1. */
+/** Valor de UM atributo no nível informado: base + STEP * (level - 1), mínimo 1, teto ENCHANT_STAT_MAX. */
 export function statAtLevel(base: number, level: number): number {
   const lvl = clampLevel(level);
-  return Math.max(1, (Number(base) || 0) + ENCHANT_STEP_PER_LEVEL * (lvl - ENCHANT_MIN_LEVEL));
+  return Math.max(1, Math.min(ENCHANT_STAT_MAX, (Number(base) || 0) + ENCHANT_STEP_PER_LEVEL * (lvl - ENCHANT_MIN_LEVEL)));
+}
+
+/**
+ * DPS no nível informado: base (nível 1) +2 por nível, teto ENCHANT_DPS_MAX.
+ * Níveis VIP (múltiplos de 5): +5 em vez do +2 ("lv 5 = 23", "lv 10 = 33").
+ */
+export function dpsAtLevel(baseDps: number, level: number): number {
+  const lvl = clampLevel(level);
+  const linear = (Number(baseDps) || 0) + ENCHANT_STEP_PER_LEVEL * (lvl - ENCHANT_MIN_LEVEL);
+  const bonus = isVipLevel(lvl) ? 5 : 0;
+  return Math.max(1, Math.min(ENCHANT_DPS_MAX, linear + bonus));
+}
+
+/** Velocidade de ataque (ms): base fixa do encantamento (padrão 2000; VIP pode usar 1500). */
+export function speedAtLevel(baseSpeed: number | null | undefined, level: number): number {
+  const v = Number(baseSpeed) || 0;
+  if (v > 0) return Math.max(500, Math.min(2600, Math.round(v)));
+  return isVipLevel(level) ? 1500 : 2000;
 }
 
 /** Os 6 atributos calculados no nível do encantamento (base = nível 1). */
@@ -78,16 +113,58 @@ export function computeEnchantmentStats(enchantment: {
   return out;
 }
 
+/** Stats + DPS + velocidade calculados no nível do encantamento. */
+export function computeEnchantmentValues(enchantment: {
+  strength: number;
+  intellect: number;
+  endurance: number;
+  dexterity: number;
+  wisdom: number;
+  luck: number;
+  level: number;
+  dps?: number | null;
+  attackSpeedMs?: number | null;
+}): EnchantmentValues {
+  const level = clampLevel(enchantment.level);
+  return {
+    ...computeEnchantmentStats(enchantment),
+    dps: dpsAtLevel(Number(enchantment.dps) || 0, level),
+    attackSpeedMs: speedAtLevel(enchantment.attackSpeedMs, level),
+  };
+}
+
+/**
+ * Escala padrão para CRIAR um encantamento sem digitar valores:
+ * stats = principal (category) 10, demais 5; DPS 10; velocidade 2000ms (VIP: 1500ms).
+ * O staff só escolhe o nível.
+ */
+export function defaultEnchantmentScale(category: string, level: number): EnchantmentValues & { requiredVip: boolean } {
+  const lvl = clampLevel(level);
+  const base: Record<string, number> = { strength: 5, intellect: 5, endurance: 5, dexterity: 5, wisdom: 5, luck: 5 };
+  if (ENCHANTMENT_CATEGORIES.includes(category as any)) base[category] = 10;
+  return {
+    strength: statAtLevel(base.strength, lvl),
+    intellect: statAtLevel(base.intellect, lvl),
+    endurance: statAtLevel(base.endurance, lvl),
+    dexterity: statAtLevel(base.dexterity, lvl),
+    wisdom: statAtLevel(base.wisdom, lvl),
+    luck: statAtLevel(base.luck, lvl),
+    dps: dpsAtLevel(10, lvl),
+    attackSpeedMs: isVipLevel(lvl) ? 1500 : 2000,
+    requiredVip: isVipLevel(lvl),
+  };
+}
+
 /** Projeção de todos os níveis (1-100) para o painel admin. */
-export function enchantmentProgression(enchantment: Parameters<typeof computeEnchantmentStats>[0]): Array<{ level: number; stats: CoreStatValues }> {
-  const out: Array<{ level: number; stats: CoreStatValues }> = [];
+export function enchantmentProgression(enchantment: Parameters<typeof computeEnchantmentValues>[0]): Array<{ level: number; stats: EnchantmentValues }> {
+  const out: Array<{ level: number; stats: EnchantmentValues }> = [];
   for (let level = ENCHANT_MIN_LEVEL; level <= ENCHANT_MAX_LEVEL; level++) {
-    out.push({ level, stats: computeEnchantmentStats({ ...enchantment, level }) });
+    out.push({ level, stats: computeEnchantmentValues({ ...enchantment, level } as any) });
   }
   return out;
 }
 
 /** Anexa os valores calculados ao objeto serializado (para o jogo e o admin). */
-export function withEnchantmentStats<T extends Record<string, any>>(enchantment: T): T & { computedStats: CoreStatValues } {
-  return { ...enchantment, computedStats: computeEnchantmentStats(enchantment as any) };
+export function withEnchantmentStats<T extends Record<string, any>>(enchantment: T): T & { computedStats: EnchantmentValues } {
+  return { ...enchantment, computedStats: computeEnchantmentValues(enchantment as any) };
 }

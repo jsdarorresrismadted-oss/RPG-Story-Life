@@ -20,6 +20,8 @@ import {
   enchantmentProgression,
   clampLevel,
   ENCHANTMENT_CATEGORIES,
+  ENCHANT_DPS_MAX,
+  defaultEnchantmentScale,
 } from "../../core/enchantments/enchantmentStats";
 import { ensureGuildQuests } from "../../core/guildQuests";
 
@@ -158,6 +160,9 @@ function sanitizeEnchantment(body: any): any {
     const v = Math.max(1, Math.round(Number(data[key]) || 1));
     data[key] = v;
   }
+  // DPS e velocidade de ataque (base no nível 1 — escala calculada pela fórmula).
+  if (data.dps !== undefined) data.dps = Math.max(1, Math.min(ENCHANT_DPS_MAX, Math.round(Number(data.dps) || 0)));
+  if (data.attackSpeedMs !== undefined) data.attackSpeedMs = Math.max(500, Math.min(2600, Math.round(Number(data.attackSpeedMs) || 2000)));
   if (data.compatibleSlots !== undefined && Array.isArray(data.compatibleSlots)) {
     // Filtra qualquer slot fora da whitelist (ring, necklace, class...) e garante lista não vazia
     const slots = data.compatibleSlots.filter((s: any) => ENCHANTABLE_SLOTS.includes(String(s)));
@@ -1055,6 +1060,13 @@ export function createAdminModule(app: Express): void {
       if (!enchantment) throw new AppError(404, "Encantamento não encontrado");
       res.json(enchantmentProgression(enchantment));
     } catch (err) { next(err); }
+  });
+
+  // Escala padrão de criação: valores automáticos para o nível escolhido (staff só escolhe o nível).
+  app.get("/api/admin/enchantments/scale", requireAdmin, (req: Request, res: Response) => {
+    const category = String(req.query.category || "strength");
+    const level = clampLevel(Number(req.query.level) || 1);
+    res.json({ ...defaultEnchantmentScale(category, level), level });
   });
 
   app.post("/api/admin/enchantments", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {

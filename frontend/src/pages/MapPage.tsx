@@ -1231,9 +1231,19 @@ export function MapPage() {
                               {isEnchantment && offer.enchantment && (() => {
                                 const stats = effectiveEnchantmentStats(offer.enchantment);
                                 return (
-                                  <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-300/90 rounded-md">
-                                    {ENCH_STAT_LABELS.map(({ key, label }) => `${label} +${stats[key]}`).join(" · ")}
-                                  </span>
+                                  <>
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-300/90 rounded-md">
+                                      {ENCH_STAT_LABELS.map(({ key, label }) => `${label} +${stats[key]}`).join(" · ")}
+                                    </span>
+                                    {Number(stats.dps || 0) > 0 && (
+                                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/15 text-amber-300 rounded-md">
+                                        +{stats.dps} DPS
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-cyan-500/15 text-cyan-300 rounded-md">
+                                      ⏱ {((Number(stats.attackSpeedMs) || 2000) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s
+                                    </span>
+                                  </>
                                 );
                               })()}
                               {offer.enchantment?.requiredVip && (

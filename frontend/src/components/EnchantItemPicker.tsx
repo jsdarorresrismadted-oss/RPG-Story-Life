@@ -76,6 +76,12 @@ export function EnchantItemPicker({ enchantment, items, playerLevel = 1, busyId,
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-300/90">
                   {CORE_LABELS.map(({ key, label }) => `${label} +${stats[key]}`).join(" · ")}
                 </span>
+                {Number(stats.dps || 0) > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">DPS +{stats.dps}</span>
+                )}
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300">
+                  ⏱ {((Number(stats.attackSpeedMs) || 2000) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s
+                </span>
               </div>
               {enchantment.description && (
                 <p className="text-[11px] text-gray-500 line-clamp-1 mt-1">{enchantment.description}</p>

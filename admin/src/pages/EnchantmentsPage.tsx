@@ -6,8 +6,10 @@ import { adminApi } from "../api";
 import IconPicker from "../components/IconPicker";
 import {
   ENCHANTMENT_CATEGORIES,
-  computeEnchantmentStats,
+  computeEnchantmentValues,
+  defaultEnchantmentScale,
   clampLevel,
+  isVipLevel,
   ENCHANT_MAX_LEVEL,
   ENCHANT_STEP_PER_LEVEL,
 } from "../enchantmentFormula";
@@ -77,6 +79,8 @@ interface Enchantment {
   dexterity: number;
   wisdom: number;
   luck: number;
+  dps?: number;
+  attackSpeedMs?: number;
   isActive: boolean;
   computedStats?: Record<string, number>;
 }
@@ -107,6 +111,8 @@ const emptyForm = () => ({
   dexterity: 5,
   wisdom: 5,
   luck: 5,
+  dps: 10,
+  attackSpeedMs: 2000,
   isActive: true,
 });
 
@@ -180,6 +186,8 @@ export default function EnchantmentsPage() {
       dexterity: Number(item.dexterity) || 1,
       wisdom: Number(item.wisdom) || 1,
       luck: Number(item.luck) || 1,
+      dps: Number(item.dps) || 10,
+      attackSpeedMs: Number(item.attackSpeedMs) || 2000,
       isActive: !!item.isActive,
     });
     setModalOpen(true);
@@ -203,6 +211,8 @@ export default function EnchantmentsPage() {
         dexterity: Number(item.dexterity) || 1,
         wisdom: Number(item.wisdom) || 1,
         luck: Number(item.luck) || 1,
+        dps: Number(item.dps) || 10,
+        attackSpeedMs: Number(item.attackSpeedMs) || 2000,
         isActive: false,
       });
       toast.success(`"${data.name}" criado (inativo)`);
@@ -253,6 +263,9 @@ export default function EnchantmentsPage() {
         ...form,
         level: clampLevel(Number(form.level) || 1),
         price: Number(form.price) || 0,
+        dps: Math.max(1, Math.round(Number(form.dps) || 10)),
+        attackSpeedMs: Math.max(500, Math.min(2600, Math.round(Number(form.attackSpeedMs) || 2000))),
+        requiredVip: isVipLevel(clampLevel(Number(form.level) || 1)),
         compatibleSlots: form.compatibleSlots,
       };
       if (editing?.id) {
@@ -271,7 +284,18 @@ export default function EnchantmentsPage() {
     }
   };
 
-  const preview = useMemo(() => computeEnchantmentStats(form), [form]);
+  const preview = useMemo(() => computeEnchantmentValues(form), [form]);
+
+  const applyDefaultScale = async () => {
+    try {
+      const lvl = clampLevel(Number(form.level) || 1);
+      const { data } = await adminApi.enchantments.scale(form.category, lvl);
+      setForm({ ...form, ...data });
+      toast.success(`Escala padrão aplicada para o nível ${lvl}${data.requiredVip ? " (VIP)" : ""}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Falha ao obter a escala padrão");
+    }
+  };
 
   const [syncingShop, setSyncingShop] = useState(false);
   const handleSyncShop = async () => {
@@ -294,8 +318,10 @@ export default function EnchantmentsPage() {
           <h1 className="text-2xl font-bold">Encantamentos</h1>
           <p className="text-sm text-gray-500 mt-1">
             Definidos por atributo principal (6) e nível (1–150). Os valores de cada nível são calculados
-            pela fórmula do sistema a partir da base (nível 1) — nunca aleatórios. Ao aplicar, os atributos
-            do encantamento <span className="text-yellow-400">substituem</span> os do equipamento.
+            pela fórmula do sistema a partir da base (nível 1) — nunca aleatórios. Cada encantamento também
+            carrega <span className="text-amber-400">DPS</span> (só arma: +2/nível, níveis VIP +5) e{" "}
+            <span className="text-cyan-400">velocidade de ataque</span>. Ao aplicar, os atributos do
+            encantamento <span className="text-yellow-400">substituem</span> os do equipamento.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -378,7 +404,7 @@ export default function EnchantmentsPage() {
             </thead>
             <tbody>
               {filtered.map((item) => {
-                const stats = item.computedStats ?? computeEnchantmentStats(item);
+                const stats = item.computedStats ?? computeEnchantmentValues(item);
                 return (
                   <tr key={item.id} className="border-b border-dark-700 hover:bg-dark-800/50">
                     <td className="py-2.5 px-4">
@@ -414,15 +440,39 @@ export default function EnchantmentsPage() {
                     </td>
                     <td className="py-2.5 px-4">
                       <div className="flex flex-wrap gap-1 max-w-xs">
-                        {Object.entries(stats).map(([k, v]) => (
-                          <span
-                            key={k}
-                            className={`text-[10px] px-1.5 py-0.5 rounded ${k === item.category ? "bg-accent-500/20 text-accent-300 font-semibold" : "bg-dark-900 text-gray-400"}`}
-                            title={k === item.category ? `${STAT_LABELS[k]} (principal)` : STAT_LABELS[k]}
-                          >
-                            {v}
-                          </span>
-                        ))}
+                        {Object.entries(stats).map(([k, v]) => {
+                          if (k === "attackSpeedMs") {
+                            return (
+                              <span
+                                key={k}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-mono"
+                                title={`Velocidade de ataque: ${(Number(v) / 1000).toFixed(1)}s`}
+                              >
+                                ⏱ {(Number(v) / 1000).toFixed(1)}s
+                              </span>
+                            );
+                          }
+                          if (k === "dps") {
+                            return (
+                              <span
+                                key={k}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 font-mono"
+                                title="Dano por segundo (encantamento de arma)"
+                              >
+                                +{v} DPS
+                              </span>
+                            );
+                          }
+                          return (
+                            <span
+                              key={k}
+                              className={`text-[10px] px-1.5 py-0.5 rounded ${k === item.category ? "bg-accent-500/20 text-accent-300 font-semibold" : "bg-dark-900 text-gray-400"}`}
+                              title={k === item.category ? `${STAT_LABELS[k]} (principal)` : STAT_LABELS[k]}
+                            >
+                              {v}
+                            </span>
+                          );
+                        })}
                       </div>
                     </td>
                     <td className="py-2.5 px-4">
@@ -569,9 +619,19 @@ export default function EnchantmentsPage() {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-400 border-b border-dark-700 pb-1.5 mb-3">
-                    Base dos atributos (nível 1) — nunca zerados
-                  </p>
+                  <div className="flex items-center justify-between border-b border-dark-700 pb-1.5 mb-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-400">
+                      Base dos atributos (nível 1) — nunca zerados
+                    </p>
+                    <button
+                      type="button"
+                      onClick={applyDefaultScale}
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-dark-700 hover:bg-dark-600 text-accent-300 font-medium transition-colors"
+                      title="Preenche atributos, DPS e velocidade pela escala padrão do nível escolhido"
+                    >
+                      ✨ Escala padrão do nível
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {Object.keys(STAT_LABELS).map((k) => (
                       <div key={k}>
@@ -588,6 +648,31 @@ export default function EnchantmentsPage() {
                         />
                       </div>
                     ))}
+                    <div>
+                      <label className={labelClass}>DPS base (só arma) <span className="text-[10px] text-amber-400">+2/nível, +5 em níveis VIP</span></label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={form.dps}
+                        onChange={(e) => setForm({ ...form, dps: parseInt(e.target.value) || 1 })}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>
+                        Velocidade base (ms)
+                        {isVipLevel(clampLevel(Number(form.level) || 1)) && <span className="text-[10px] text-cyan-400 ml-1">sugerida 1500</span>}
+                      </label>
+                      <input
+                        type="number"
+                        min={500}
+                        max={2600}
+                        step={100}
+                        value={form.attackSpeedMs}
+                        onChange={(e) => setForm({ ...form, attackSpeedMs: parseInt(e.target.value) || 2000 })}
+                        className={inputClass}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -595,13 +680,32 @@ export default function EnchantmentsPage() {
                   <p className="text-xs text-gray-500 mb-2">
                     <Eye size={12} className="inline mr-1 text-accent-400" />
                     Valores calculados no <span className="text-white font-medium">nível {clampLevel(Number(form.level) || 1)}</span> (fórmula do sistema):
+                    {isVipLevel(clampLevel(Number(form.level) || 1)) && (
+                      <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-semibold align-middle">VIP</span>
+                    )}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(preview).map(([k, v]) => (
-                      <span key={k} className={`text-[11px] px-2 py-1 rounded-md ${k === form.category ? "bg-accent-500/20 text-accent-300 font-semibold" : "bg-dark-800 text-gray-300"}`}>
-                        {STAT_LABELS[k]}: <span className="font-mono">+{v}</span>
-                      </span>
-                    ))}
+                    {Object.entries(preview).map(([k, v]) => {
+                      if (k === "attackSpeedMs") {
+                        return (
+                          <span key={k} className="text-[11px] px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-300 font-mono">
+                            Veloc.: <span className="font-semibold">{(Number(v) / 1000).toFixed(1)}s</span>
+                          </span>
+                        );
+                      }
+                      if (k === "dps") {
+                        return (
+                          <span key={k} className="text-[11px] px-2 py-1 rounded-md bg-amber-500/10 text-amber-300 font-mono">
+                            DPS: <span className="font-semibold">+{v}</span>
+                          </span>
+                        );
+                      }
+                      return (
+                        <span key={k} className={`text-[11px] px-2 py-1 rounded-md ${k === form.category ? "bg-accent-500/20 text-accent-300 font-semibold" : "bg-dark-800 text-gray-300"}`}>
+                          {STAT_LABELS[k]}: <span className="font-mono">+{v}</span>
+                        </span>
+                      );
+                    })}
                   </div>
                   <p className="text-[11px] text-gray-600 mt-2">
                     No nível 100, {STAT_LABELS[form.category]} chega a ~
@@ -609,7 +713,7 @@ export default function EnchantmentsPage() {
                       const base = Number(form[form.category]) || 1;
                       return Math.max(1, base + ENCHANT_STEP_PER_LEVEL * (ENCHANT_MAX_LEVEL - 1));
                     })()}
-                    (base +2 por nível).
+                    (base +2 por nível). Níveis múltiplos de 5 são <span className="text-cyan-400">VIP</span>: +5 de DPS e velocidade sugerida 1,5s.
                   </p>
                 </div>
 
@@ -664,6 +768,7 @@ export default function EnchantmentsPage() {
             <p className="text-xs text-gray-500 mb-3">
               Valores calculados automaticamente pela fórmula do sistema (base nível 1 × crescimento por raridade).
               O atributo principal (verde) cresce mais rápido e permanece sempre superior.
+              Níveis <span className="text-cyan-400">VIP</span> (múltiplos de 5): +5 de DPS em vez de +2.
             </p>
             <div className="overflow-y-auto flex-1 border border-dark-700 rounded-lg">
               <table className="w-full text-xs">
@@ -675,25 +780,33 @@ export default function EnchantmentsPage() {
                         {STAT_LABELS[k]}
                       </th>
                     ))}
+                    <th className="text-right py-2 px-2 font-medium text-amber-400">DPS</th>
+                    <th className="text-right py-2 px-2 font-medium text-cyan-400">Veloc.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingProgression && (
-                    <tr><td colSpan={7} className="py-8 text-center text-gray-500">Calculando níveis...</td></tr>
+                    <tr><td colSpan={9} className="py-8 text-center text-gray-500">Calculando níveis...</td></tr>
                   )}
                   {!loadingProgression &&
-                    progression.map((row) => (
-                      <tr key={row.level} className={`border-b border-dark-800 ${row.level === (Number(progressionItem.level) || 1) ? "bg-accent-600/10" : ""}`}>
-                        <td className={`py-1.5 px-3 font-mono ${row.level === (Number(progressionItem.level) || 1) ? "text-accent-300 font-bold" : "text-gray-400"}`}>
-                          {row.level}{row.level === (Number(progressionItem.level) || 1) ? " ◄ atual" : ""}
-                        </td>
-                        {Object.entries(row.stats).map(([k, v]) => (
-                          <td key={k} className={`text-right py-1.5 px-2 font-mono ${k === progressionItem.category ? "text-accent-300 font-semibold" : "text-gray-300"}`}>
-                            {v}
+                    progression.map((row) => {
+                      const isVip = row.level % 5 === 0;
+                      return (
+                        <tr key={row.level} className={`border-b border-dark-800 ${isVip ? "bg-cyan-500/5" : ""} ${row.level === (Number(progressionItem.level) || 1) ? "bg-accent-600/10" : ""}`}>
+                          <td className={`py-1.5 px-3 font-mono ${row.level === (Number(progressionItem.level) || 1) ? "text-accent-300 font-bold" : "text-gray-400"}`}>
+                            {row.level}{isVip && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold align-middle">VIP</span>}
+                            {row.level === (Number(progressionItem.level) || 1) ? " ◄ atual" : ""}
                           </td>
-                        ))}
-                      </tr>
-                    ))}
+                          {Object.keys(STAT_LABELS).map((k) => (
+                            <td key={k} className={`text-right py-1.5 px-2 font-mono ${k === progressionItem.category ? "text-accent-300 font-semibold" : "text-gray-300"}`}>
+                              {row.stats[k] ?? "-"}
+                            </td>
+                          ))}
+                          <td className="text-right py-1.5 px-2 font-mono text-amber-300">{row.stats.dps ?? "-"}</td>
+                          <td className="text-right py-1.5 px-2 font-mono text-cyan-300">{((Number(row.stats.attackSpeedMs) || 0) / 1000).toFixed(1)}s</td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

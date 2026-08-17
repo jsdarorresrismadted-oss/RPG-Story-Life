@@ -177,6 +177,7 @@ export const adminApi = {
     update: (id: string, data: any) => api.put(`/admin/enchantments/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/enchantments/${id}`, { params }),
     progression: (id: string) => api.get(`/admin/enchantments/${id}/progression`),
+    scale: (category: string, level: number) => api.get(`/admin/enchantments/scale?category=${encodeURIComponent(category)}&level=${level}`),
     syncShop: () => api.post("/admin/enchantments/sync-shop"),
   },
   shopProducts: {
