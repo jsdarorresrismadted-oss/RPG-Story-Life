@@ -530,7 +530,7 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
 
     // Armas ganham 3 boosters rolados (valor capado pela raridade, máx 51%).
     if (type === "weapon") {
-      plan.boosters = rollWeaponBoosters(rarity, 3);
+      plan.boosters = rollWeaponBoosters(rarity, 3, undefined, baseSubtype);
     }
 
     plans.push(plan);

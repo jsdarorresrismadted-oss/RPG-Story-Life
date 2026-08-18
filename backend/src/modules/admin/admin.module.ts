@@ -845,8 +845,9 @@ export function createAdminModule(app: Express): void {
           for (const k of ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"]) body[k] = 0;
           // Armas sem boosters (item novo/antigo) ganham 3 rolados pela raridade.
           const list = Array.isArray(body.boosters) ? body.boosters : [];
+          const subtype = String(body.subtype || "");
           if (list.length === 0) {
-            body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3);
+            body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3, undefined, subtype);
           } else {
             body.boosters = list
               .filter((b: any) => b && typeof b === "object" && String(b.kind || "") in WEAPON_BOOSTER_KINDS)
@@ -857,7 +858,7 @@ export function createAdminModule(app: Express): void {
                 kind: String(b.kind),
                 value: Math.max(1, Number(b.value) || 1),
               }));
-            if (body.boosters.length === 0) body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3);
+            if (body.boosters.length === 0) body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3, undefined, subtype);
           }
         } else if (!["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"].some((k) => Number(body[k]) > 0)) {
           // Sem atributos informados → calcula automaticamente pelo nível e raridade.

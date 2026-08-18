@@ -14,18 +14,12 @@ export type WeaponBoosterKind =
   | "critDamage" // Dano Crítico (additivo ao multiplicador)
   | "penetration" // Penetração (física e mágica)
   | "hitChance" // Precisão
-  | "dodge" // Esquiva (defensivo)
-  | "lifestealPercent" // Roubo de Vida
-  | "manaStealPercent" // Roubo de Mana
   | "doubleStrikeChance" // Golpe Duplo (2º ataque automático)
   | "attackSpeedPercent" // Velocidade de Ataque (reduz intervalo)
   | "cooldownReduction" // Redução de Cooldown de skills
   | "dotPercent" // Dano em DOTs
-  | "healingPercent" // Cura recebida/aplicada
   | "executionPercent" // Dano contra alvo com HP ≤ 30%
-  | "fullHpDamagePercent" // Dano contra alvo com HP cheio
-  | "damageTakenReduction" // Redução de dano recebido (defensivo)
-  | "thornsPercent"; // Espinhos: reflete % do dano recebido
+  | "fullHpDamagePercent"; // Dano contra alvo com HP cheio
 
 export const WEAPON_BOOSTER_KINDS: Record<WeaponBoosterKind, { label: string; category: string; format: "%" | "add" }> = {
   damagePercent: { label: "Dano Geral", category: "Dano/Ofensiva", format: "%" },
@@ -38,21 +32,15 @@ export const WEAPON_BOOSTER_KINDS: Record<WeaponBoosterKind, { label: string; ca
   critDamage: { label: "Dano Crítico", category: "Crítico/Precisão", format: "%" },
   penetration: { label: "Penetração", category: "Crítico/Precisão", format: "%" },
   hitChance: { label: "Precisão", category: "Crítico/Precisão", format: "%" },
-  dodge: { label: "Esquiva", category: "Defensivo", format: "%" },
-  lifestealPercent: { label: "Roubo de Vida", category: "Efeitos/Combate", format: "%" },
-  manaStealPercent: { label: "Roubo de Mana", category: "Efeitos/Combate", format: "%" },
   doubleStrikeChance: { label: "Golpe Duplo", category: "Efeitos/Combate", format: "%" },
   attackSpeedPercent: { label: "Velocidade de Ataque", category: "Efeitos/Combate", format: "%" },
   cooldownReduction: { label: "Redução de Cooldown", category: "Efeitos/Combate", format: "%" },
   dotPercent: { label: "Dano Contínuo (DOT)", category: "Efeitos/Combate", format: "%" },
-  healingPercent: { label: "Cura", category: "Efeitos/Combate", format: "%" },
   executionPercent: { label: "Golpe de Execução", category: "Especiais/Avançados", format: "%" },
   fullHpDamagePercent: { label: "Emboscada (HP cheio)", category: "Especiais/Avançados", format: "%" },
-  damageTakenReduction: { label: "Redução de Dano Recebido", category: "Defensivo", format: "%" },
-  thornsPercent: { label: "Espinhos (Reflexo)", category: "Defensivo", format: "%" },
 };
 
-export const WEAPON_BOOSTER_CATEGORIES = ["Dano/Ofensiva", "PvP", "PvE", "Crítico/Precisão", "Efeitos/Combate", "Defensivo", "Especiais/Avançados"] as const;
+export const WEAPON_BOOSTER_CATEGORIES = ["Dano/Ofensiva", "PvP", "PvE", "Crítico/Precisão", "Efeitos/Combate", "Especiais/Avançados"] as const;
 
 // Cap MÁXIMO do valor por raridade (%). Mítico = 51% (spec do dono).
 export const WEAPON_BOOSTER_CAP_BY_RARITY: Record<string, number> = {
@@ -115,21 +103,7 @@ export const WEAPON_BOOSTER_POOL: WeaponBoosterDef[] = [
   { slug: "perfurante", name: "Perfurante", kind: "penetration", description: "Ignora parte da defesa do alvo." },
   { slug: "ponteira-firme", name: "Ponteira Firme", kind: "hitChance", description: "Aumenta a chance de acerto." },
   { slug: "pulso-certeiro", name: "Pulso Certeiro", kind: "hitChance", description: "Aumenta a chance de acerto." },
-  // Defensivos
-  { slug: "pele-de-pedra", name: "Pele de Pedra", kind: "damageTakenReduction", description: "Reduz o dano recebido." },
-  { slug: "couraca-resiliente", name: "Couraça Resiliente", kind: "damageTakenReduction", description: "Reduz o dano recebido." },
-  { slug: "tronco-de-ferro", name: "Tronco de Ferro", kind: "damageTakenReduction", description: "Reduz o dano recebido." },
-  { slug: "danca-sombria", name: "Dança Sombria", kind: "dodge", description: "Aumenta a chance de esquivar." },
-  { slug: "reflexos-felinos", name: "Reflexos Felinos", kind: "dodge", description: "Aumenta a chance de esquivar." },
-  { slug: "sombra-agil", name: "Sombra Ágil", kind: "dodge", description: "Aumenta a chance de esquivar." },
-  { slug: "pele-de-espinhos", name: "Pele de Espinhos", kind: "thornsPercent", description: "Reflete parte do dano recebido." },
-  { slug: "retribuicao", name: "Retribuição", kind: "thornsPercent", description: "Reflete parte do dano recebido." },
   // Efeitos / Combate
-  { slug: "sede-de-sangue", name: "Sede de Sangue", kind: "lifestealPercent", description: "Cura ao causar dano." },
-  { slug: "vampirismo", name: "Vampirismo", kind: "lifestealPercent", description: "Cura ao causar dano." },
-  { slug: "drenar-vida", name: "Drenar Vida", kind: "lifestealPercent", description: "Cura ao causar dano." },
-  { slug: "dreno-arcano", name: "Dreno Arcano", kind: "manaStealPercent", description: "Recupera mana ao causar dano." },
-  { slug: "ladrao-de-mana", name: "Ladrão de Mana", kind: "manaStealPercent", description: "Recupera mana ao causar dano." },
   { slug: "golpe-duplo", name: "Golpe Duplo", kind: "doubleStrikeChance", description: "Chance de atacar duas vezes." },
   { slug: "ataque-relampago", name: "Ataque Relâmpago", kind: "doubleStrikeChance", description: "Chance de atacar duas vezes." },
   { slug: "rajada-rapida", name: "Rajada Rápida", kind: "doubleStrikeChance", description: "Chance de atacar duas vezes." },
@@ -142,7 +116,6 @@ export const WEAPON_BOOSTER_POOL: WeaponBoosterDef[] = [
   { slug: "queimadura-sombria", name: "Queimadura Sombria", kind: "dotPercent", description: "Aumenta o dano de efeitos contínuos." },
   { slug: "veneno-lento", name: "Veneno Lento", kind: "dotPercent", description: "Aumenta o dano de efeitos contínuos." },
   { slug: "sangramento-profundo", name: "Sangramento Profundo", kind: "dotPercent", description: "Aumenta o dano de efeitos contínuos." },
-  { slug: "fervor-vital", name: "Fervor Vital", kind: "healingPercent", description: "Aumenta a cura aplicada." },
   // Especiais / Avançados
   { slug: "golpe-de-execucao", name: "Golpe de Execução", kind: "executionPercent", description: "Dano aumentado contra alvos fracos." },
   { slug: "sentenca-final", name: "Sentença Final", kind: "executionPercent", description: "Dano aumentado contra alvos fracos." },
@@ -151,6 +124,18 @@ export const WEAPON_BOOSTER_POOL: WeaponBoosterDef[] = [
   { slug: "primeiro-golpe", name: "Primeiro Golpe", kind: "fullHpDamagePercent", description: "Dano aumentado contra alvos com HP cheio." },
   { slug: "ataque-surpresa", name: "Ataque Surpresa", kind: "fullHpDamagePercent", description: "Dano aumentado contra alvos com HP cheio." },
 ];
+
+// Kinds preferidos por subtipo de arma.
+const SUBTYPE_KIND_BIAS: Record<string, WeaponBoosterKind[]> = {
+  staff: ["magicalDamagePercent", "cooldownReduction", "dotPercent", "damagePercent", "pvpDamagePercent", "pveDamagePercent"],
+  dagger: ["physicalDamagePercent", "critChance", "critDamage", "attackSpeedPercent", "doubleStrikeChance", "penetration"],
+  sword: ["physicalDamagePercent", "critChance", "critDamage", "penetration", "hitChance", "damagePercent"],
+  longsword: ["physicalDamagePercent", "critDamage", "penetration", "damagePercent", "hitChance", "critChance"],
+  axe: ["physicalDamagePercent", "critDamage", "damagePercent", "penetration", "hitChance", "doubleStrikeChance"],
+  mace: ["physicalDamagePercent", "damagePercent", "penetration", "hitChance", "critChance", "critDamage"],
+  spear: ["physicalDamagePercent", "penetration", "critChance", "hitChance", "doubleStrikeChance", "attackSpeedPercent"],
+  bow: ["physicalDamagePercent", "critChance", "critDamage", "penetration", "attackSpeedPercent", "hitChance"],
+};
 
 // Rolagem de valor dentro do cap da raridade (min = metade do cap).
 export function rollWeaponBoosterValue(kind: WeaponBoosterKind, rarity: string): number {
@@ -162,13 +147,24 @@ export function rollWeaponBoosterValue(kind: WeaponBoosterKind, rarity: string):
 }
 
 // Sorteia `count` boosters únicos do pool (sem repetir slug).
-export function rollWeaponBoosters(rarity: string, count = 3, pool: WeaponBoosterDef[] = WEAPON_BOOSTER_POOL): WeaponBoosterInstance[] {
-  const active = pool.slice();
+// Quando subtype é informado, favorece boosters do tipo correto (~60% biased, 40% geral).
+export function rollWeaponBoosters(rarity: string, count = 3, pool: WeaponBoosterDef[] = WEAPON_BOOSTER_POOL, subtype?: string): WeaponBoosterInstance[] {
+  const biasedKinds = subtype ? SUBTYPE_KIND_BIAS[subtype.toLowerCase()] : undefined;
   const out: WeaponBoosterInstance[] = [];
-  const target = Math.min(count, active.length);
-  while (out.length < target && active.length > 0) {
-    const i = Math.floor(Math.random() * active.length);
-    const picked = active.splice(i, 1)[0];
+  const usedSlugs = new Set<string>();
+  const target = Math.min(count, pool.length);
+  while (out.length < target && usedSlugs.size < pool.length) {
+    // 60% chance de pegar do conjunto biased se existir
+    let candidates = pool;
+    if (biasedKinds && Math.random() < 0.6) {
+      const biased = pool.filter((b) => biasedKinds.includes(b.kind) && !usedSlugs.has(b.slug));
+      if (biased.length > 0) candidates = biased;
+    }
+    // filtra usados
+    const available = candidates.filter((b) => !usedSlugs.has(b.slug));
+    if (available.length === 0) break;
+    const picked = available[Math.floor(Math.random() * available.length)];
+    usedSlugs.add(picked.slug);
     out.push({
       slug: picked.slug,
       name: picked.name,

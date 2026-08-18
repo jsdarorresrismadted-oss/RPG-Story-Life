@@ -9,18 +9,12 @@ export const WEAPON_BOOSTER_LABELS: Record<string, string> = {
   critDamage: "Dano Crítico",
   penetration: "Penetração",
   hitChance: "Precisão",
-  dodge: "Esquiva",
-  lifestealPercent: "Roubo de Vida",
-  manaStealPercent: "Roubo de Mana",
   doubleStrikeChance: "Golpe Duplo",
   attackSpeedPercent: "Velocidade de Ataque",
   cooldownReduction: "Redução de Cooldown",
   dotPercent: "Dano Contínuo (DOT)",
-  healingPercent: "Cura",
   executionPercent: "Golpe de Execução",
   fullHpDamagePercent: "Emboscada (HP cheio)",
-  damageTakenReduction: "Redução de Dano Recebido",
-  thornsPercent: "Espinhos (Reflexo)",
 };
 
 export function weaponBoosterLabel(kind: string): string {
