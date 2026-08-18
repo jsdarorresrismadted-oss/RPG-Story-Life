@@ -3,10 +3,8 @@ import { AppError } from "../middleware/errorHandler";
 import { callGemini, callGroq, extractJson, num, clamp } from "./monsterGenerator";
 
 // ===== Gerador de mapas via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
-// Mesmo padrão dos demais geradores: Gemini primeiro, Groq como fallback.
-// Cria apenas o MAPA (sem monstros): dados, tipo (normal/raid), stats de raid
-// e o PINO no mapa mundi (pinLeft/pinTop) — o ponto onde o jogador se vê no
-// mapa e clica para entrar.
+// Versão simplificada: gera apenas os dados essenciais do mapa.
+// Monstros, NPCs e conexões são adicionados manualmente no admin.
 
 const VALID_TYPES = ["normal", "raid"];
 
@@ -26,46 +24,33 @@ export interface GeneratedMap {
 }
 
 function buildPrompt(idea: string): string {
-  return `Você é um designer de mapas de um MMORPG de texto brasileiro. Gere UM mapa completo seguindo EXATAMENTE o contrato abaixo.
+  return `Gere UM mapa de MMORPG de texto brasileiro. Responda APENAS com JSON válido.
 
-CONTRATO (responda apenas com JSON válido, sem markdown):
-
+CONTRATO:
 {
-  "map": {
-    "name": "Nome pt-BR do mapa (curto e evocativo)",
-    "slug": "slug unico em minusculas (ex: floresta-negra)",
-    "description": "1-2 frases descrevendo o local e o clima.",
-    "imageUrl": null,
-    "region": "Nome da região pt-BR (ex: Floresta de Verdania)",
-    "requiredLevel": 1,
-    "sortOrder": 0,
-    "type": "normal|raid",
-    "raidResetHours": 24,
-    "maxRaidAttempts": 3,
-    "raidWaves": 10,
-    "raidDifficulty": 2,
-    "isPvPZone": false,
-    "isActive": true,
-    "pinLeft": 50,
-    "pinTop": 50
-  }
+  "name": "Nome curto em pt-BR",
+  "slug": "slug-minusculo-sem-acentos",
+  "description": "1 frase descrevendo o local",
+  "region": "Nome da região",
+  "requiredLevel": 1,
+  "type": "normal",
+  "pinLeft": 50,
+  "pinTop": 50
 }
 
 REGRAS:
-- level 1 a 99. Se o mapa tiver monstros, o requiredLevel deve ser coerente com o nível deles.
-- type "raid" = masmorra com ondas + chefe, tentativas limitadas e reset em horas (raidResetHours 12-48, maxRaidAttempts 1-5, raidWaves 5-15, raidDifficulty 1-5).
-- type "normal" = zona comum: raidResetHours/maxRaidAttempts/raidWaves/raidDifficulty devem ser null.
-- pinLeft e pinTop (0 a 100) são a posição EM PORCENTAGEM do ponto do mapa no mapa mundi — onde o jogador vai se ver e clicar para entrar. Posicione espalhado (não deixe tudo no centro).
-- region pode ser "Walking Dead" se o pedido for de outro jogo.
-- NÃO inclua monstros, NPCs nem itens no JSON.
+- requiredLevel: 1-99 (nível mínimo para entrar)
+- type: "normal" (zona comum) ou "raid" (masmorra)
+- pinLeft/pinTop: posição no mapa mundi (0-100, em %)
+- Para raid, adicione: raidResetHours (12-48), maxRaidAttempts (1-5), raidWaves (5-15), raidDifficulty (1-5)
+- NÃO inclua monstros, NPCs ou itens
 
-PEDIDO DO USUÁRIO (atenda fielmente o tema, fantasia e mecânicas pedidos):
-"${idea}"`;
+PEDIDO: "${idea}"`;
 }
 
 function normalize(raw: any, errors: string[]): GeneratedMap {
   const m = raw?.map || raw;
-  if (!m || !m.name) throw new Error("JSON inválido: campo map.name ausente");
+  if (!m || !m.name) throw new Error("JSON inválido: campo name ausente");
 
   const type = VALID_TYPES.includes(m.type) ? m.type : "normal";
   const slug = slugify(m.slug || m.name);
@@ -73,7 +58,6 @@ function normalize(raw: any, errors: string[]): GeneratedMap {
 
   const pinLeft = clamp(num(m.pinLeft, 50), 0, 100);
   const pinTop = clamp(num(m.pinTop, 50), 0, 100);
-  if (type === "normal") errors.push("Mapa normal criado (sem raid)");
 
   return {
     map: {
@@ -83,13 +67,13 @@ function normalize(raw: any, errors: string[]): GeneratedMap {
       imageUrl: null,
       region: String(m.region || "Mundo").trim().slice(0, 60),
       requiredLevel: clamp(Math.round(num(m.requiredLevel, 1)), 1, 99),
-      sortOrder: Math.max(0, Math.round(num(m.sortOrder, 0))),
+      sortOrder: 0,
       type,
-      raidResetHours: type === "raid" ? clamp(Math.round(num(m.raidResetHours, 24)), 1, 168) : null,
-      maxRaidAttempts: type === "raid" ? clamp(Math.round(num(m.maxRaidAttempts, 3)), 1, 10) : null,
-      raidWaves: type === "raid" ? clamp(Math.round(num(m.raidWaves, 10)), 3, 30) : 10,
+      raidResetHours: type === "raid" ? clamp(Math.round(num(m.raidResetHours, 24)), 12, 48) : null,
+      maxRaidAttempts: type === "raid" ? clamp(Math.round(num(m.maxRaidAttempts, 3)), 1, 5) : null,
+      raidWaves: type === "raid" ? clamp(Math.round(num(m.raidWaves, 10)), 5, 15) : 10,
       raidDifficulty: type === "raid" ? clamp(num(m.raidDifficulty, 2), 1, 5) : 2,
-      isPvPZone: !!m.isPvPZone,
+      isPvPZone: false,
       isActive: true,
       pinLeft,
       pinTop,
@@ -129,10 +113,9 @@ export async function generateMap(idea: string, providerLog: string[]): Promise<
       }
     }
   }
-  throw new AppError(502, `Falha ao gerar mapa (Gemini e Groq indisponíveis): ${lastErr?.message?.slice(0, 200)}`);
+  throw new AppError(502, `Falha ao gerar mapa: ${lastErr?.message?.slice(0, 200)}`);
 }
 
-// Cria o mapa no banco (sem monstros). Warns caso o slug já exista (renomeia com sufixo).
 export async function persistGeneratedMap(gen: GeneratedMap): Promise<any> {
   const warnings: string[] = [];
   let slug = gen.map.slug;

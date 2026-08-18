@@ -1348,24 +1348,21 @@ export function createAdminModule(app: Express): void {
 
   app.delete("/api/admin/maps/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const mapId = req.params.id;
+      // Busca quests do mapa para deletar progresso tambem
+      const questIds = (await prisma.quest.findMany({ where: { mapId }, select: { id: true } })).map(q => q.id);
       await prisma.$transaction([
-        prisma.mapMonster.deleteMany({ where: { mapId: req.params.id } }),
-        prisma.mapNpc.deleteMany({ where: { mapId: req.params.id } }),
-        prisma.mapConnection.deleteMany({
-          where: { OR: [{ fromMapId: req.params.id }, { toMapId: req.params.id }] },
-        }),
-        prisma.quest.deleteMany({ where: { mapId: req.params.id, progress: { none: {} } } }),
-        prisma.raidRun.deleteMany({ where: { mapId: req.params.id } }),
-        prisma.map.delete({ where: { id: req.params.id } }),
+        prisma.raidRun.deleteMany({ where: { mapId } }),
+        prisma.questProgress.deleteMany({ where: { questId: { in: questIds } } }),
+        prisma.quest.deleteMany({ where: { mapId } }),
+        prisma.mapMonster.deleteMany({ where: { mapId } }),
+        prisma.mapNpc.deleteMany({ where: { mapId } }),
+        prisma.mapConnection.deleteMany({ where: { OR: [{ fromMapId: mapId }, { toMapId: mapId }] } }),
+        prisma.map.delete({ where: { id: mapId } }),
       ]);
       res.json({ message: "Deleted" });
-    } catch {
-      try {
-        await prisma.map.update({ where: { id: req.params.id }, data: { isActive: false } });
-        res.json({ message: "Desativado (ainda referenciado por jogadores)" });
-      } catch (err) {
-        next(new AppError(400, "Registro referenciado por outros dados e não pôde ser excluído"));
-      }
+    } catch (err) {
+      next(new AppError(400, `Falha ao excluir mapa: ${(err as Error).message?.slice(0, 200)}`));
     }
   });
 
