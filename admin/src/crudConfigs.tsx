@@ -222,7 +222,7 @@ export const crudConfigs: CrudConfig[] = [
         optionsFor: {
           source: "type",
           map: {
-            weapon: ["sword", "dagger", "staff", "axe", "tome", "bow"],
+            weapon: ["sword", "dagger", "longsword", "axe", "mace", "spear", "bow", "staff"],
             helm: ["cap", "helmet", "crown", "hood"],
             armor: ["light", "heavy", "robe"],
             cape: [],
@@ -266,7 +266,7 @@ export const crudConfigs: CrudConfig[] = [
         name: "subtype",
         label: "Sub-tipo",
         type: "select",
-        options: ["sword", "dagger", "staff", "axe", "tome", "bow", "cap", "helmet", "crown", "hood", "light", "heavy", "robe", "potion", "scroll", "food", "material", "ore", "dust", "bone", "essence"],
+        options: ["sword", "dagger", "longsword", "axe", "mace", "spear", "bow", "staff", "cap", "helmet", "crown", "hood", "light", "heavy", "robe", "potion", "scroll", "food", "material", "ore", "dust", "bone", "essence"],
       },
       {
         name: "rarity",
