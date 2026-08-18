@@ -339,7 +339,7 @@ export function ClassPage() {
       {/* Skills */}
       <div className="panel p-4">
         <h3 className="font-display font-semibold mb-3 flex items-center gap-2">
-          <Sword size={16} className="text-purple-400" /> Skills ({skills.length} de 5 · auto + ativas + ultimate)
+          <Sword size={16} className="text-purple-400" /> Habilidades ({actives.length + (ultimate ? 1 : 0)} · ativas + ultimate — o ataque automático não conta)
         </h3>
         {autoSkill && (
           <>

@@ -250,7 +250,7 @@ export default function AiClassGenerator({ onGenerated }: { onGenerated: () => v
                       </div>
                     )}
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500">
-                      <span>Skills: {r.skills}</span>
+                      <span>Skills: {r.skills} + auto</span>
                       <span>Passivas: {r.passives}</span>
                       {r.effects.length > 0 && <span>Efeitos: {r.effects.join(", ")}</span>}
                     </div>

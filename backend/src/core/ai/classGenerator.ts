@@ -163,8 +163,10 @@ REGRAS DE CORE STATS (${CORE_KEYS.join(", ")}):
 - SOMA TOTAL livre (sem limite máximo). Distribua de acordo com a fantasy da classe (tank = endurance/strength; mage = intellect; assassino = dexterity/luck; suporte = wisdom/intellect).
 
 REGRAS DE SKILLS (EXATAMENTE 5 skills, NUNCA mais nem menos):
-- Skill 1: o ataque automático — trigger "auto", kind "attack", target "enemy", cooldown 2000, manaCost 0, rankRequired 1, sortOrder 1, actions: [{ action: "damage", amount: 6-10, scaling: [{ stat: "attack"|"magic", factor: 0.8-1.2 }], damageType: "physical"|"magic" }].
-- Skills 2, 3 e 4: trigger "active", rankRequired 2, 3 e 4 (respectivamente, sortOrder 2, 3 e 4), cooldown 3000-30000, manaCost 5-35.
+- Skill 1: o ATAQUE AUTOMÁTICO — NÃO conta como skill na contagem do jogo. trigger "auto", kind "attack", target "enemy", cooldown 2000, manaCost 0, rankRequired 1, sortOrder 1, actions: [{ action: "damage", amount: 6-10, scaling: [{ stat: "attack"|"magic", factor: 0.8-1.2 }], damageType: "physical"|"magic" }].
+- Skill 2: trigger "active", rankRequired 1 (sempre), sortOrder 2, cooldown 3000-30000, manaCost 5-35.
+- Skill 3: trigger "active", rankRequired 2 (sempre), sortOrder 3, cooldown 3000-30000, manaCost 5-35.
+- Skill 4: trigger "active", rankRequired 3 (sempre), sortOrder 4, cooldown 3000-30000, manaCost 5-35.
 - Skill 5: a ULTIMATE — trigger "ultimate" (sempre), rankRequired 5 (sempre), sortOrder 5, cooldown 25000-45000, manaCost 20-40, poderosa (dano/heal/buff forte, condizente com ser a skill definitiva da classe).
 - Ações válidas (actions):
   • { action: "damage", amount: <n>, scaling: [{ stat: "attack"|"magic", factor: <0.5-2> }], damageType: "physical"|"magic" }
@@ -173,7 +175,7 @@ REGRAS DE SKILLS (EXATAMENTE 5 skills, NUNCA mais nem menos):
 - Toda skill que usar applyEffect DEVE referenciar um efeito existente em "effects" (você gera) ou um já existente no jogo (furia-do-guerreiro, armadura-arcana, passo-das-sombras, foco-arcano, bencao-da-luz, sangramento, chama-arcana, veneno-corrosivo).
 
 REGRAS DE PASSIVAS (exatamente 3):
-- rankRequired: 6, 8 e 10. sortOrder: 1, 2, 3.
+- rankRequired: 4, 8 e 10 (a primeira passiva vem cedo, no Rank 4). sortOrder: 1, 2, 3.
 - statModifiers: { flat: { <chave>: <n> }, percent: { <chave>: <n> } } — use um ou ambos.
 - Chaves flat válidas: ${FLAT_PASSIVE_KEYS.join(", ")}.
 - Chaves percent válidas: ${PERCENT_PASSIVE_KEYS.join(", ")} (valores em %).
@@ -319,7 +321,7 @@ function normalize(raw: any, errors: string[]): GeneratedClass {
       cooldown: Math.max(0, Math.round(num(s.cooldown, 0))),
       manaCost: Math.max(0, Math.round(num(s.manaCost, 0))),
       rankRequired:
-        s.trigger === "ultimate" ? 5 : [2, 3, 4].includes(num(s.rankRequired, 1)) ? num(s.rankRequired, 1) : i === 0 ? 1 : 2,
+        s.trigger === "ultimate" ? 5 : [1, 2, 3].includes(num(s.rankRequired, 1)) ? num(s.rankRequired, 1) : i === 0 ? 1 : 1,
       sortOrder: Math.round(num(s.sortOrder, i + 1)),
       actions,
     };
@@ -349,7 +351,7 @@ function normalize(raw: any, errors: string[]): GeneratedClass {
       name: p.name,
       slug: slugify(p.slug || p.name),
       description: p.description || "",
-      rankRequired: [6, 8, 10][i] || num(p.rankRequired, [6, 8, 10][i] || 1),
+      rankRequired: [4, 8, 10][i] || num(p.rankRequired, [4, 8, 10][i] || 1),
       sortOrder: i + 1,
       statModifiers: { flat, percent },
     };
@@ -615,7 +617,7 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
     requiredLevel: gameClass.requiredLevel,
     price: gameClass.price,
     isActive: gameClass.isActive,
-    skills: gen.skills.length,
+    skills: gen.skills.filter((s: any) => s.trigger !== "auto").length,
     passives: gen.passives.length,
     effects: gen.effects.map((e: any) => e.slug),
     coreStats: gen.sm.coreStats,
