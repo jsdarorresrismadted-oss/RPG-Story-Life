@@ -8,7 +8,7 @@ import { generateSkillIconsBatch } from "./skillIconGenerator";
 // Gemini é tentado primeiro; se falhar, Groq é o fallback.
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export function aiProvidersAvailable() {
   return {

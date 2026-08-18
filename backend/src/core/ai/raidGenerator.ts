@@ -8,7 +8,7 @@ import { callGemini, callGroq, extractJson, num, clamp, persistMonsterData, VALI
 // agregadas a partir dos monstros vinculados ao mapa (MapMonster).
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export interface GeneratedRaid {
   raid: any;

@@ -8,7 +8,7 @@ import { rollWeaponBoosters, WeaponBoosterInstance } from "../weapon-boosters";
 // - Nao gera imagens: os itens recebem o icone padrao da biblioteca por tipo/subtipo
 //   (frontend/public), garantindo que todo item gerado siga o padrao visual.
 
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 // ===== Icones padrao (biblioteca frontend/public) =====
 // Subtipo com icone proprio; senao cai no icone do tipo; senao null (fallback no front).

@@ -7,7 +7,7 @@ import { getGameLimits } from "../gameLimits";
 // Gera stats, skills (DSL do motor de batalha) e drops (por NOME de item + taxa).
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export interface GeneratedMonster {
   monster: any; // primeiro monstro (compatibilidade)

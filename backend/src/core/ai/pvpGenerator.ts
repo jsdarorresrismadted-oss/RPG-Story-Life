@@ -8,7 +8,7 @@ import { callGemini, callGroq, extractJson, num, clamp } from "./monsterGenerato
 // entrada, recompensas, matchmaking e temporada.
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export const PVP_CONFIG_KEY = "pvp_arena";
 
