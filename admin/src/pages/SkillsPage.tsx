@@ -242,7 +242,7 @@ export default function SkillsPage() {
         currentIcon: form.icon,
         seed: editing?.id ? `${editing.id}-${form.name}` : form.name,
       });
-      setForm({ ...form, icon: data.icon, iconSecondary: data.iconSecondary });
+      setForm({ ...form, icon: data.icon });
       toast.success("Artes geradas! Revise e salve.");
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Falha ao gerar artes");

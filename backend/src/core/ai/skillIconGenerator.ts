@@ -6,9 +6,9 @@ import sharp from "sharp";
 // Usa Gemini Image (GEMINI_IMAGE_MODEL) quando GEMINI_API_KEY existe;
 // caso contrário usa Pollinations.ai (grátis), com seed fixo para manter
 // consistência visual (~90% do estilo das artes atuais de iconskill/).
-// Gera SEMPRE um par: ícone principal + ícone secundário (efeito).
-// Geração em LOTE: N ícones em UMA imagem só (1 chamada de IA) e recorta
-// cada célula — evita estourar o limite diário da Gemini em classes (5 skills).
+// Geração em LOTE: TODOS os ícones de uma classe em UMA única imagem
+// (1 chamada de IA) e recorta cada célula — evita estourar o limite
+// diário da Gemini. Cada classe = 1 chamada de IA para os 5 ícones.
 
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const SKILL_DIR = path.resolve(__dirname, "../../../../frontend/public/iconskill");
@@ -43,13 +43,6 @@ function hashSeed(str: string): number {
   let h = 5381;
   for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
   return h % 100000;
-}
-
-function buildPrompt(input: { name: string; kind: string; description: string; variant: "primary" | "secondary" }): string {
-  const theme = KIND_THEMES[input.kind] || KIND_THEMES.attack;
-  const extra = input.variant === "secondary" ? " the same spell shown as the secondary/companion effect icon, complementary to the main icon" : "";
-  const description = input.description ? ` Inspired by this description: "${input.description}".` : "";
-  return `Create a ${input.variant === "secondary" ? "secondary" : "primary"} skill icon for the spell "${input.name}" (kind: ${input.kind}): ${theme}${extra}.${description} ${STYLE_TAG}`;
 }
 
 const genTimeout = (ms: number) => {
@@ -136,23 +129,14 @@ export interface SkillIconInput {
   key?: string; // chave de retorno + nome do arquivo (slug da skill)
 }
 
-export interface SkillIconsResult {
-  icon: string;
-  iconSecondary: string;
-}
-
-function buildBatchPrompt(inputs: SkillIconInput[], variant: "primary" | "secondary"): string {
+function buildBatchPrompt(inputs: SkillIconInput[]): string {
   const lines = inputs.map((inp, i) => {
     const theme = KIND_THEMES[String(inp.kind || "attack").toLowerCase()] || KIND_THEMES.attack;
     const desc = inp.description ? ` Inspired by this description: "${inp.description}".` : "";
     return `${i + 1}. "${inp.name}" (kind: ${inp.kind || "attack"}): ${theme}${desc}`;
   });
-  const variantDesc =
-    variant === "secondary"
-      ? "secondary/companion effect icons of the same spells, complementing the main icons"
-      : "primary skill icons of the spells";
   return (
-    `Create a SINGLE image containing exactly ${inputs.length} ${variantDesc}, ` +
+    `Create a SINGLE image containing exactly ${inputs.length} primary skill icons of the spells, ` +
     `arranged in one vertical column, top to bottom, in this exact order, each occupying its own equal square cell with no gaps, borders or numbers:\n${lines.join("\n")}\n\n` +
     `Each cell must be an isolated 64x64 square classic MMORPG skill icon. ${STYLE_TAG}`
   );
@@ -183,16 +167,16 @@ async function sliceAndSave(fileNames: string[], buffer: Buffer, n: number): Pro
 
 // Gera N ícones em UMA única chamada de IA (Gemini ou Pollinations) e recorta.
 // Retorna um mapa key (slug da skill) → caminho do ícone.
-export async function generateSkillIconsBatch(inputs: SkillIconInput[], variant: "primary" | "secondary"): Promise<Record<string, string>> {
+export async function generateSkillIconsBatch(inputs: SkillIconInput[]): Promise<Record<string, string>> {
   const list = inputs.slice(0, 10);
   if (list.length === 0) return {};
   const n = list.length;
   const fileNames = list.map((inp) => {
     const slug = inp.key || slugify(inp.name);
     const seed = typeof inp.seed === "number" ? inp.seed : hashSeed(String(inp.seed || inp.name));
-    return `ai-${slug}-${seed}${variant === "secondary" ? "-sec" : ""}`;
+    return `ai-${slug}-${seed}`;
   });
-  const prompt = buildBatchPrompt(list, variant);
+  const prompt = buildBatchPrompt(list);
 
   const useGemini = !!process.env.GEMINI_API_KEY && !!process.env.GEMINI_IMAGE_MODEL;
   let buffer: Buffer;
@@ -201,7 +185,7 @@ export async function generateSkillIconsBatch(inputs: SkillIconInput[], variant:
     const result = await geminiImage(prompt, refB64, true);
     buffer = result.buffer;
   } else {
-    const seed = hashSeed(list.map((i) => String(i.name)).join("|") + variant);
+    const seed = hashSeed(list.map((i) => String(i.name)).join("|"));
     const result = await pollinationsImage(prompt, null, seed, n);
     buffer = result.buffer;
   }
@@ -228,7 +212,7 @@ async function firstReferenceB64(inputs: SkillIconInput[]): Promise<string | nul
   return null;
 }
 
-export async function generateSkillIcons(input: SkillIconInput): Promise<SkillIconsResult> {
+export async function generateSkillIcons(input: SkillIconInput): Promise<{ icon: string }> {
   const name = String(input.name || "").trim();
   if (!name) throw new Error("Nome da skill é obrigatório");
   const kind = String(input.kind || "attack").toLowerCase();
@@ -237,8 +221,7 @@ export async function generateSkillIcons(input: SkillIconInput): Promise<SkillIc
   const seed = typeof input.seed === "number" ? input.seed : hashSeed(String(input.seed || name));
   const referenceUrl = typeof input.currentIcon === "string" && /^https?:\/\//i.test(input.currentIcon.trim()) ? input.currentIcon.trim() : null;
 
-  const primary = buildPrompt({ name, kind, description, variant: "primary" });
-  const secondary = buildPrompt({ name, kind, description, variant: "secondary" });
+  const prompt = buildBatchPrompt([{ ...input, key: slug }]);
 
   const useGemini = !!process.env.GEMINI_API_KEY && !!process.env.GEMINI_IMAGE_MODEL;
   let refB64: string | null = null;
@@ -251,15 +234,10 @@ export async function generateSkillIcons(input: SkillIconInput): Promise<SkillIc
     }
   }
 
-  const primaryResult = useGemini
-    ? await geminiImage(primary, refB64)
-    : await pollinationsImage(primary, referenceUrl, seed);
-  const secondaryResult = useGemini
-    ? await geminiImage(secondary, refB64)
-    : await pollinationsImage(secondary, referenceUrl, seed + 1);
+  const result = useGemini
+    ? await geminiImage(prompt, refB64)
+    : await pollinationsImage(prompt, referenceUrl, seed);
 
-  const icon = await writeIcon(`ai-${slug}-${seed}`, primaryResult);
-  const iconSecondary = await writeIcon(`ai-${slug}-${seed}-sec`, secondaryResult);
-
-  return { icon, iconSecondary };
+  const icon = await writeIcon(`ai-${slug}-${seed}`, result);
+  return { icon };
 }

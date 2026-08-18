@@ -548,36 +548,26 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
   });
 
   // 4) Skills + passivas — cada skill recebe ARTE REAL gerada por IA de imagem
-  //    (Gemini Image se configurado, senão Pollinations). Para não estourar o
-  //    limite de imagens da IA, TODOS os ícones de uma classe são pedidos em
-  //    UMA imagem só (1 chamada para os principais + 1 para os secundários) e
-  //    recortados em células 64x64. Se a arte falhar, mantém o ícone padrão e
-  //    registra o aviso — a classe continua salva.
+  //    (Gemini Image se configurado, senão Pollinations). TODOS os ícones de
+  //    uma classe são pedidos em UMA imagem só (1 chamada de IA) e recortados
+  //    em células 64x64. Se a arte falhar, mantém o ícone padrão e registra
+  //    o aviso — a classe continua salva.
   const iconWarnings: string[] = [];
   const artInputs = gen.skills.map((s) => ({ key: s.slug, name: s.name, description: s.description, kind: s.kind }));
-  let batchArt: Record<string, { icon: string | null; iconSecondary: string | null }> = {};
+  let batchArt: Record<string, string> = {};
   try {
-    const [primary, secondary] = await Promise.all([
-      generateSkillIconsBatch(artInputs, "primary"),
-      generateSkillIconsBatch(artInputs, "secondary"),
-    ]);
-    for (const s of gen.skills) {
-      batchArt[s.slug] = { icon: primary[s.slug] ?? null, iconSecondary: secondary[s.slug] ?? null };
-    }
+    batchArt = await generateSkillIconsBatch(artInputs);
   } catch (err: any) {
     iconWarnings.push(`Arte das skills não gerada (${(err as Error).message?.slice(0, 120)}), usando ícones padrão`);
   }
   for (const s of gen.skills) {
-    const art = batchArt[s.slug];
-    const icon: string | null = art?.icon ?? s.icon ?? null;
-    const iconSecondary: string | null = art?.iconSecondary ?? null;
+    const icon: string | null = batchArt[s.slug] ?? s.icon ?? null;
     await prisma.skill.create({
       data: {
         name: s.name,
         slug: s.slug,
         description: s.description || "",
         icon,
-        iconSecondary,
         kind: s.kind,
         trigger: s.trigger,
         target: s.target,
