@@ -681,12 +681,11 @@ export function CombatPage() {
         </div>
       </div>
 
-      {/* ===== EQUIPAMENTO (com encantamentos — sem precisar abrir o inventário) ===== */}
+      {/* ===== INVENTÁRIO (itens equipados, poções etc.) ===== */}
       {equipment.length > 0 && (
         <div className="panel p-4 mt-6">
           <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Shield size={13} className="text-yellow-400" /> Equipamento
-            <span className="text-[10px] text-gray-600 normal-case">· encantamentos visíveis aqui</span>
+            <Shield size={13} className="text-yellow-400" /> Inventário
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {equipment.map((inv) => {
