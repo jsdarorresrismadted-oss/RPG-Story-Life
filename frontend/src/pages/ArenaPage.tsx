@@ -530,11 +530,8 @@ export function ArenaPage() {
                         </span>
                       )}
                       {skill.icon ? (
-                        <div className="relative w-6 h-6 mx-auto mb-1">
+                        <div className="w-6 h-6 mx-auto mb-1">
                           <EntityIcon src={skill.icon} size={22} className="mx-auto" imgClassName="w-full h-full object-contain" />
-                          {skill.iconSecondary && (
-                            <EntityIcon src={skill.iconSecondary} size={22} className="absolute inset-0" imgClassName="absolute inset-0 w-full h-full object-contain translate-x-1 translate-y-1" />
-                          )}
                         </div>
                       ) : skill.trigger === "ultimate" ? (
                         <Zap size={18} className="mx-auto mb-1 text-yellow-400" />

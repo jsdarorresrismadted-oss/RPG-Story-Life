@@ -166,11 +166,8 @@ export function ClassPage() {
           }`}>
             {locked ? <Lock size={16} className="text-gray-300" />
               : skill.icon ? (
-                <div className="relative w-10 h-10 flex items-center justify-center">
+                <div className="w-10 h-10 flex items-center justify-center">
                   <EntityIcon src={skill.icon} size={22} className="text-white" imgClassName="w-8 h-8 object-contain" />
-                  {skill.iconSecondary && (
-                    <EntityIcon src={skill.iconSecondary} size={22} className="absolute inset-0" imgClassName="absolute inset-0 w-8 h-8 m-auto object-contain translate-x-1 translate-y-1" />
-                  )}
                 </div>
               )
               : isUlt ? <Zap size={18} className="text-white" />
@@ -384,11 +381,8 @@ export function ClassPage() {
             <div>
               <div className="flex items-center gap-2">
                 {selectedSkill.icon && (
-                  <div className="relative w-8 h-8 shrink-0">
+                  <div className="w-8 h-8 shrink-0">
                     <EntityIcon src={selectedSkill.icon} size={22} className="text-white" imgClassName="w-full h-full object-contain" />
-                    {selectedSkill.iconSecondary && (
-                      <EntityIcon src={selectedSkill.iconSecondary} size={22} className="absolute inset-0" imgClassName="absolute inset-0 w-full h-full object-contain translate-x-1 translate-y-1" />
-                    )}
                   </div>
                 )}
                 <h3 className="text-lg font-display font-bold">{selectedSkill.name}</h3>

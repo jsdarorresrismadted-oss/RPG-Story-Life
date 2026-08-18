@@ -174,7 +174,6 @@ export default function SkillsPage() {
       slug: form.slug || form.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || `skill-${Date.now()}`,
       description: form.description,
       icon: form.icon || null,
-      iconSecondary: form.iconSecondary || null,
       kind: form.kind,
       trigger: form.trigger,
       target: form.target,
@@ -698,10 +697,6 @@ export default function SkillsPage() {
                 <div>
                   <label className="block text-sm text-gray-400 mb-1.5">Icon</label>
                   <IconPicker categories={["Skills"]} value={form.icon} onChange={(v) => setForm({ ...form, icon: v })} placeholder="Ícone principal da skill" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1.5">Icon Secundário (efeito)</label>
-                  <IconPicker categories={["Skills"]} value={form.iconSecondary} onChange={(v) => setForm({ ...form, iconSecondary: v })} placeholder="Ícone extra exibido junto" />
                 </div>
                 <div className="sm:col-span-2">
                   <button

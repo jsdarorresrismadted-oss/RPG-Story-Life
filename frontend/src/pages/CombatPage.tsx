@@ -790,11 +790,8 @@ export function CombatPage() {
                     {locked ? (
                       <Lock size={18} className="mx-auto mb-1 text-gray-500" />
                     ) : skill.icon ? (
-                      <div className="relative mx-auto mb-1 w-6 h-6">
+                      <div className="mx-auto mb-1 w-6 h-6">
                         <EntityIcon src={skill.icon} size={22} className="mx-auto" imgClassName="w-full h-full object-contain" />
-                        {skill.iconSecondary && (
-                          <EntityIcon src={skill.iconSecondary} size={22} className="absolute inset-0" imgClassName="absolute inset-0 w-full h-full object-contain translate-x-1 translate-y-1" />
-                        )}
                       </div>
                     ) : skill.trigger === "ultimate" ? (
                       <Zap size={18} className="mx-auto mb-1 text-yellow-400" />
