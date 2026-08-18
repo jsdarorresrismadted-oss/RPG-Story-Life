@@ -1,11 +1,14 @@
 import { promises as fs } from "fs";
 import path from "path";
+import sharp from "sharp";
 
 // ===== Gerador de arte de skills via IA (imagem) =====
 // Usa Gemini Image (GEMINI_IMAGE_MODEL) quando GEMINI_API_KEY existe;
 // caso contrário usa Pollinations.ai (grátis), com seed fixo para manter
 // consistência visual (~90% do estilo das artes atuais de iconskill/).
 // Gera SEMPRE um par: ícone principal + ícone secundário (efeito).
+// Geração em LOTE: N ícones em UMA imagem só (1 chamada de IA) e recorta
+// cada célula — evita estourar o limite diário da Gemini em classes (5 skills).
 
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const SKILL_DIR = path.resolve(__dirname, "../../../../frontend/public/iconskill");
@@ -54,11 +57,14 @@ const genTimeout = (ms: number) => {
   return undefined;
 };
 
-async function geminiImage(prompt: string, referenceB64: string | null): Promise<{ buffer: Buffer; mime: string }> {
+async function geminiImage(prompt: string, referenceB64: string | null, portrait = false): Promise<{ buffer: Buffer; mime: string }> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY não definida");
   const parts: any[] = [{ text: prompt }];
   if (referenceB64) parts.push({ inlineData: { mimeType: "image/png", data: referenceB64 } });
+  const generationConfig: any = { responseModalities: ["TEXT", "IMAGE"] };
+  // Em lote (N ícones empilhados): imagem vertical para cada célula sair quadrada.
+  if (portrait) generationConfig.imageConfig = { aspectRatio: "9:16" };
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent?key=${key}`,
     {
@@ -67,7 +73,7 @@ async function geminiImage(prompt: string, referenceB64: string | null): Promise
       signal: genTimeout(120000),
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+        generationConfig,
       }),
     }
   );
@@ -86,10 +92,10 @@ async function geminiImage(prompt: string, referenceB64: string | null): Promise
   return { buffer: Buffer.from(imagePart.inlineData.data, "base64"), mime };
 }
 
-async function pollinationsImage(prompt: string, referenceUrl: string | null, seed: number): Promise<{ buffer: Buffer; mime: string }> {
+async function pollinationsImage(prompt: string, referenceUrl: string | null, seed: number, cells = 1): Promise<{ buffer: Buffer; mime: string }> {
   const params = new URLSearchParams({
     width: "64",
-    height: "64",
+    height: String(64 * cells),
     seed: String(seed),
     nologo: "true",
     model: "flux",
@@ -127,11 +133,99 @@ export interface SkillIconInput {
   kind?: string;
   currentIcon?: string | null;
   seed?: string | number;
+  key?: string; // chave de retorno + nome do arquivo (slug da skill)
 }
 
 export interface SkillIconsResult {
   icon: string;
   iconSecondary: string;
+}
+
+function buildBatchPrompt(inputs: SkillIconInput[], variant: "primary" | "secondary"): string {
+  const lines = inputs.map((inp, i) => {
+    const theme = KIND_THEMES[String(inp.kind || "attack").toLowerCase()] || KIND_THEMES.attack;
+    const desc = inp.description ? ` Inspired by this description: "${inp.description}".` : "";
+    return `${i + 1}. "${inp.name}" (kind: ${inp.kind || "attack"}): ${theme}${desc}`;
+  });
+  const variantDesc =
+    variant === "secondary"
+      ? "secondary/companion effect icons of the same spells, complementing the main icons"
+      : "primary skill icons of the spells";
+  return (
+    `Create a SINGLE image containing exactly ${inputs.length} ${variantDesc}, ` +
+    `arranged in one vertical column, top to bottom, in this exact order, each occupying its own equal square cell with no gaps, borders or numbers:\n${lines.join("\n")}\n\n` +
+    `Each cell must be an isolated 64x64 square classic MMORPG skill icon. ${STYLE_TAG}`
+  );
+}
+
+// Recorta uma imagem em `n` células iguais (coluna vertical, de cima para baixo),
+// redimensiona cada uma para 64x64 PNG e salva em frontend/public/iconskill.
+async function sliceAndSave(fileNames: string[], buffer: Buffer, n: number): Promise<string[]> {
+  const img = sharp(buffer);
+  const meta = await img.metadata();
+  const width = meta.width || 64;
+  const height = meta.height || 64 * n;
+  const cellH = Math.max(1, Math.floor(height / n));
+  const urls: string[] = [];
+  await fs.mkdir(SKILL_DIR, { recursive: true });
+  for (let i = 0; i < n; i++) {
+    const tile = await sharp(buffer)
+      .extract({ left: 0, top: Math.min(height - cellH, i * cellH), width, height: cellH })
+      .resize(64, 64, { fit: "cover" })
+      .png()
+      .toBuffer();
+    const file = `${fileNames[i]}.png`;
+    await fs.writeFile(path.join(SKILL_DIR, file), tile);
+    urls.push(`${ICON_URL_PREFIX}/${file}`);
+  }
+  return urls;
+}
+
+// Gera N ícones em UMA única chamada de IA (Gemini ou Pollinations) e recorta.
+// Retorna um mapa key (slug da skill) → caminho do ícone.
+export async function generateSkillIconsBatch(inputs: SkillIconInput[], variant: "primary" | "secondary"): Promise<Record<string, string>> {
+  const list = inputs.slice(0, 10);
+  if (list.length === 0) return {};
+  const n = list.length;
+  const fileNames = list.map((inp) => {
+    const slug = inp.key || slugify(inp.name);
+    const seed = typeof inp.seed === "number" ? inp.seed : hashSeed(String(inp.seed || inp.name));
+    return `ai-${slug}-${seed}${variant === "secondary" ? "-sec" : ""}`;
+  });
+  const prompt = buildBatchPrompt(list, variant);
+
+  const useGemini = !!process.env.GEMINI_API_KEY && !!process.env.GEMINI_IMAGE_MODEL;
+  let buffer: Buffer;
+  if (useGemini) {
+    const refB64 = await firstReferenceB64(list);
+    const result = await geminiImage(prompt, refB64, true);
+    buffer = result.buffer;
+  } else {
+    const seed = hashSeed(list.map((i) => String(i.name)).join("|") + variant);
+    const result = await pollinationsImage(prompt, null, seed, n);
+    buffer = result.buffer;
+  }
+
+  const urls = await sliceAndSave(fileNames, buffer, n);
+  const out: Record<string, string> = {};
+  list.forEach((inp, i) => {
+    out[inp.key || slugify(inp.name)] = urls[i];
+  });
+  return out;
+}
+
+async function firstReferenceB64(inputs: SkillIconInput[]): Promise<string | null> {
+  for (const inp of inputs) {
+    const url = typeof inp.currentIcon === "string" && /^https?:\/\//i.test(inp.currentIcon.trim()) ? inp.currentIcon.trim() : null;
+    if (!url) continue;
+    try {
+      const r = await fetch(url, { signal: genTimeout(20000) });
+      if (r.ok) return Buffer.from(await r.arrayBuffer()).toString("base64");
+    } catch {
+      // segue sem referência
+    }
+  }
+  return null;
 }
 
 export async function generateSkillIcons(input: SkillIconInput): Promise<SkillIconsResult> {

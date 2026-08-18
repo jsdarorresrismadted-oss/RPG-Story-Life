@@ -1,7 +1,7 @@
 import { prisma } from "../database";
 import { AppError } from "../middleware/errorHandler";
 import { computeStats } from "../classEngine/stat-calculator";
-import { generateSkillIcons } from "./skillIconGenerator";
+import { generateSkillIconsBatch } from "./skillIconGenerator";
 
 // ===== Gerador de classes via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
 // Chaves: GEMINI_API_KEY e GROQ_API_KEY (variáveis de ambiente).
@@ -548,19 +548,29 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
   });
 
   // 4) Skills + passivas — cada skill recebe ARTE REAL gerada por IA de imagem
-  //    (Gemini Image se configurado, senão Pollinations). Se a arte falhar,
-  //    mantém o ícone padrão e registra o aviso — a classe continua salva.
+  //    (Gemini Image se configurado, senão Pollinations). Para não estourar o
+  //    limite de imagens da IA, TODOS os ícones de uma classe são pedidos em
+  //    UMA imagem só (1 chamada para os principais + 1 para os secundários) e
+  //    recortados em células 64x64. Se a arte falhar, mantém o ícone padrão e
+  //    registra o aviso — a classe continua salva.
   const iconWarnings: string[] = [];
-  for (const s of gen.skills) {
-    let icon: string | null = s.icon || null;
-    let iconSecondary: string | null = null;
-    try {
-      const art = await generateSkillIcons({ name: s.name, description: s.description, kind: s.kind });
-      icon = art.icon;
-      iconSecondary = art.iconSecondary;
-    } catch (err: any) {
-      iconWarnings.push(`Skill "${s.name}": arte não gerada (${(err as Error).message?.slice(0, 120)}), usando ícone padrão`);
+  const artInputs = gen.skills.map((s) => ({ key: s.slug, name: s.name, description: s.description, kind: s.kind }));
+  let batchArt: Record<string, { icon: string | null; iconSecondary: string | null }> = {};
+  try {
+    const [primary, secondary] = await Promise.all([
+      generateSkillIconsBatch(artInputs, "primary"),
+      generateSkillIconsBatch(artInputs, "secondary"),
+    ]);
+    for (const s of gen.skills) {
+      batchArt[s.slug] = { icon: primary[s.slug] ?? null, iconSecondary: secondary[s.slug] ?? null };
     }
+  } catch (err: any) {
+    iconWarnings.push(`Arte das skills não gerada (${(err as Error).message?.slice(0, 120)}), usando ícones padrão`);
+  }
+  for (const s of gen.skills) {
+    const art = batchArt[s.slug];
+    const icon: string | null = art?.icon ?? s.icon ?? null;
+    const iconSecondary: string | null = art?.iconSecondary ?? null;
     await prisma.skill.create({
       data: {
         name: s.name,
