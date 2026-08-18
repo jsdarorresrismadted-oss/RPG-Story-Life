@@ -156,6 +156,7 @@ const SESSION_TTL_MS = 15 * 60 * 1000; // sessão de combate expira após 15 min
 export class CombatService {
   private activeCombats: Map<string, ActiveCombat> = new Map();
   private onTickListener: ((payload: any) => void) | null = null;
+  private onQuestsChangedListener: ((userId: string) => void) | null = null;
 
   constructor(
     private prisma: PrismaClient,
@@ -165,6 +166,15 @@ export class CombatService {
 
   setOnTick(listener: (payload: any) => void): void {
     this.onTickListener = listener;
+  }
+
+  // Avisa o gateway quando o progresso de quests mudou (combate em tempo real).
+  setOnQuestsChanged(listener: (userId: string) => void): void {
+    this.onQuestsChangedListener = listener;
+  }
+
+  private notifyQuestsChanged(userId: string): void {
+    if (this.onQuestsChangedListener) this.onQuestsChangedListener(userId);
   }
 
   async buildPlayerContext(characterId: string): Promise<{
@@ -1084,6 +1094,7 @@ export class CombatService {
           ...(allDone ? { status: "completed" } : {}),
         },
       });
+      this.notifyQuestsChanged(userId);
     }
   }
 
@@ -1143,6 +1154,7 @@ export class CombatService {
           ...(allDone ? { status: "completed" } : {}),
         },
       });
+      this.notifyQuestsChanged(userId);
     }
   }
 

@@ -74,6 +74,11 @@ export function createGateway(
     io.to(`character:${payload.characterId}`).emit("combat:tick", sanitize(payload));
   });
 
+  // Progresso de quests mudou durante o combate — o cliente atualiza o QuestTracker sem F5.
+  combatService.setOnQuestsChanged((userId) => {
+    io.to(`user:${userId}`).emit("quests:changed");
+  });
+
   pvpService.setOnUpdate((payload) => {
     io.to(`character:${payload.challengerCharacterId}`).emit("pvp:update", sanitize(payload));
     io.to(`character:${payload.opponentCharacterId}`).emit("pvp:update", sanitize(payload));

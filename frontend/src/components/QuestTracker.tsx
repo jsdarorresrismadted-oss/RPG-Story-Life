@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { questsApi } from "../services/api";
+import { getSocket } from "../services/socket";
 import { ScrollText, CheckCircle2, Clock } from "lucide-react";
 
 interface QuestObjectiveLike {
@@ -80,9 +81,13 @@ export function QuestTracker({ compact }: { compact?: boolean }) {
     load();
     const onChanged = () => load();
     window.addEventListener("quests-changed", onChanged);
+    const s = getSocket();
+    const onSocketQuests = () => load();
+    if (s) s.on("quests:changed", onSocketQuests);
     const t = setInterval(load, 30000);
     return () => {
       window.removeEventListener("quests-changed", onChanged);
+      if (s) s.off("quests:changed", onSocketQuests);
       clearInterval(t);
     };
   }, [load]);

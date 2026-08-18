@@ -143,6 +143,13 @@ export function EnchantItemPicker({ enchantment, items, playerLevel = 1, busyId,
                                 Number(item[key]) > 0 ? `${label} +${Number(item[key])}` : null
                               ).filter(Boolean).join(" · ") || "Sem stats próprios"}
                             </p>
+                            {item.enchantment && (
+                              <p className="text-[11px] text-purple-300 flex items-center gap-1 truncate">
+                                <Sparkles size={10} className="shrink-0" />
+                                Encantado: {item.enchantment.name}
+                                {Number(item.enchantment.level) > 1 && ` · Nv. ${item.enchantment.level}`}
+                              </p>
+                            )}
                           </div>
                           <button
                             onClick={() => ok && onApply(inv.id)}

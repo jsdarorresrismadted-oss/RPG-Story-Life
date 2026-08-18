@@ -83,6 +83,7 @@ export function CombatPage() {
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   const [now, setNow] = useState(Date.now());
   const [potions, setPotions] = useState<CombatPotion[]>([]);
+  const [equipment, setEquipment] = useState<InventoryItem[]>([]);
   const [classRank, setClassRank] = useState(1);
   const rewardsRefreshed = useRef(false);
   const combatRef = useRef<CombatUpdate | null>(null);
@@ -155,6 +156,7 @@ export function CombatPage() {
         })
         .filter((p) => p.heal > 0 || p.manaRestore > 0);
       setPotions(usable);
+      setEquipment(list.filter((inv) => inv.isEquipped && ["weapon", "armor", "helm", "cape"].includes(inv.item.type)));
     }).catch(() => {});
   };
 
@@ -677,6 +679,41 @@ export function CombatPage() {
           )}
         </div>
       </div>
+
+      {/* ===== EQUIPAMENTO (com encantamentos — sem precisar abrir o inventário) ===== */}
+      {equipment.length > 0 && (
+        <div className="panel p-4 mt-6">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Shield size={13} className="text-yellow-400" /> Equipamento
+            <span className="text-[10px] text-gray-600 normal-case">· encantamentos visíveis aqui</span>
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {equipment.map((inv) => {
+              const ench = (inv.item as any).enchantment;
+              return (
+                <div key={inv.id} className="rounded-lg border border-dark-600 bg-dark-800/50 p-2.5" title={ench ? `${ench.name}${Number(ench.level) > 1 ? ` · Nv. ${ench.level}` : ""} — ${ench.description ?? ""}` : inv.item.description}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {inv.item.icon ? (
+                      <EntityIcon src={inv.item.icon} size={16} className="shrink-0 text-white/80" imgClassName="w-6 h-6 object-contain" />
+                    ) : (
+                      <Sword size={15} className="shrink-0 text-gray-400" />
+                    )}
+                    <span className="text-xs font-medium truncate">{inv.item.name}</span>
+                  </div>
+                  <p className="text-[10px] capitalize text-gray-500 mt-0.5">{inv.item.type}</p>
+                  {ench && (
+                    <p className="text-[10px] text-purple-300 mt-1 flex items-center gap-1">
+                      <Sparkles size={10} className="shrink-0" />
+                      <span className="truncate">{ench.name}</span>
+                      {Number(ench.level) > 1 && <span className="shrink-0 text-yellow-400">Nv.{ench.level}</span>}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ===== MEIO: log ===== */}
       <div className="panel p-4 mt-6">
