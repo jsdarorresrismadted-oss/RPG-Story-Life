@@ -33,7 +33,12 @@ export function createAuthModule(app: Express): void {
       const data = registerSchema.parse(req.body);
 
       const existing = await prisma.user.findFirst({
-        where: { OR: [{ username: data.username }, { email: data.email }] },
+        where: {
+          OR: [
+            { username: { equals: data.username, mode: "insensitive" } },
+            { email: data.email ? { equals: data.email, mode: "insensitive" } : undefined },
+          ],
+        },
       });
       if (existing) {
         throw new AppError(409, "Username or email already taken");
@@ -73,6 +78,9 @@ export function createAuthModule(app: Express): void {
         token,
       });
     } catch (err) {
+      if ((err as any)?.code === "P2002") {
+        return next(new AppError(409, "Username or email already taken"));
+      }
       next(err);
     }
   });
@@ -81,7 +89,9 @@ export function createAuthModule(app: Express): void {
     try {
       const data = loginSchema.parse(req.body);
 
-      const user = await prisma.user.findUnique({ where: { username: data.username } });
+      const user = await prisma.user.findFirst({
+        where: { username: { equals: data.username, mode: "insensitive" } },
+      });
       if (!user || !user.passwordHash) {
         throw new AppError(401, "Invalid credentials");
       }
