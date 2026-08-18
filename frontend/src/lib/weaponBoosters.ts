@@ -9,6 +9,8 @@ export const WEAPON_BOOSTER_LABELS: Record<string, string> = {
   critDamage: "Dano Crítico",
   penetration: "Penetração",
   hitChance: "Precisão",
+  lifestealPercent: "Roubo de Vida",
+  manaStealPercent: "Roubo de Mana",
   doubleStrikeChance: "Golpe Duplo",
   attackSpeedPercent: "Velocidade de Ataque",
   cooldownReduction: "Redução de Cooldown",

@@ -14,6 +14,8 @@ export type WeaponBoosterKind =
   | "critDamage" // Dano Crítico (additivo ao multiplicador)
   | "penetration" // Penetração (física e mágica)
   | "hitChance" // Precisão
+  | "lifestealPercent" // Roubo de Vida
+  | "manaStealPercent" // Roubo de Mana
   | "doubleStrikeChance" // Golpe Duplo (2º ataque automático)
   | "attackSpeedPercent" // Velocidade de Ataque (reduz intervalo)
   | "cooldownReduction" // Redução de Cooldown de skills
@@ -32,6 +34,8 @@ export const WEAPON_BOOSTER_KINDS: Record<WeaponBoosterKind, { label: string; ca
   critDamage: { label: "Dano Crítico", category: "Crítico/Precisão", format: "%" },
   penetration: { label: "Penetração", category: "Crítico/Precisão", format: "%" },
   hitChance: { label: "Precisão", category: "Crítico/Precisão", format: "%" },
+  lifestealPercent: { label: "Roubo de Vida", category: "Efeitos/Combate", format: "%" },
+  manaStealPercent: { label: "Roubo de Mana", category: "Efeitos/Combate", format: "%" },
   doubleStrikeChance: { label: "Golpe Duplo", category: "Efeitos/Combate", format: "%" },
   attackSpeedPercent: { label: "Velocidade de Ataque", category: "Efeitos/Combate", format: "%" },
   cooldownReduction: { label: "Redução de Cooldown", category: "Efeitos/Combate", format: "%" },
@@ -104,6 +108,11 @@ export const WEAPON_BOOSTER_POOL: WeaponBoosterDef[] = [
   { slug: "ponteira-firme", name: "Ponteira Firme", kind: "hitChance", description: "Aumenta a chance de acerto." },
   { slug: "pulso-certeiro", name: "Pulso Certeiro", kind: "hitChance", description: "Aumenta a chance de acerto." },
   // Efeitos / Combate
+  { slug: "sede-de-sangue", name: "Sede de Sangue", kind: "lifestealPercent", description: "Cura ao causar dano." },
+  { slug: "vampirismo", name: "Vampirismo", kind: "lifestealPercent", description: "Cura ao causar dano." },
+  { slug: "drenar-vida", name: "Drenar Vida", kind: "lifestealPercent", description: "Cura ao causar dano." },
+  { slug: "dreno-arcano", name: "Dreno Arcano", kind: "manaStealPercent", description: "Recupera mana ao causar dano." },
+  { slug: "ladrao-de-mana", name: "Ladrão de Mana", kind: "manaStealPercent", description: "Recupera mana ao causar dano." },
   { slug: "golpe-duplo", name: "Golpe Duplo", kind: "doubleStrikeChance", description: "Chance de atacar duas vezes." },
   { slug: "ataque-relampago", name: "Ataque Relâmpago", kind: "doubleStrikeChance", description: "Chance de atacar duas vezes." },
   { slug: "rajada-rapida", name: "Rajada Rápida", kind: "doubleStrikeChance", description: "Chance de atacar duas vezes." },

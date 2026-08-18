@@ -277,7 +277,7 @@ export const crudConfigs: CrudConfig[] = [
               options: [
                 "damagePercent", "physicalDamagePercent", "magicalDamagePercent", "pvpDamagePercent",
                 "pveDamagePercent", "bossDamagePercent", "critChance", "critDamage", "penetration",
-                "hitChance", "doubleStrikeChance", "attackSpeedPercent", "cooldownReduction", "dotPercent",
+                "hitChance", "lifestealPercent", "manaStealPercent", "doubleStrikeChance", "attackSpeedPercent", "cooldownReduction", "dotPercent",
                 "executionPercent", "fullHpDamagePercent",
               ],
             },
