@@ -9,6 +9,7 @@ import { ArrowLeft, Sword, Shield, Zap, Skull, Heart, Sparkles, Coins, Lock, Sta
 import toast from "react-hot-toast";
 import { EntityIcon } from "../components/EntityIcon";
 import { QuestTracker } from "../components/QuestTracker";
+import { weaponBoosterLabel } from "../lib/weaponBoosters";
 
 interface CombatPotion {
   inventoryId: string;
@@ -707,6 +708,15 @@ export function CombatPage() {
                       <span className="truncate">{ench.name}</span>
                       {Number(ench.level) > 1 && <span className="shrink-0 text-yellow-400">Nv.{ench.level}</span>}
                     </p>
+                  )}
+                  {(inv.item as any).type === "weapon" && (inv.item as any).boosters?.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {(inv.item as any).boosters.map((b: any) => (
+                        <p key={String(b.slug || b.name)} className="text-[10px] text-fuchsia-300/90 truncate" title={`${b.name} — ${weaponBoosterLabel(b.kind)}`}>
+                          {b.name} +{b.value}%
+                        </p>
+                      ))}
+                    </div>
                   )}
                 </div>
               );

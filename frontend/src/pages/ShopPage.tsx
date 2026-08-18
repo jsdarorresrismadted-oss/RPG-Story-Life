@@ -7,6 +7,7 @@ import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
 import { EntityIcon } from "../components/EntityIcon";
 import { getSocket } from "../services/socket";
+import { weaponBoosterLabel } from "../lib/weaponBoosters";
 
 interface ShopEnchantment {
   name: string;
@@ -349,6 +350,22 @@ export function ShopPage() {
                   return speed > 0 ? `${(speed / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}s` : "2s";
                 })()}
               </p>
+            </div>
+          </div>
+        )}
+
+        {(item.type === "weapon" && (item as any).boosters?.length > 0) && (
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-[10px] text-gray-500 uppercase mb-1.5">Boosters da arma</p>
+            <div className="space-y-1">
+              {(item as any).boosters.map((b: any) => (
+                <div key={String(b.slug || b.name)} className="flex items-center justify-between">
+                  <span className="text-xs text-fuchsia-200/80">
+                    {b.name} <span className="text-gray-500">({weaponBoosterLabel(b.kind)})</span>
+                  </span>
+                  <span className="font-mono text-fuchsia-300">+{b.value}%</span>
+                </div>
+              ))}
             </div>
           </div>
         )}

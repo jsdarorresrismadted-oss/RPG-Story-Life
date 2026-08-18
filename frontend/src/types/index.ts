@@ -428,6 +428,14 @@ export interface Item {
   boosterId?: string | null;
   boostType?: string | null;
   boostValue?: number;
+  boosters?: WeaponBoosterInstance[] | null;
+}
+
+export interface WeaponBoosterInstance {
+  slug: string;
+  name: string;
+  kind: string;
+  value: number;
 }
 
 export type ItemType =

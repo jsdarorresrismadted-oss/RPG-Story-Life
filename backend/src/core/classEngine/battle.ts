@@ -168,6 +168,7 @@ export class Battle {
       effects: [],
       lastAttackAt: Date.now(),
       isPlayer: !!opts.pvp,
+      isBoss: !!opts.monster?.isBoss,
     };
 
     const rawEnemies = opts.enemies && opts.enemies.length > 0 ? opts.enemies : null;
@@ -188,6 +189,7 @@ export class Battle {
           effects: [],
           lastAttackAt: Date.now(),
           isPlayer: false,
+          isBoss: !!m.isBoss,
         };
       });
       this.monster = this.enemies[0];
@@ -676,12 +678,22 @@ export class Battle {
   private autoAttack(): void {
     const autoSkill = this.skills.find((s) => s.trigger === "auto");
     if (!autoSkill) return;
+    this.performAutoAttack(autoSkill, "");
+    // Booster de arma: Golpe Duplo — chance de atacar uma 2ª vez (1 extra por tick)
+    const pStats = this.effectivePlayerStats();
+    const ds = Math.min(60, pStats.doubleStrikeChance || 0);
+    if (ds > 0 && this.state === "active" && Math.random() * 100 < ds) {
+      this.performAutoAttack(autoSkill, "Golpe duplo! ");
+    }
+  }
+
+  private performAutoAttack(autoSkill: SkillDef, prefix: string): void {
     const result = emptyResult();
     const ctx = this.buildActionContext(this.player, this.monster, result, autoSkill.slug);
     executeActions(autoSkill.actions, ctx, result);
     this.emitResultEvents(result, "player");
     if (result.messages.length > 0) {
-      this.pushMessage(`[${autoSkill.name}] ${result.messages.join(" • ")}`);
+      this.pushMessage(`[${autoSkill.name}] ${prefix}${result.messages.join(" • ")}`);
     }
     this.fire("onAutoAttack", { actor: this.player, target: this.monster, skillId: autoSkill.id });
     if (result.hit) this.fire("onHit", { actor: this.player, target: this.monster, skillId: autoSkill.id });

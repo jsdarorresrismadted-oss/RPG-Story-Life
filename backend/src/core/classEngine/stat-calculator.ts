@@ -34,6 +34,17 @@ const BASE_STATS: DerivedStats = {
   overhealPercent: 0,
   manaCostReduction: 0,
   cooldownReduction: 0,
+  pvpDamagePercent: 0,
+  pveDamagePercent: 0,
+  bossDamagePercent: 0,
+  lifestealPercent: 0,
+  manaStealPercent: 0,
+  doubleStrikeChance: 0,
+  attackSpeedPercent: 0,
+  executionPercent: 0,
+  fullHpDamagePercent: 0,
+  damageTakenReduction: 0,
+  thornsPercent: 0,
 };
 
 function num(v: any, fallback: number): number {
@@ -204,11 +215,18 @@ export function computeStats(input: StatsInput): DerivedStats {
   // A classe NÃO define intervalo nem velocidade de ataque. Sem arma: 2000ms padrão.
   stats.attackSpeedMs = Math.max(100, Math.round(input.attackSpeedMs && input.attackSpeedMs > 0 ? input.attackSpeedMs : 2000));
 
-  // Boosters equipados (gacha): dano e defesa — único uso do `bonuses` no modelo
+  // Boosters equipados (gacha + arma): dano/defesa legados e kinds de arma
+  // (pvpDamagePercent, lifestealPercent, critChance etc. — chaves de DerivedStats).
   const bonuses = input.statModel?.bonuses || {};
-  stats.damagePercent += num(bonuses.damageBoost, 0);
-  stats.physicalResistance += num(bonuses.defenseBoost, 0);
-  stats.magicalResistance += num(bonuses.defenseBoost, 0);
+  for (const [k, v] of Object.entries(bonuses)) {
+    if (k in stats) stats[k] += num(v, 0);
+  }
+
+  // Velocidade de ataque: a arma define a base (linha acima); o booster reduz o intervalo.
+  const asp = num(bonuses.attackSpeedPercent, 0);
+  if (asp > 0) {
+    stats.attackSpeedMs = Math.max(100, Math.round(stats.attackSpeedMs * (1 - Math.min(60, asp) / 100)));
+  }
 
   // Percentuais aplicados aos núcleos (passivas "percent")
   stats.hp = Math.floor(applyPercent(stats.hp, percentPassiveMods(input.passives, "hp")));
@@ -267,6 +285,20 @@ export function computeMonsterStats(monster: any): DerivedStats {
   stats.cooldownReduction = num(monster.cooldownReduction, 0);
   stats.manaRegenPerTick = num(monster.manaRegenPerTick, 5);
   stats.healthRegenPerTick = num(monster.healthRegenPerTick, 0);
+  stats.pvpDamagePercent = num(monster.pvpDamagePercent, 0);
+  stats.pveDamagePercent = num(monster.pveDamagePercent, 0);
+  stats.bossDamagePercent = num(monster.bossDamagePercent, 0);
+  stats.lifestealPercent = num(monster.lifestealPercent, 0);
+  stats.manaStealPercent = num(monster.manaStealPercent, 0);
+  stats.doubleStrikeChance = num(monster.doubleStrikeChance, 0);
+  stats.attackSpeedPercent = num(monster.attackSpeedPercent, 0);
+  if (stats.attackSpeedPercent > 0) {
+    stats.attackSpeedMs = Math.max(100, Math.round(stats.attackSpeedMs * (1 - Math.min(60, stats.attackSpeedPercent) / 100)));
+  }
+  stats.executionPercent = num(monster.executionPercent, 0);
+  stats.fullHpDamagePercent = num(monster.fullHpDamagePercent, 0);
+  stats.damageTakenReduction = num(monster.damageTakenReduction, 0);
+  stats.thornsPercent = num(monster.thornsPercent, 0);
   stats.maxHp = stats.hp;
   stats.maxMana = stats.mana;
   return stats;

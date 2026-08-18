@@ -53,6 +53,18 @@ function buildOpponentMonster(context: any): any {
     cooldownReduction: stats.cooldownReduction,
     manaRegenPerTick: stats.manaRegenPerTick,
     healthRegenPerTick: stats.healthRegenPerTick,
+    // Boosters de arma do defensor (defensivos + ofensivos) valem no PvP
+    pvpDamagePercent: stats.pvpDamagePercent,
+    pveDamagePercent: stats.pveDamagePercent,
+    bossDamagePercent: stats.bossDamagePercent,
+    lifestealPercent: stats.lifestealPercent,
+    manaStealPercent: stats.manaStealPercent,
+    doubleStrikeChance: stats.doubleStrikeChance,
+    attackSpeedPercent: stats.attackSpeedPercent,
+    executionPercent: stats.executionPercent,
+    fullHpDamagePercent: stats.fullHpDamagePercent,
+    damageTakenReduction: stats.damageTakenReduction,
+    thornsPercent: stats.thornsPercent,
   };
 }
 

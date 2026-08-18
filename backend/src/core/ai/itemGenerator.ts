@@ -1,5 +1,6 @@
 import { AppError } from "../middleware/errorHandler";
 import { autoEquipmentStats } from "../items/itemAutoStats";
+import { rollWeaponBoosters, WeaponBoosterInstance } from "../weapon-boosters";
 
 // ===== Gerador de equipamentos (somente planejamento) =====
 // - IA LOCAL (plano deterministico) gera: nome, descricao, atributos e precos.
@@ -90,6 +91,7 @@ export interface ItemPlan {
   stats: Record<string, number>;
   attackSpeedMs?: number; // apenas armas
   dps?: number; // apenas armas
+  boosters?: WeaponBoosterInstance[]; // armas: 3 boosters rolados pela raridade
   buyPrice: number;
   sellPrice: number;
 }
@@ -524,6 +526,11 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
         type === "weapon"
           ? { strength: 0, intellect: 0, endurance: 0, dexterity: 0, wisdom: 0, luck: 0 }
           : autoEquipmentStats(type, baseLevel, rarity);
+    }
+
+    // Armas ganham 3 boosters rolados (valor capado pela raridade, máx 51%).
+    if (type === "weapon") {
+      plan.boosters = rollWeaponBoosters(rarity, 3);
     }
 
     plans.push(plan);

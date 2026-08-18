@@ -17,6 +17,7 @@ interface ItemPlan {
   stats: Record<string, number>;
   attackSpeedMs?: number;
   dps?: number;
+  boosters?: { slug: string; name: string; kind: string; value: number }[];
   buyPrice: number;
   sellPrice: number;
 }
@@ -135,6 +136,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         rank: 1,
         buyPrice: plan.buyPrice,
         sellPrice: plan.sellPrice,
+        boosters: type === "weapon" ? plan.boosters : undefined,
         isActive: false,
         isTradable: true,
         isSellable: true,
@@ -169,6 +171,7 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
           rank: 1,
           buyPrice: plan.buyPrice,
           sellPrice: plan.sellPrice,
+          boosters: type === "weapon" ? plan.boosters : undefined,
           isActive: false,
           isTradable: true,
           isSellable: true,
@@ -338,6 +341,12 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                             : "Atributos calculados por nível + raridade"}
                         </span>
                       )}
+                      {type === "weapon" &&
+                        (plan.boosters || []).map((b) => (
+                          <span key={b.slug} className="text-[10px] px-1.5 py-0.5 rounded-md bg-fuchsia-500/15 text-fuchsia-300">
+                            {b.name} +{b.value}%
+                          </span>
+                        ))}
                       <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Compra: {Number(plan.buyPrice).toLocaleString()}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-yellow-500/15 text-yellow-300">Venda: {Number(plan.sellPrice).toLocaleString()}</span>
                     </div>

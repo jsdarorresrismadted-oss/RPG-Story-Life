@@ -12,6 +12,7 @@ import { hasAnyItemStat, minEquipmentStats } from "../../core/items/itemAutoStat
 import { grantPassXp } from "../seasons/seasons.module";
 import { isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "../../core/progression";
 import { getTotalBoosterBonuses } from "../../core/boosters";
+import { sumWeaponBoosters } from "../../core/weapon-boosters";
 import { updateGuildQuestProgress } from "../../core/guildQuests";
 import { RaidService } from "../raid/raid.service";
 
@@ -256,6 +257,8 @@ export class CombatService {
     const boosterBonuses = await getTotalBoosterBonuses(character.userId, character.id);
 
     const weapon = (character.equipment as any)?.weapon;
+    // Boosters de arma (3 por arma, valor capado pela raridade) — entram no combate
+    const weaponBoosters = sumWeaponBoosters([weapon]);
     const statsInput: StatsInput = {
       level: character.level,
       statModel: {
@@ -263,6 +266,7 @@ export class CombatService {
         bonuses: {
           damageBoost: boosterBonuses.damage,
           defenseBoost: boosterBonuses.defense,
+          ...weaponBoosters,
         },
       },
       resource: parseJson(gameClass.resource, {}),

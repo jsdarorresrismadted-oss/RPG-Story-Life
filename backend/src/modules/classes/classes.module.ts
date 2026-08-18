@@ -7,6 +7,7 @@ import { sumCoreStats } from "../../core/stats/coreStats";
 import { computeEnchantmentStats, effectiveWeaponDps, effectiveWeaponSpeed } from "../../core/enchantments/enchantmentStats";
 import { hasAnyItemStat, minEquipmentStats } from "../../core/items/itemAutoStats";
 import { getTotalBoosterBonuses } from "../../core/boosters";
+import { sumWeaponBoosters } from "../../core/weapon-boosters";
 import { PassiveDef } from "../../core/classEngine/types";
 
 function parseJson(value: any, fallback: any = null): any {
@@ -133,7 +134,7 @@ async function characterCombatStats(character: any): Promise<any> {
     level: character.level,
     statModel: {
       coreStats: parseJson(character.class?.statModel?.coreStats, {}),
-      bonuses: { damageBoost: boosterBonuses.damage, defenseBoost: boosterBonuses.defense },
+      bonuses: { damageBoost: boosterBonuses.damage, defenseBoost: boosterBonuses.defense, ...sumWeaponBoosters([weapon]) },
     },
     resource: parseJson(character.class?.resource, {}),
     passives,

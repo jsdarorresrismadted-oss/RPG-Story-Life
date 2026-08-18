@@ -180,6 +180,13 @@ export function computeDamageAmount(
   if (type === "physical") boost += actorStats.physicalDamagePercent;
   if (type === "magic") boost += actorStats.magicalDamagePercent;
   boost += actorStats.damagePercent;
+  // Boosters de arma: contexto do alvo (jogador/monstro/chefe) e estado do HP
+  if (target.isPlayer) boost += actorStats.pvpDamagePercent;
+  else boost += actorStats.pveDamagePercent;
+  if (target.isBoss) boost += actorStats.bossDamagePercent;
+  const targetHpPct = (target.hp / Math.max(1, target.maxHp)) * 100;
+  if (targetHpPct >= 99.99) boost += actorStats.fullHpDamagePercent;
+  if (targetHpPct <= 30) boost += actorStats.executionPercent;
   if (skillMods?.damagePercent) boost += skillMods.damagePercent;
   amount *= 1 + boost / 100;
 
@@ -189,6 +196,10 @@ export function computeDamageAmount(
   if (type === "magic") resistance += targetStats.magicalResistance || 0;
   resistance = Math.min(80, Math.max(0, resistance));
   if (resistance > 0) amount *= 1 - resistance / 100;
+
+  // Booster defensivo do alvo: redução de dano recebido (arma do defensor no PvP)
+  const dmgTakenRed = Math.min(80, Math.max(0, targetStats.damageTakenReduction || 0));
+  if (dmgTakenRed > 0) amount *= 1 - dmgTakenRed / 100;
 
   return { amount: Math.max(1, Math.floor(amount)), isCritical, isMissed: false, isDodged: false };
 }
@@ -223,6 +234,26 @@ export function executeActions(actions: Action[], ctx: ActionContext, result: Ac
           result.isCritical = result.isCritical || isCritical;
           result.hit = true;
           result.messages.push(isCritical ? `Dano crítico de ${applied}!` : `Causou ${applied} de dano`);
+
+          // Boosters de arma: roubo de vida e roubo de mana (% do dano aplicado)
+          const ls = Math.min(80, ctx.actorStats.lifestealPercent || 0);
+          if (ls > 0) {
+            const lifesteal = Math.floor(applied * (ls / 100));
+            if (lifesteal > 0) {
+              ctx.actor.hp = Math.min(ctx.actor.maxHp, ctx.actor.hp + lifesteal);
+              result.healed += lifesteal;
+              result.messages.push(`Roubou ${lifesteal} de vida`);
+            }
+          }
+          const ms = Math.min(80, ctx.actorStats.manaStealPercent || 0);
+          if (ms > 0) {
+            const manaStolen = Math.floor(applied * (ms / 100));
+            if (manaStolen > 0) {
+              ctx.actor.mana = Math.min(ctx.actor.maxMana, ctx.actor.mana + manaStolen);
+              result.messages.push(`Drenou ${manaStolen} de mana`);
+            }
+          }
+
           if (ctx.target.hp <= 0) {
             ctx.onKill?.();
           }
@@ -236,6 +267,13 @@ export function executeActions(actions: Action[], ctx: ActionContext, result: Ac
         if (reflected > 0) {
           ctx.actor.hp = Math.max(0, ctx.actor.hp - reflected);
           result.messages.push(`Refletiu ${reflected} de dano de volta`);
+        }
+
+        // Booster de arma (defensivo): espinhos refletem % do dano recebido
+        const thornDmg = Math.floor(applied * (Math.min(80, ctx.targetStats.thornsPercent || 0) / 100));
+        if (thornDmg > 0) {
+          ctx.actor.hp = Math.max(0, ctx.actor.hp - thornDmg);
+          result.messages.push(`Espinhos refletiram ${thornDmg} de dano`);
         }
 
         // Golpe letal: chance do atacante aniquilar o alvo na hora

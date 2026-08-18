@@ -428,6 +428,8 @@ model Item {
   boosterId   String?
   boostType   String?
   boostValue  Int      @default(0)
+  // Boosters de arma: [{ slug, name, kind, value }] — 3 por arma, valor capado pela raridade (máx 51%)
+  boosters    Json     @default("[]")
   requiredVip   Boolean  @default(false) // Exclusivo para VIP (comprar/equipar)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())

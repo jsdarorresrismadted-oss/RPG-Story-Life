@@ -25,6 +25,7 @@ import {
 } from "../../core/enchantments/enchantmentStats";
 import { autoEquipmentStats } from "../../core/items/itemAutoStats";
 import { ensureGuildQuests } from "../../core/guildQuests";
+import { rollWeaponBoosters, WEAPON_BOOSTER_KINDS, WeaponBoosterKind } from "../../core/weapon-boosters";
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   authenticate(req, res, () => {
@@ -754,6 +755,7 @@ export function createAdminModule(app: Express): void {
     effect: ["stackLoss", "tickDamage", "tickHealing", "statModifiers", "onMaxStacks", "onExpire", "onTick"],
     statmodel: ["base", "perLevel", "scaling"],
     gameevent: ["rewards"],
+    item: ["boosters"],
   };
 
   // Relações opcionais: string vazia/null vira null (evita FK error)
@@ -841,6 +843,22 @@ export function createAdminModule(app: Express): void {
         for (const k of ["dps", "attackSpeedMs"]) body[k] = 0;
         if (type === "weapon") {
           for (const k of ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"]) body[k] = 0;
+          // Armas sem boosters (item novo/antigo) ganham 3 rolados pela raridade.
+          const list = Array.isArray(body.boosters) ? body.boosters : [];
+          if (list.length === 0) {
+            body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3);
+          } else {
+            body.boosters = list
+              .filter((b: any) => b && typeof b === "object" && String(b.kind || "") in WEAPON_BOOSTER_KINDS)
+              .slice(0, 3)
+              .map((b: any) => ({
+                slug: String(b.slug || b.name || b.kind),
+                name: String(b.name || WEAPON_BOOSTER_KINDS[b.kind as WeaponBoosterKind]?.label || b.kind),
+                kind: String(b.kind),
+                value: Math.max(1, Number(b.value) || 1),
+              }));
+            if (body.boosters.length === 0) body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3);
+          }
         } else if (!["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"].some((k) => Number(body[k]) > 0)) {
           // Sem atributos informados → calcula automaticamente pelo nível e raridade.
           const auto = autoEquipmentStats(type, Number(body.level) || 1, String(body.rarity || "common"));

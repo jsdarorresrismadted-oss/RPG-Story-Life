@@ -13,6 +13,7 @@ import { useAuthStore } from "../store/authStore";
 import CharacterPreview from "../components/CharacterPreview";
 import { EnchantItemPicker } from "../components/EnchantItemPicker";
 import { effectiveEnchantmentStats } from "../lib/enchantmentStats";
+import { weaponBoosterLabel } from "../lib/weaponBoosters";
 import toast from "react-hot-toast";
 
 const rarityOrder: Record<string, number> = {
@@ -706,6 +707,21 @@ export function InventoryPage() {
                       <span className="font-mono text-purple-300">
                         {GACHA_BOOST_LABELS[selectedItem.item.boostType] ?? selectedItem.item.boostType} +{selectedItem.item.boostValue}%
                       </span>
+                    </div>
+                  )}
+                  {selectedItem.item.type === "weapon" && (selectedItem.item.boosters || []).length > 0 && (
+                    <div className="col-span-2 border-t border-dark-600 pt-1.5 mt-1">
+                      <p className="text-[11px] text-fuchsia-300/90 mb-1">Boosters da arma</p>
+                      <div className="flex flex-col gap-1">
+                        {(selectedItem.item.boosters || []).map((b) => (
+                          <div key={b.slug || b.name} className="flex items-center justify-between">
+                            <span className="text-xs text-fuchsia-200/80">
+                              {b.name} <span className="text-gray-500">({weaponBoosterLabel(b.kind)})</span>
+                            </span>
+                            <span className="font-mono text-fuchsia-300">+{b.value}%</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

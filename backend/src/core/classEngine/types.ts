@@ -145,6 +145,17 @@ export interface DerivedStats {
   overhealPercent: number;
   manaCostReduction: number;
   cooldownReduction: number;
+  pvpDamagePercent: number;
+  pveDamagePercent: number;
+  bossDamagePercent: number;
+  lifestealPercent: number;
+  manaStealPercent: number;
+  doubleStrikeChance: number;
+  attackSpeedPercent: number;
+  executionPercent: number;
+  fullHpDamagePercent: number;
+  damageTakenReduction: number;
+  thornsPercent: number;
   [key: string]: number;
 }
 
@@ -160,6 +171,7 @@ export interface BattleEntity {
   effects: ActiveEffectRuntime[];
   lastAttackAt: number;
   isPlayer: boolean;
+  isBoss?: boolean;
 }
 
 export interface EnemySnapshot {

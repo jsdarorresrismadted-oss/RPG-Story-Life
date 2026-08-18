@@ -200,6 +200,23 @@ export const crudConfigs: CrudConfig[] = [
       },
       { key: "level", label: "Nv." },
       { key: "rarity", label: "Raridade", render: (v) => <span className="text-[11px]">{v}</span> },
+      {
+        key: "boosters",
+        label: "Boosters",
+        render: (v) => {
+          const list = Array.isArray(v) ? v : [];
+          if (!list.length) return <span className="text-gray-600 text-xs">—</span>;
+          return (
+            <div className="flex flex-col gap-0.5">
+              {list.map((b: any) => (
+                <span key={String(b.slug || b.name)} className="text-[11px] text-purple-300">
+                  {b.name || b.kind} +{Number(b.value) || 0}%
+                </span>
+              ))}
+            </div>
+          );
+        },
+      },
       { key: "buyPrice", label: "Preço", render: (v) => <span className="text-yellow-400 text-xs">{Number(v).toLocaleString()}</span> },
       { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
     ],
@@ -242,6 +259,33 @@ export const crudConfigs: CrudConfig[] = [
       },
       { name: "level", label: "Nível", type: "number", defaultValue: 1, hint: "Define requisito, preço e os atributos automáticos de elmos/armaduras/capas." },
       { name: "rank", label: "Rank", type: "number", defaultValue: 1 },
+      {
+        name: "boosters",
+        label: "Boosters da arma",
+        type: "json",
+        visibleIf: { field: "type", values: ["weapon"] },
+        hint: "1-3 boosters. O valor é capado pela raridade (mítico = 51%). Armazena { name, kind, value }.",
+        jsonSchema: {
+          mode: "object-array",
+          addLabel: "Adicionar booster",
+          fields: [
+            { name: "name", label: "Nome", type: "text", placeholder: "Dano Brutal" },
+            {
+              name: "kind",
+              label: "Mecânica",
+              type: "select",
+              options: [
+                "damagePercent", "physicalDamagePercent", "magicalDamagePercent", "pvpDamagePercent",
+                "pveDamagePercent", "bossDamagePercent", "critChance", "critDamage", "penetration",
+                "hitChance", "dodge", "lifestealPercent", "manaStealPercent", "doubleStrikeChance",
+                "attackSpeedPercent", "cooldownReduction", "dotPercent", "healingPercent",
+                "executionPercent", "fullHpDamagePercent", "damageTakenReduction", "thornsPercent",
+              ],
+            },
+            { name: "value", label: "Valor (%)", type: "number", placeholder: "0-51" },
+          ],
+        },
+      },
       { name: "buyPrice", label: "Preço de compra", type: "number", defaultValue: 0, step: "1" },
       { name: "sellPrice", label: "Preço de venda", type: "number", defaultValue: 0, step: "1" },
       { name: "effects", label: "Effects (consumíveis)", type: "json", visibleIf: { field: "type", values: ["consumable"] }, jsonSchema: { mode: "fixed-record", fields: [

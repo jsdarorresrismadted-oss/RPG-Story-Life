@@ -9,6 +9,7 @@ import { EQUIP_SLOT_MAP } from "../../core/equipmentSlots";
 import { sumCoreStats } from "../../core/stats/coreStats";
 import { computeEnchantmentStats, effectiveWeaponDps, effectiveWeaponSpeed } from "../../core/enchantments/enchantmentStats";
 import { hasAnyItemStat, minEquipmentStats } from "../../core/items/itemAutoStats";
+import { sumWeaponBoosters } from "../../core/weapon-boosters";
 
 function parseJson(value: any, fallback: any): any {
   if (!value) return fallback;
@@ -337,6 +338,7 @@ export function createCharacterModule(app: Express): void {
         level: character.level,
         statModel: {
           coreStats: parseJson(gameClass?.statModel?.coreStats, {}),
+          bonuses: sumWeaponBoosters([(character.equipment as any)?.weapon]),
         },
         resource: parseJson(gameClass?.resource, {}),
         passives,
