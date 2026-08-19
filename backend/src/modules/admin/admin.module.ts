@@ -34,7 +34,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 // Limitador específico para geração via IA: os prompts chamam APIs pagas
-// (Groq/Gemini/Pollinations), então restringimos mais que o rate limit global.
+// (Groq/Gemini/OpenAI), então restringimos mais que o rate limit global.
 const aiLimiter = rateLimit({
   windowMs: config.aiRateLimit.windowMs,
   max: config.aiRateLimit.maxRequests,
@@ -1524,7 +1524,7 @@ export function createAdminModule(app: Express): void {
   });
 
   // Gera o par de artes da skill (ícone principal + secundário) via IA de imagem
-  // (Gemini Image se GEMINI_API_KEY estiver definida; senão Pollinations.ai grátis).
+  // (Gemini Image se GEMINI_API_KEY estiver definida; fallback OpenAI).
   app.post("/api/admin/skills/ai-icons", requireAdmin, aiImageCooldown, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = req.body ?? {};

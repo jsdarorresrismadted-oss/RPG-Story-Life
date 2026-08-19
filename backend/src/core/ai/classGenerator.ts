@@ -548,12 +548,12 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
   });
 
   // 4) Skills + passivas — cada skill recebe ARTE REAL gerada por IA de imagem
-  //    (Gemini Image se configurado, senão Pollinations). TODOS os ícones de
+  //    (Gemini Image se configurado, com fallback OpenAI). TODOS os ícones de
   //    uma classe são pedidos em UMA imagem só (1 chamada de IA) e recortados
   //    em células 64x64. Se a arte falhar, mantém o ícone padrão e registra
   //    o aviso — a classe continua salva.
   const iconWarnings: string[] = [];
-  const artInputs = gen.skills.map((s) => ({ key: s.slug, name: s.name, description: s.description, kind: s.kind }));
+  const artInputs = gen.skills.map((s) => ({ key: s.slug, name: s.name, description: s.description, kind: s.kind, class: gen.cls.name, rarity: gen.cls.rarity }));
   let batchArt: Record<string, string> = {};
   try {
     batchArt = await generateSkillIconsBatch(artInputs);

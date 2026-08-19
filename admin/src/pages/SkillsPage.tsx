@@ -709,7 +709,7 @@ export default function SkillsPage() {
                     {artBusy ? "Gerando artes (pode levar ~1 min)..." : "Gerar arte da skill com IA (ícone + efeito)"}
                   </button>
                   <p className="text-[11px] text-gray-600 mt-1">
-                    Usa Gemini Image (se GEMINI_API_KEY + GEMINI_IMAGE_MODEL configurados) ou Pollinations.ai (grátis).
+                    Usa Gemini Image (se GEMINI_API_KEY + GEMINI_IMAGE_MODEL configurados) ou OpenAI (gpt-image-1).
                     Gera um par de artes no estilo atual de iconskill/ e preenche os dois campos.
                   </p>
                 </div>

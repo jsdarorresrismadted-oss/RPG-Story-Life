@@ -1,32 +1,71 @@
-import { promises as fs } from "fs";
+﻿import { promises as fs } from "fs";
 import path from "path";
 import sharp from "sharp";
 
 // ===== Gerador de arte de skills via IA (imagem) =====
-// Usa Gemini Image (GEMINI_IMAGE_MODEL) quando GEMINI_API_KEY existe;
-// caso contrário usa Pollinations.ai (grátis), com seed fixo para manter
-// consistência visual (~90% do estilo das artes atuais de iconskill/).
-// Geração em LOTE: TODOS os ícones de uma classe em UMA única imagem
-// (1 chamada de IA) e recorta cada célula — evita estourar o limite
-// diário da Gemini. Cada classe = 1 chamada de IA para os 5 ícones.
+// Usa Gemini Image (GEMINI_IMAGE_MODEL) quando GEMINI_API_KEY existe,
+// com fallback para OpenAI (gpt-image-1) quando OPENAI_API_KEY existe.
+// GeraÃ§Ã£o em LOTE: TODOS os Ã­cones de uma classe em UMA Ãºnica imagem
+// (1 chamada de IA) e recorta cada cÃ©lula â€” evita estourar o limite
+// diÃ¡rio da Gemini. Cada classe = 1 chamada de IA para os 5 Ã­cones.
 
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const SKILL_DIR = path.resolve(__dirname, "../../../../frontend/public/iconskill");
 const ICON_URL_PREFIX = "/iconskill";
 
 const STYLE_TAG =
-  "classic MMORPG skill icon, dark fantasy RPG game art, 64x64 square game UI icon, hand-painted, vibrant glow effects, strong dark outline, dark dungeon background, centered single prominent subject, no text, no letters, no watermark";
+  "Premium fantasy RPG skill icon for a video game, polished professional game ability artwork, stylized fantasy game UI aesthetic, designed specifically for 64x64 pixel interface, extremely readable at small size, strong recognizable silhouette, single dominant central subject occupying most of the frame, compact composition, large clear shapes, dynamic action, dramatic lighting, strong depth and dimensionality, clean sharp edges, controlled details, detailed but not cluttered, powerful visual impact, cohesive professional game icon design, consistent visual language, isolated subject, transparent background, no scenery, no landscape, no character portrait, no full body character unless specifically required, no text, no letters, no numbers, no logo, no watermark, no UI elements, no excessive tiny particles, no blurry details";
+
+// Identidade visual por classe: a classe define tema/cores, a skill define o desenho.
+const CLASS_IDENTITIES: { match: RegExp; identity: string; colors: string }[] = [
+  {
+    match: /assassin|assassino|rogue|sombras|shadow|senhor/i,
+    identity: "assassin visual identity: stealth, darkness, speed, lethal precision, dark smoke, sharp motion",
+    colors: "class color identity: deep violet, crimson and black",
+  },
+  {
+    match: /guard|guardi|warrior|guerreiro|cavaleiro|knight|tank|bronze/i,
+    identity: "heavy weapon and armor visual identity: impact, defense, powerful strike, shockwave",
+    colors: "class color identity: steel blue, silver and gold",
+  },
+  {
+    match: /mage|mago|wizard|arcan|elemental/i,
+    identity: "mage visual identity: arcane energy, magical runes, elemental power, mystical aura, spell energy",
+    colors: "class color identity: arcane blue, violet and cyan",
+  },
+  {
+    match: /support|suporte|healer|cleric|priest|paladin|protetor/i,
+    identity: "support visual identity: healing energy, protective aura, radiant energy, magical barrier, restoration",
+    colors: "class color identity: white, gold and light blue",
+  },
+  {
+    match: /berserk|barbaro|barbarian|selvagem|feral/i,
+    identity: "berserker visual identity: raw fury, primal power, brutal impact, blood energy",
+    colors: "class color identity: dark red, ember orange and iron",
+  },
+];
+
+function classVisualIdentity(cls: string | undefined): { identity: string; colors: string } {
+  const name = String(cls || "").toLowerCase();
+  for (const c of CLASS_IDENTITIES) {
+    if (c.match.test(name)) return { identity: c.identity, colors: c.colors };
+  }
+  return {
+    identity: "fantasy RPG visual identity: heroic energy, balanced power, legendary presence",
+    colors: "class color identity: deep blue, purple and gold",
+  };
+}
 
 const KIND_THEMES: Record<string, string> = {
-  attack: "an offensive spell with bursting arcane energy and a glowing elemental slash",
-  heal: "a soothing healing spell with emerald light and life runes",
-  buff: "an empowering buff with a golden aura and rising sparkles",
-  debuff: "a sinister debuff with toxic green mist and purple curse sigils",
-  summon: "a summoning spell with a glowing portal and rune circle",
-  mobility: "a swift movement spell with wind trails and speed lines",
-  control: "a control spell with glowing chains and binding magic",
-  defense: "a defensive spell with a sturdy magic shield and stone barrier",
-  channel: "a channeling spell with a concentrated magical beam",
+  attack: "MAIN OBJECT: a large weapon or spell blade performing a bold slash, thick branching energy arcs around it",
+  heal: "MAIN OBJECT: a radiant glowing sphere of light with large magical runes and a protective halo",
+  buff: "MAIN OBJECT: a golden aura crest with rising bold flame-like energy",
+  debuff: "MAIN OBJECT: a cursed sigil with large swirling toxic green and purple mist",
+  summon: "MAIN OBJECT: a glowing portal with a bold rune circle",
+  mobility: "MAIN OBJECT: a sweeping wind trail with large speed lines and momentum",
+  control: "MAIN OBJECT: thick glowing chains wrapping a magical seal",
+  defense: "MAIN OBJECT: a sturdy magical shield with a stone barrier and strong protective aura",
+  channel: "MAIN OBJECT: a concentrated magical beam with large radiating energy rings",
 };
 
 function slugify(s: any): string {
@@ -52,11 +91,11 @@ const genTimeout = (ms: number) => {
 
 async function geminiImage(prompt: string, referenceB64: string | null, portrait = false): Promise<{ buffer: Buffer; mime: string }> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error("GEMINI_API_KEY não definida");
+  if (!key) throw new Error("GEMINI_API_KEY nÃ£o definida");
   const parts: any[] = [{ text: prompt }];
   if (referenceB64) parts.push({ inlineData: { mimeType: "image/png", data: referenceB64 } });
   const generationConfig: any = { responseModalities: ["TEXT", "IMAGE"] };
-  // Em lote (N ícones empilhados): imagem vertical para cada célula sair quadrada.
+  // Em lote (N Ã­cones empilhados): imagem vertical para cada cÃ©lula sair quadrada.
   if (portrait) generationConfig.imageConfig = { aspectRatio: "9:16" };
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent?key=${key}`,
@@ -79,38 +118,17 @@ async function geminiImage(prompt: string, referenceB64: string | null, portrait
   const imagePart = partsOut.find((p) => p?.inlineData?.data);
   if (!imagePart) {
     const text = partsOut.map((p) => p?.text || "").join(" ").trim();
-    throw new Error(text ? `Gemini Image não retornou imagem: ${text.slice(0, 150)}` : "Gemini Image: resposta vazia");
+    throw new Error(text ? `Gemini Image nÃ£o retornou imagem: ${text.slice(0, 150)}` : "Gemini Image: resposta vazia");
   }
   const mime = String(imagePart.inlineData.mimeType || "image/png");
   return { buffer: Buffer.from(imagePart.inlineData.data, "base64"), mime };
 }
 
-async function pollinationsImage(prompt: string, referenceUrl: string | null, seed: number, cells = 1): Promise<{ buffer: Buffer; mime: string }> {
-  const params = new URLSearchParams({
-    width: "64",
-    height: String(64 * cells),
-    seed: String(seed),
-    nologo: "true",
-    model: "flux",
-  });
-  if (referenceUrl) params.set("image", referenceUrl);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
-  const res = await fetch(url, { signal: genTimeout(120000) });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Pollinations HTTP ${res.status}: ${body.slice(0, 200)}`);
-  }
-  const mime = res.headers.get("content-type") || "";
-  const buffer = Buffer.from(await res.arrayBuffer());
-  if (buffer.length === 0) throw new Error("Pollinations: resposta vazia");
-  return { buffer, mime };
-}
-
-// OpenAI (gpt-image-1 — o gerador de imagens do ChatGPT). Sem env key a função
-// é pulada; o fallback segue para o próximo provedor (ex.: Pollinations).
+// OpenAI (gpt-image-1 â€” o gerador de imagens do ChatGPT). Sem env key a funÃ§Ã£o
+// Ã© pulada; o fallback segue para o prÃ³ximo provedor.
 async function openaiImage(prompt: string, portrait = false): Promise<{ buffer: Buffer; mime: string }> {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY não definida");
+  if (!key) throw new Error("OPENAI_API_KEY nÃ£o definida");
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -161,22 +179,34 @@ export interface SkillIconInput {
   currentIcon?: string | null;
   seed?: string | number;
   key?: string; // chave de retorno + nome do arquivo (slug da skill)
+  class?: string; // identidade visual da classe (tema de cores/materiais)
+  rarity?: string; // intensidade/brilho/complexidade (common..legendary)
 }
 
 function buildBatchPrompt(inputs: SkillIconInput[]): string {
+  const baseIdentity = classVisualIdentity(inputs[0]?.class);
   const lines = inputs.map((inp, i) => {
     const theme = KIND_THEMES[String(inp.kind || "attack").toLowerCase()] || KIND_THEMES.attack;
-    const desc = inp.description ? ` Inspired by this description: "${inp.description}".` : "";
-    return `${i + 1}. "${inp.name}" (kind: ${inp.kind || "attack"}): ${theme}${desc}`;
+    const effect = inp.description
+      ? ` LARGE swirling effect inspired by: "${inp.description}".`
+      : "";
+    const rarity =
+      inp.rarity && ["common", "uncommon", "rare", "epic", "legendary"].includes(String(inp.rarity).toLowerCase())
+        ? ` Power level ${String(inp.rarity).toLowerCase()}: the higher the power, the brighter the glow and the richer the detail (single main object, one dominant effect, one secondary effect).`
+        : "";
+    return `${i + 1}. Class: ${String(inp.class || "unknown").slice(0, 40)}. Skill: "${inp.name}" (kind: ${inp.kind || "attack"}). ${theme}.${effect}${rarity}`;
   });
+  const identity = classVisualIdentity(inputs[0]?.class);
   return (
-    `Create a SINGLE image containing exactly ${inputs.length} primary skill icons of the spells, ` +
+    `Create a SINGLE image containing exactly ${inputs.length} skill icons of a video game, ` +
     `arranged in one vertical column, top to bottom, in this exact order, each occupying its own equal square cell with no gaps, borders or numbers:\n${lines.join("\n")}\n\n` +
-    `Each cell must be an isolated 64x64 square classic MMORPG skill icon. ${STYLE_TAG}`
+    `Rules for every icon: the skill NAME defines the main drawing; the skill EFFECT defines what appears around it; the CLASS defines the visual identity (${baseIdentity.identity}; ${baseIdentity.colors}) — do not draw full characters, focus entirely on the skill effect and weapon. ` +
+    `Each skill must have its own instantly recognizable silhouette, and all icons must share the SAME visual language: same composition, same level of detail, same lighting, same subject scale, same RPG aesthetic (${identity.colors}). ` +
+    `${STYLE_TAG}`
   );
 }
 
-// Recorta uma imagem em `n` células iguais (coluna vertical, de cima para baixo),
+// Recorta uma imagem em `n` cÃ©lulas iguais (coluna vertical, de cima para baixo),
 // redimensiona cada uma para 64x64 PNG e salva em frontend/public/iconskill.
 async function sliceAndSave(fileNames: string[], buffer: Buffer, n: number): Promise<string[]> {
   const img = sharp(buffer);
@@ -199,8 +229,8 @@ async function sliceAndSave(fileNames: string[], buffer: Buffer, n: number): Pro
   return urls;
 }
 
-// Gera N ícones em UMA única chamada de IA (Gemini ou Pollinations) e recorta.
-// Retorna um mapa key (slug da skill) → caminho do ícone.
+// Gera N Ã­cones em UMA Ãºnica chamada de IA (Gemini ou OpenAI) e recorta.
+// Retorna um mapa key (slug da skill) â†’ caminho do Ã­cone.
 export async function generateSkillIconsBatch(inputs: SkillIconInput[]): Promise<Record<string, string>> {
   const list = inputs.slice(0, 10);
   if (list.length === 0) return {};
@@ -212,8 +242,8 @@ export async function generateSkillIconsBatch(inputs: SkillIconInput[]): Promise
   });
   const prompt = buildBatchPrompt(list);
 
-  // Fallback em cadeia: Gemini → OpenAI (ChatGPT) → Pollinations (grátis).
-  // Se o provedor principal falhar (quota 429, erro), o próximo assume.
+  // Fallback em cadeia: Gemini â†’ OpenAI (ChatGPT).
+  // Se o provedor principal falhar (quota 429, erro), o prÃ³ximo assume.
   const providers: { name: string; run: () => Promise<{ buffer: Buffer; mime: string }> }[] = [];
   if (process.env.GEMINI_API_KEY && process.env.GEMINI_IMAGE_MODEL) {
     providers.push({
@@ -227,10 +257,6 @@ export async function generateSkillIconsBatch(inputs: SkillIconInput[]): Promise
   if (process.env.OPENAI_API_KEY) {
     providers.push({ name: "OpenAI", run: () => openaiImage(prompt, true) });
   }
-  providers.push({
-    name: "Pollinations",
-    run: () => pollinationsImage(prompt, null, hashSeed(list.map((i) => String(i.name)).join("|")), n),
-  });
 
   let buffer: Buffer | null = null;
   let used = "";
@@ -246,9 +272,10 @@ export async function generateSkillIconsBatch(inputs: SkillIconInput[]): Promise
     }
   }
   if (!used || !buffer) throw new Error(`Todas as IAs de imagem falharam: ${errors.join(" | ")}`);
+  console.log(`[skillIconGenerator] lote de ${n} skills gerado por ${used}${errors.length ? ` (erros anteriores: ${errors.join(" | ")})` : ""}`);
 
-  // Salva também a imagem única (todas as skills empilhadas) para conferência —
-  // ex.: /iconskill/batch-<slug da 1ª skill>.png
+  // Salva tambÃ©m a imagem Ãºnica (todas as skills empilhadas) para conferÃªncia â€”
+  // ex.: /iconskill/batch-<slug da 1Âª skill>.png
   const batchSeed = hashSeed(list.map((i) => String(i.name)).join("|"));
   const batchFile = `batch-${String(list[0].key || list[0].name).toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${batchSeed}`;
   await fs.mkdir(SKILL_DIR, { recursive: true });
@@ -270,7 +297,7 @@ async function firstReferenceB64(inputs: SkillIconInput[]): Promise<string | nul
       const r = await fetch(url, { signal: genTimeout(20000) });
       if (r.ok) return Buffer.from(await r.arrayBuffer()).toString("base64");
     } catch {
-      // segue sem referência
+      // segue sem referÃªncia
     }
   }
   return null;
@@ -278,7 +305,7 @@ async function firstReferenceB64(inputs: SkillIconInput[]): Promise<string | nul
 
 export async function generateSkillIcons(input: SkillIconInput): Promise<{ icon: string }> {
   const name = String(input.name || "").trim();
-  if (!name) throw new Error("Nome da skill é obrigatório");
+  if (!name) throw new Error("Nome da skill Ã© obrigatÃ³rio");
   const kind = String(input.kind || "attack").toLowerCase();
   const description = String(input.description || "").trim();
   const slug = slugify(name);
@@ -287,7 +314,7 @@ export async function generateSkillIcons(input: SkillIconInput): Promise<{ icon:
 
   const prompt = buildBatchPrompt([{ ...input, key: slug }]);
 
-  // Fallback em cadeia: Gemini → OpenAI (ChatGPT) → Pollinations (grátis).
+// Fallback em cadeia: Gemini â†’ OpenAI (ChatGPT).
   const providers: { name: string; run: () => Promise<{ buffer: Buffer; mime: string }> }[] = [];
   if (process.env.GEMINI_API_KEY && process.env.GEMINI_IMAGE_MODEL) {
     providers.push({
@@ -309,19 +336,21 @@ export async function generateSkillIcons(input: SkillIconInput): Promise<{ icon:
   if (process.env.OPENAI_API_KEY) {
     providers.push({ name: "OpenAI", run: () => openaiImage(prompt, false) });
   }
-  providers.push({ name: "Pollinations", run: () => pollinationsImage(prompt, referenceUrl, seed) });
 
   let result: { buffer: Buffer; mime: string } | null = null;
+  let used = "";
   const errors: string[] = [];
   for (const p of providers) {
     try {
       result = await p.run();
+      used = p.name;
       break;
     } catch (err: any) {
       errors.push(`${p.name}: ${String(err?.message || err).slice(0, 150)}`);
     }
   }
   if (!result) throw new Error(`Todas as IAs de imagem falharam: ${errors.join(" | ")}`);
+  console.log(`[skillIconGenerator] skill "${name}" gerada por ${used}${errors.length ? ` (erros anteriores: ${errors.join(" | ")})` : ""}`);
 
   const icon = await writeIcon(`ai-${slug}-${seed}`, result);
   return { icon };
