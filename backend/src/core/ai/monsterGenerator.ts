@@ -73,9 +73,54 @@ CONTRATO (responda apenas com JSON válido, sem markdown):
       "xpReward": 10,
       "goldReward": 5,
       "behavior": "Frase curta sobre o comportamento do monstro em combate.",
-      "skills": [ ... ],
-      "drops": [ ... ]
+      "skills": [],
+      "drops": []
     }
+  ]
+}
+
+EXEMPLO COMPLETO DE UM MONSTRO (use como referência de formato):
+{
+  "name": "Lobo Sombrio",
+  "description": "Um lobo de pelos escuros que caça em matilha.",
+  "level": 5,
+  "isElite": false,
+  "isBoss": false,
+  "faction": "Floresta",
+  "element": "dark",
+  "hp": 260,
+  "mana": 20,
+  "attack": 18,
+  "defense": 6,
+  "magic": 4,
+  "magicDefense": 4,
+  "speed": 10,
+  "criticalChance": 5,
+  "criticalDamage": 150,
+  "dodge": 2,
+  "accuracy": 90,
+  "attackSpeed": 2000,
+  "xpReward": 62,
+  "goldReward": 25,
+  "behavior": "Ataca em grupo quando vê um alvo fraco.",
+  "skills": [
+    {
+      "name": "Mordida Selvagem",
+      "description": "Morde o alvo com força.",
+      "kind": "attack",
+      "trigger": "auto",
+      "target": "enemy",
+      "cooldown": 2000,
+      "manaCost": 0,
+      "rankRequired": 1,
+      "sortOrder": 1,
+      "actions": [
+        { "action": "damage", "amount": 20, "scaling": [{ "stat": "attack", "factor": 1.0 }], "damageType": "physical" }
+      ]
+    }
+  ],
+  "drops": [
+    { "name": "Presa de Lobo", "description": "Matéria-prima de craft.", "dropChance": 50, "minQuantity": 1, "maxQuantity": 2, "guaranteed": false }
   ]
 }
 
@@ -137,27 +182,36 @@ async function callGemini(prompt: string): Promise<string> {
 async function callGroq(prompt: string): Promise<string> {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("GROQ_API_KEY não definida");
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
+  const call = async (withJsonMode: boolean) => {
+    const body: any = {
       model: GROQ_MODEL,
       messages: [
-        { role: "system", content: "Você gera JSON válido seguindo o contrato do usuário. Responda SOMENTE com o JSON." },
+        { role: "system", content: "Você gera JSON válido seguindo o contrato do usuário. Responda SOMENTE com o JSON, sem markdown." },
         { role: "user", content: prompt },
       ],
       temperature: 0.8,
-      response_format: { type: "json_object" },
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Groq HTTP ${res.status}: ${body.slice(0, 200)}`);
+    };
+    if (withJsonMode) body.response_format = { type: "json_object" };
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify(body),
+    });
+    const bodyText = await res.text().catch(() => "");
+    if (!res.ok) throw new Error(`Groq HTTP ${res.status}: ${bodyText.slice(0, 200)}`);
+    const data = JSON.parse(bodyText) as any;
+    const text = data?.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Groq: resposta vazia");
+    return text;
+  };
+  try {
+    return await call(true);
+  } catch (err: any) {
+    if (String(err.message).includes("json_validate_failed")) {
+      return await call(false);
+    }
+    throw err;
   }
-  const data = (await res.json()) as any;
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Groq: resposta vazia");
-  return text;
 }
 
 export { callGemini, callGroq };
