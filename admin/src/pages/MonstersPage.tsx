@@ -58,6 +58,7 @@ export default function MonstersPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "level">("name");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"geral" | "drops">("geral");
@@ -384,10 +385,14 @@ export default function MonstersPage() {
               <>
                 {groupedMonsters.groups.map(([mapName, list]) => (
                   <div key={mapName}>
-                    <div className="px-4 py-1.5 bg-dark-700/60 text-[11px] uppercase tracking-wide text-accent-400 font-medium flex items-center gap-1.5 sticky top-0">
+                    <button
+                      onClick={() => setCollapsed((c) => ({ ...c, [mapName]: !c[mapName] }))}
+                      className="w-full px-4 py-1.5 bg-dark-700/60 text-[11px] uppercase tracking-wide text-accent-400 font-medium flex items-center gap-1.5 sticky top-0 hover:bg-dark-700"
+                    >
                       <MapPin size={11} /> {mapName} <span className="text-gray-500">({list.length})</span>
-                    </div>
-                    {list.map((m) => (
+                      <span className="ml-auto text-gray-500">{collapsed[mapName] ? "►" : "▼"}</span>
+                    </button>
+                    {!collapsed[mapName] && list.map((m) => (
                       <button
                         key={m.id}
                         onClick={() => selectMonster(m.id)}
@@ -414,10 +419,14 @@ export default function MonstersPage() {
                 ))}
                 {groupedMonsters.unassigned.length > 0 && (
                   <div>
-                    <div className="px-4 py-1.5 bg-dark-700/60 text-[11px] uppercase tracking-wide text-gray-400 font-medium flex items-center gap-1.5 sticky top-0">
+                    <button
+                      onClick={() => setCollapsed((c) => ({ ...c, "__unassigned__": !c["__unassigned__"] }))}
+                      className="w-full px-4 py-1.5 bg-dark-700/60 text-[11px] uppercase tracking-wide text-gray-400 font-medium flex items-center gap-1.5 sticky top-0 hover:bg-dark-700"
+                    >
                       Sem mapa <span className="text-gray-500">({groupedMonsters.unassigned.length})</span>
-                    </div>
-                    {groupedMonsters.unassigned.map((m) => (
+                      <span className="ml-auto text-gray-500">{collapsed["__unassigned__"] ? "►" : "▼"}</span>
+                    </button>
+                    {!collapsed["__unassigned__"] && groupedMonsters.unassigned.map((m) => (
                       <button
                         key={m.id}
                         onClick={() => selectMonster(m.id)}
