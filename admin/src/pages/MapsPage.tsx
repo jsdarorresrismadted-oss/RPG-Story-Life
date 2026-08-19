@@ -93,6 +93,19 @@ export default function MapsPage() {
 
   const monsterName = (id: string) => monsters.find((m) => m.id === id)?.name ?? id;
 
+  const usedMonsterIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of maps) {
+      for (const s of m.monsters ?? []) set.add(s.monsterId);
+    }
+    return set;
+  }, [maps]);
+
+  const availableMonsters = useMemo(
+    () => monsters.filter((m) => !usedMonsterIds.has(m.id) || m.id === mmForm.monsterId),
+    [monsters, usedMonsterIds, mmForm.monsterId]
+  );
+
   const selectMap = (id: string) => {
     setSelectedId(id);
     setCreating(false);
@@ -400,7 +413,7 @@ export default function MapsPage() {
                         <label className={labelClass}>Monstro *</label>
                         <select value={mmForm.monsterId ?? ""} onChange={(e) => setMmForm({ ...mmForm, monsterId: e.target.value })} className={inputClass}>
                           <option value="">Selecionar monstro...</option>
-                          {monsters.map((m) => (
+                          {availableMonsters.map((m) => (
                             <option key={m.id} value={m.id}>{m.name}</option>
                           ))}
                         </select>
