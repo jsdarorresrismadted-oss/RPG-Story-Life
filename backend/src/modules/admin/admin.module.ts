@@ -872,6 +872,7 @@ export function createAdminModule(app: Express): void {
 
   async function saveGameClass(id: string | null, body: any) {
     const data = normalizeBody("class", body);
+    if (!data.icon || !String(data.icon).startsWith("/")) data.icon = "/classicon/shoulder.png";
     try {
       return id
         ? await prisma.gameClass.update({ where: { id }, data })
