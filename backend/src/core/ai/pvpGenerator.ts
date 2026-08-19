@@ -7,7 +7,7 @@ import { callGemini, callGroq, extractJson, num, clamp } from "./monsterGenerato
 // configuração da arena em SystemConfig (key "pvp_arena"). Inclui regras de
 // entrada, recompensas, matchmaking e temporada.
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export const PVP_CONFIG_KEY = "pvp_arena";

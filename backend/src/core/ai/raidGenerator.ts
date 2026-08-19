@@ -7,7 +7,7 @@ import { callGemini, callGroq, extractJson, num, clamp, persistMonsterData, VALI
 // cada um com stats, skills e drops. O motor de raid (RaidService) monta as ondas
 // agregadas a partir dos monstros vinculados ao mapa (MapMonster).
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export interface GeneratedRaid {

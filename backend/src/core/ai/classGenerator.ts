@@ -7,7 +7,7 @@ import { generateSkillIconsBatch } from "./skillIconGenerator";
 // Chaves: GEMINI_API_KEY e GROQ_API_KEY (variáveis de ambiente).
 // Gemini é tentado primeiro; se falhar, Groq é o fallback.
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export function aiProvidersAvailable() {

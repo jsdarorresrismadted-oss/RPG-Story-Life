@@ -6,7 +6,7 @@ import { getGameLimits } from "../gameLimits";
 // Mesmo padrão do classGenerator: Gemini primeiro, Groq como fallback.
 // Gera stats, skills (DSL do motor de batalha) e drops (por NOME de item + taxa).
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export interface GeneratedMonster {
