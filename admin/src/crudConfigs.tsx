@@ -218,6 +218,18 @@ export const crudConfigs: CrudConfig[] = [
         },
       },
       { key: "buyPrice", label: "Preço", render: (v) => <span className="text-yellow-400 text-xs">{Number(v).toLocaleString()}</span> },
+      {
+        key: "createdAt",
+        label: "Criado em",
+        render: (v) =>
+          v ? (
+            <span className="text-gray-400 text-[11px] whitespace-nowrap">
+              {new Date(v).toLocaleDateString("pt-BR")} {new Date(v).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          ) : (
+            <span className="text-gray-600 text-xs">—</span>
+          ),
+      },
       { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
     ],
     fields: [
