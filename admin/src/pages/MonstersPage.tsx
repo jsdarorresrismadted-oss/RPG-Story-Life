@@ -119,6 +119,24 @@ export default function MonstersPage() {
 
   const mapsOf = (monsterId: string) => maps.filter((m) => Array.isArray(m.monsters) && m.monsters.some((s: any) => s.monsterId === monsterId));
 
+  const groupedMonsters = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    const unassigned: any[] = [];
+    for (const m of sortedMonsters) {
+      const ownMaps = mapsOf(m.id);
+      if (ownMaps.length > 0) {
+        for (const mp of ownMaps) {
+          if (!groups.has(mp.name)) groups.set(mp.name, []);
+          groups.get(mp.name)!.push(m);
+        }
+      } else {
+        unassigned.push(m);
+      }
+    }
+    const sorted = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt"));
+    return { groups: sorted, unassigned };
+  }, [sortedMonsters, maps]);
+
   const fillForm = (m: any) => {
     const values = monsterDefaults();
     for (const f of MONSTER_FIELDS) {
@@ -362,37 +380,70 @@ export default function MonstersPage() {
             {!loading && filteredMonsters.length === 0 && (
               <p className="text-center text-gray-500 py-8">Nenhum monstro — crie um ou use o gerador de IA</p>
             )}
-            {sortedMonsters.map((m) => {
-              const spawnCount = mapsOf(m.id).length;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => selectMonster(m.id)}
-                  className={`w-full text-left px-4 py-3 border-b border-dark-700 transition-colors flex items-center gap-3 ${
-                    selectedId === m.id ? "bg-accent-600/20 border-l-2 border-l-accent-500" : "hover:bg-dark-700/50"
-                  }`}
-                >
-                  {m.imageUrl ? (
-                    <img src={m.imageUrl} alt="" className="w-9 h-9 object-contain rounded bg-dark-700 p-0.5 shrink-0" style={{ imageRendering: "pixelated" }} />
-                  ) : (
-                    <span className="w-9 h-9 rounded bg-dark-700 flex items-center justify-center text-gray-600 shrink-0">?</span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="font-medium text-white block truncate">{m.name}</span>
-                    <span className="text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">
-                      Nv {m.level}
-                      {m.isBoss && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-400">BOSS</span>}
-                      {m.isElite && !m.isBoss && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-400">Elite</span>}
-                      {spawnCount > 0 && (
-                        <span className="flex items-center gap-0.5 text-gray-500">
-                          <MapPin size={11} /> {mapsOf(m.id).map((mm) => mm.name).join(", ")}
+            {!loading && filteredMonsters.length > 0 && (
+              <>
+                {groupedMonsters.groups.map(([mapName, list]) => (
+                  <div key={mapName}>
+                    <div className="px-4 py-1.5 bg-dark-700/60 text-[11px] uppercase tracking-wide text-accent-400 font-medium flex items-center gap-1.5 sticky top-0">
+                      <MapPin size={11} /> {mapName} <span className="text-gray-500">({list.length})</span>
+                    </div>
+                    {list.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => selectMonster(m.id)}
+                        className={`w-full text-left px-4 py-3 border-b border-dark-700 transition-colors flex items-center gap-3 ${
+                          selectedId === m.id ? "bg-accent-600/20 border-l-2 border-l-accent-500" : "hover:bg-dark-700/50"
+                        }`}
+                      >
+                        {m.imageUrl ? (
+                          <img src={m.imageUrl} alt="" className="w-9 h-9 object-contain rounded bg-dark-700 p-0.5 shrink-0" style={{ imageRendering: "pixelated" }} />
+                        ) : (
+                          <span className="w-9 h-9 rounded bg-dark-700 flex items-center justify-center text-gray-600 shrink-0">?</span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="font-medium text-white block truncate">{m.name}</span>
+                          <span className="text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">
+                            Nv {m.level}
+                            {m.isBoss && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-400">BOSS</span>}
+                            {m.isElite && !m.isBoss && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-400">Elite</span>}
+                          </span>
                         </span>
-                      )}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+                {groupedMonsters.unassigned.length > 0 && (
+                  <div>
+                    <div className="px-4 py-1.5 bg-dark-700/60 text-[11px] uppercase tracking-wide text-gray-400 font-medium flex items-center gap-1.5 sticky top-0">
+                      Sem mapa <span className="text-gray-500">({groupedMonsters.unassigned.length})</span>
+                    </div>
+                    {groupedMonsters.unassigned.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => selectMonster(m.id)}
+                        className={`w-full text-left px-4 py-3 border-b border-dark-700 transition-colors flex items-center gap-3 ${
+                          selectedId === m.id ? "bg-accent-600/20 border-l-2 border-l-accent-500" : "hover:bg-dark-700/50"
+                        }`}
+                      >
+                        {m.imageUrl ? (
+                          <img src={m.imageUrl} alt="" className="w-9 h-9 object-contain rounded bg-dark-700 p-0.5 shrink-0" style={{ imageRendering: "pixelated" }} />
+                        ) : (
+                          <span className="w-9 h-9 rounded bg-dark-700 flex items-center justify-center text-gray-600 shrink-0">?</span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="font-medium text-white block truncate">{m.name}</span>
+                          <span className="text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">
+                            Nv {m.level}
+                            {m.isBoss && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-400">BOSS</span>}
+                            {m.isElite && !m.isBoss && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-400">Elite</span>}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
