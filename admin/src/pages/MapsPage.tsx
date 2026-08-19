@@ -336,6 +336,11 @@ export default function MapsPage() {
                     <p className="text-xs text-gray-500">
                       {m.region || "-"} • Nv {m.requiredLevel} • {m.monsters?.length ?? 0} monstros
                     </p>
+                    {(m.monsters?.length ?? 0) > 0 && (
+                      <p className="text-[10px] text-gray-600 truncate mt-0.5">
+                        {m.monsters.map((s: any) => monsterName(s.monsterId)).join(", ")}
+                      </p>
+                    )}
                   </div>
                 </div>
               </button>
@@ -367,6 +372,11 @@ export default function MapsPage() {
                       <p className="text-xs text-gray-500">
                         {creating ? "Preencha os dados abaixo" : `Região ${selected?.region} • Nv ${selected?.requiredLevel} • ${selected?.monsters?.length ?? 0} monstros`}
                       </p>
+                      {!creating && (selected?.monsters?.length ?? 0) > 0 && (
+                        <p className="text-[10px] text-gray-600 truncate max-w-[420px]">
+                          Mobs: {selected.monsters.map((s: any) => monsterName(s.monsterId)).join(", ")}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

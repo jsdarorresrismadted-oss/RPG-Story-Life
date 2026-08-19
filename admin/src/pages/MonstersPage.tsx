@@ -385,7 +385,7 @@ export default function MonstersPage() {
                       {m.isElite && !m.isBoss && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-400">Elite</span>}
                       {spawnCount > 0 && (
                         <span className="flex items-center gap-0.5 text-gray-500">
-                          <MapPin size={11} /> {spawnCount}
+                          <MapPin size={11} /> {mapsOf(m.id).map((mm) => mm.name).join(", ")}
                         </span>
                       )}
                     </span>
