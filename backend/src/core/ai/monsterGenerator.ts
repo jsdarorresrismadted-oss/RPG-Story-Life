@@ -43,6 +43,34 @@ export function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
+// Variações de nome para não repetir mobs (ex.: "Lobo", "Lobo Ancião", "Lobo das Sombras").
+const NAME_VARIANTS = [
+  " Sombrio", " Ancião", " Selvagem", " Gigante", " das Feras", " do Norte", " Ancestral",
+  " do Abismo", " Real", " das Sombras", " Bravo", " Alfa", " da Matilha", " do Bosque",
+  " Sinistro", " do Vale", " do Pântano", " das Ruínas", " do Gelo", " de Ferro",
+];
+
+export function uniqueMonsterName(base: string, used: Set<string>): string {
+  const original = String(base || "").trim();
+  if (!original) return original;
+  if (!used.has(original)) {
+    used.add(original);
+    return original;
+  }
+  for (const v of NAME_VARIANTS) {
+    const candidate = `${original}${v}`;
+    if (!used.has(candidate)) {
+      used.add(candidate);
+      return candidate;
+    }
+  }
+  let i = 2;
+  while (used.has(`${original} ${i}`)) i++;
+  const final = `${original} ${i}`;
+  used.add(final);
+  return final;
+}
+
 function buildPrompt(idea: string, xpPerLevel: number): string {
   return `Você é um designer de monstros de um MMORPG de texto. Gere UM OU VÁRIOS monstros (o usuário pode pedir uma quantidade, ex.: "6 monstros") seguindo EXATAMENTE o contrato abaixo.
 
@@ -361,13 +389,22 @@ function normalize(raw: any, errors: string[], xpPerLevel = 1250): GeneratedMons
     return rank(a.monster) - rank(b.monster);
   });
 
-  const first = sorted[0];
+  // Não repetir nomes dentro do lote gerado (ex.: "5 lobos" → Lobo, Lobo Ancião, Lobo das Sombras...)
+  const usedNames = new Set<string>();
+  const deduped = sorted.map((e) => {
+    const oldName = e.monster.name;
+    const newName = uniqueMonsterName(oldName, usedNames);
+    if (newName !== oldName) errors.push(`Nome "${oldName}" repetido — renomeado para "${newName}"`);
+    return { ...e, monster: { ...e.monster, name: newName } };
+  });
+
+  const first = deduped[0];
 
   return {
     monster: first.monster,
-    monsters: sorted.map((e) => e.monster),
+    monsters: deduped.map((e) => e.monster),
     drops: first.drops,
-    allDrops: sorted.map((e) => e.drops),
+    allDrops: deduped.map((e) => e.drops),
     preview: {
       level: first.monster.level,
       hp: first.monster.hp,
@@ -375,7 +412,7 @@ function normalize(raw: any, errors: string[], xpPerLevel = 1250): GeneratedMons
       defense: first.monster.defense,
       speed: first.monster.speed,
       drops: first.drops.length,
-      count: sorted.length,
+      count: deduped.length,
     },
     errors,
   };
@@ -436,6 +473,21 @@ export async function persistGeneratedMonster(gen: GeneratedMonster): Promise<an
 // Cria um Monster + seus drops no banco. Reutilizado pelo gerador de raids
 // (cada onda e o boss são monstros completos com drops próprios).
 export async function persistMonsterData(monster: any, drops: any[]): Promise<{ id: string; warnings: string[] }> {
+  // Não repetir nome de monstro já existente no banco (renomeia com variação pt-BR)
+  const warnings: string[] = [];
+  const existing = await prisma.monster.findFirst({
+    where: { name: { equals: monster.name, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (existing) {
+    const used = new Set<string>([monster.name]);
+    const allNames = await prisma.monster.findMany({ select: { name: true } });
+    for (const n of allNames) used.add(n.name);
+    const finalName = uniqueMonsterName(monster.name, used);
+    warnings.push(`Nome "${monster.name}" já existia — renomeado para "${finalName}"`);
+    monster = { ...monster, name: finalName };
+  }
+
   const created = await prisma.monster.create({
     data: {
       name: monster.name,
@@ -466,7 +518,6 @@ export async function persistMonsterData(monster: any, drops: any[]): Promise<{ 
     },
   });
 
-  const warnings: string[] = [];
   for (const d of drops || []) {
     if (!d?.itemName && !d?.newName) continue;
     let itemId: string | null = null;
