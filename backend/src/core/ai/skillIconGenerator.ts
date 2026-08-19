@@ -247,6 +247,13 @@ export async function generateSkillIconsBatch(inputs: SkillIconInput[]): Promise
   }
   if (!used || !buffer) throw new Error(`Todas as IAs de imagem falharam: ${errors.join(" | ")}`);
 
+  // Salva também a imagem única (todas as skills empilhadas) para conferência —
+  // ex.: /iconskill/batch-<slug da 1ª skill>.png
+  const batchSeed = hashSeed(list.map((i) => String(i.name)).join("|"));
+  const batchFile = `batch-${String(list[0].key || list[0].name).toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${batchSeed}`;
+  await fs.mkdir(SKILL_DIR, { recursive: true });
+  await fs.writeFile(path.join(SKILL_DIR, `${batchFile}.png`), buffer);
+
   const urls = await sliceAndSave(fileNames, buffer, n);
   const out: Record<string, string> = {};
   list.forEach((inp, i) => {
