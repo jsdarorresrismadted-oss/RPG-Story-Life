@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { ArrowUpDown, Loader2, MapPin, Plus, RefreshCw, Sparkles, Trash2, Wand2, X } from "lucide-react";
+import { ArrowUpDown, Loader2, MapPin, Plus, RefreshCw, SlidersHorizontal, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
 
@@ -76,6 +76,8 @@ export default function MonstersPage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiMode, setAiMode] = useState<"generate" | "adjust">("generate");
+  const [adjustResult, setAdjustResult] = useState<any>(null);
 
   const load = async (keepSelection = true) => {
     setLoading(true);
@@ -331,6 +333,30 @@ export default function MonstersPage() {
     }
   };
 
+  const handleAiAdjust = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error("Descreva o ajuste que a IA deve aplicar");
+      return;
+    }
+    setAiBusy(true);
+    setAdjustResult(null);
+    try {
+      const res = await adminApi.ai.adjustMonsters(aiPrompt.trim());
+      const result = res.data?.data;
+      setAdjustResult(result);
+      if (result?.adjusted > 0) {
+        toast.success(`${result.adjusted} monstros ajustados (${result.changes} campos alterados)`);
+      } else {
+        toast("Nenhum monstro foi alterado — a IA entendeu que nada deveria mudar", { icon: "ℹ️" });
+      }
+      await load(false);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Falha ao ajustar");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -342,7 +368,13 @@ export default function MonstersPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setAiOpen(true); }}
+            onClick={() => { setAiMode("adjust"); setAdjustResult(null); setAiOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <SlidersHorizontal size={16} /> Ajustar com IA
+          </button>
+          <button
+            onClick={() => { setAiMode("generate"); setAdjustResult(null); setAiOpen(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <Wand2 size={16} /> Gerar com IA
@@ -643,7 +675,7 @@ export default function MonstersPage() {
               <Sparkles className="text-gray-600" size={28} />
               <p className="text-gray-500">Selecione um monstro, crie um novo ou use o gerador de IA</p>
               <button
-                onClick={() => setAiOpen(true)}
+                onClick={() => { setAiMode("generate"); setAdjustResult(null); setAiOpen(true); }}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Wand2 size={16} /> Gerar monstro com IA
@@ -658,28 +690,62 @@ export default function MonstersPage() {
           <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold flex items-center gap-2">
-                <Wand2 size={18} className="text-fuchsia-400" /> Gerar monstro com IA
+                {aiMode === "adjust" ? (
+                  <><SlidersHorizontal size={18} className="text-cyan-400" /> Ajustar monstros com IA</>
+                ) : (
+                  <><Wand2 size={18} className="text-fuchsia-400" /> Gerar monstro com IA</>
+                )}
               </h2>
               <button onClick={() => setAiOpen(false)} className="text-gray-500 hover:text-gray-300 text-xl leading-none" disabled={aiBusy}>
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-gray-500 mb-3">
-              Gemini (ou Groq como fallback) cria stats, skills e drops — e salva no banco. Você pode pedir vários de uma vez (ex.: "6 monstros nível 10 a 15").
-            </p>
+            {aiMode === "adjust" ? (
+              <p className="text-xs text-gray-500 mb-3">
+                A IA altera monstros existentes no banco — ex.: <span className="text-gray-300">"aumente em 10% o HP dos mobs level 11 ao 20"</span>, <span className="text-gray-300">"dobre o ataque dos lobos"</span>. Funciona por faixa de nível, nome, tipo ou região.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 mb-3">
+                Gemini (ou Groq como fallback) cria stats, skills e drops — e salva no banco. Você pode pedir vários de uma vez (ex.: "6 monstros nível 10 a 15").
+              </p>
+            )}
             <label className={labelClass}>Prompt para a IA</label>
-            <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={3} className={inputClass} placeholder='Descreva o monstro... ex.: "6 lobos anciões de gelo nível 10 a 15"' />
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              rows={3}
+              className={inputClass}
+              placeholder={aiMode === "adjust" ? 'Ex.: "aumente em 10% o HP dos mobs level 11 ao 20"' : 'Descreva o monstro... ex.: "6 lobos anciões de gelo nível 10 a 15"'}
+            />
+            {aiMode === "adjust" && adjustResult && !aiBusy && (
+              <div className="mt-3 bg-dark-900 border border-dark-600 rounded-lg p-3 max-h-48 overflow-y-auto">
+                <p className="text-xs font-medium text-cyan-400 mb-2">
+                  {adjustResult.adjusted} monstros ajustados · {adjustResult.changes} campos alterados{adjustResult.skipped > 0 ? ` · ${adjustResult.skipped} ignorados` : ""}
+                </p>
+                {adjustResult.updated.map((u: any) => (
+                  <div key={u.id} className="text-xs text-gray-400 py-1 border-b border-dark-700 last:border-0">
+                    <span className="text-white font-medium">{u.name}</span>
+                    <ul className="pl-3 mt-0.5 text-gray-500">
+                      {u.changes.map((c: string, i: number) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                ))}
+                {adjustResult.warnings?.map((w: string, i: number) => (
+                  <p key={i} className="text-[11px] text-yellow-500 mt-1">⚠️ {w}</p>
+                ))}
+              </div>
+            )}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setAiPrompt(DEFAULT_AI_PROMPT)} className="px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors">
+              <button onClick={() => setAiPrompt(aiMode === "adjust" ? "aumente em 10% o HP dos mobs level 11 ao 20" : DEFAULT_AI_PROMPT)} className="px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors">
                 Exemplo
               </button>
               <button
-                onClick={handleAiGenerate}
+                onClick={aiMode === "adjust" ? handleAiAdjust : handleAiGenerate}
                 disabled={aiBusy}
                 className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               >
-                {aiBusy ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                {aiBusy ? "Gerando (pode levar ~1min)..." : "Gerar e salvar"}
+                {aiBusy ? <Loader2 size={16} className="animate-spin" /> : aiMode === "adjust" ? <SlidersHorizontal size={16} /> : <Wand2 size={16} />}
+                {aiBusy ? (aiMode === "adjust" ? "Ajustando (pode levar ~1min)..." : "Gerando (pode levar ~1min)...") : aiMode === "adjust" ? "Ajustar e salvar" : "Gerar e salvar"}
               </button>
             </div>
           </div>

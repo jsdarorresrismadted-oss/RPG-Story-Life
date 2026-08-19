@@ -67,6 +67,7 @@ export const adminApi = {
   ai: {
     config: () => api.get("/admin/ai/config"),
     generateMonster: (prompt: string) => api.post("/admin/monsters/generate", { prompt }),
+    adjustMonsters: (prompt: string) => api.post("/admin/monsters/adjust", { prompt }),
     generateRaid: (prompt: string) => api.post("/admin/raids/generate", { prompt }),
     generatePvp: (prompt: string) => api.post("/admin/pvp/generate", { prompt }),
   },

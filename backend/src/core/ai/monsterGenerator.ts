@@ -511,3 +511,181 @@ export async function persistMonsterData(monster: any, drops: any[]): Promise<{ 
   }
   return { id: created.id, warnings };
 }
+
+// ===== Ajuste em massa de monstros existentes via IA =====
+// O dono pede algo como "aumente em 10% o HP dos mobs level 11 ao 20" e a IA
+// devolve os novos valores apenas dos campos que devem mudar.
+
+const ADJUSTABLE_FIELDS: { name: string; label: string; min: number; max: number }[] = [
+  { name: "hp", label: "HP", min: 1, max: 5000000 },
+  { name: "mana", label: "Mana", min: 0, max: 500000 },
+  { name: "attack", label: "Ataque", min: 1, max: 50000 },
+  { name: "defense", label: "Defesa", min: 0, max: 50000 },
+  { name: "magic", label: "Magia", min: 0, max: 50000 },
+  { name: "magicDefense", label: "Res. Mágica", min: 0, max: 50000 },
+  { name: "speed", label: "Velocidade", min: 1, max: 500 },
+  { name: "criticalChance", label: "Crit. Chance (%)", min: 0, max: 50 },
+  { name: "criticalDamage", label: "Crit. Dano (%)", min: 100, max: 300 },
+  { name: "dodge", label: "Esquiva (%)", min: 0, max: 30 },
+  { name: "accuracy", label: "Precisão (%)", min: 70, max: 100 },
+  { name: "attackSpeed", label: "Vel. Ataque (ms)", min: 1200, max: 5000 },
+];
+
+export interface AdjustResult {
+  adjusted: number;
+  changes: number;
+  skipped: number;
+  updated: { id: string; name: string; changes: string[] }[];
+  warnings: string[];
+  preview: { count: number; changes: number };
+}
+
+// Detecta faixa de nível no pedido ("level 11 ao 20", "lvl 1 a 6", "nível 3 até 5", "entre 4 e 8").
+export function detectLevelRange(idea: string): { min: number; max: number } | null {
+  const t = String(idea || "").toLowerCase();
+  const re =
+    /(?:level|lvl|n[ií]vel)\.?\s*(\d+)\s*(?:a|ao|at[eé]|at[ée]|até|~|-|–|e|entre)\s*(\d+)/i;
+  const m = t.match(re);
+  if (m) {
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
+    return { min: Math.min(a, b), max: Math.max(a, b) };
+  }
+  const m2 = t.match(/entre\s+(\d+)\s+e\s+(\d+)/i);
+  if (m2) {
+    const a = parseInt(m2[1], 10);
+    const b = parseInt(m2[2], 10);
+    return { min: Math.min(a, b), max: Math.max(a, b) };
+  }
+  const m3 = t.match(/(?:level|lvl|n[ií]vel)\.?\s*(\d+)\b/i);
+  if (m3) {
+    const v = parseInt(m3[1], 10);
+    return { min: v, max: v };
+  }
+  return null;
+}
+
+function buildAdjustPrompt(idea: string, monsters: any[]): string {
+  const lines = monsters
+    .map(
+      (m) =>
+        `${m.id}|${m.name}|lv ${m.level}|hp ${m.hp}|mana ${m.mana}|atk ${m.attack}|def ${m.defense}|mag ${m.magic}|rmag ${m.magicDefense}|spd ${m.speed}|crit ${m.criticalChance}%|critdmg ${m.criticalDamage}%|dodge ${m.dodge}%|acc ${m.accuracy}%|as ${m.attackSpeed}ms`
+    )
+    .join("\n");
+  return `Você ajusta monstros de um MMORPG de texto. O dono pediu: "${idea}".
+
+MONSTROS ATUAIS (formato: id|nome|lv hp|mana|atk|def|mag|rmag|spd|crit|critdmg|dodge|acc|as):
+${lines}
+
+RESPONDA SOMENTE com JSON: {"adjustments":[{"id":"<id do monstro>","<campo>":<novo valor>}, ...]}
+
+REGRAS:
+- Ajuste SOMENTE os monstros mencionados no pedido (faixa de nivel, nome, tipo, regiao, etc.).
+- Inclua no JSON apenas os CAMPOS que devem mudar, com o VALOR FINAL calculado (ex.: "aumente em 10% o hp" -> hp * 1.10 arredondado).
+- Percentual de "aumente/diminua em X%" ou multiplicador ("dobre", "triplique") = multiplique o valor atual.
+- "aumente em 50" (sem %) = some 50. "reduza/diminua em 50" = subtraia 50.
+- Campos validos: ${ADJUSTABLE_FIELDS.map((f) => f.name).join(", ")}.
+- Limites: hp 1-5000000, mana 0-500000, attack/defense/magic/magicDefense 0-50000, speed 1-500, crit 0-50, critdmg 100-300, dodge 0-30, acc 70-100, attackSpeed 1200-5000 ms.
+- NUNCA envie campos que não devem mudar. Nunca invente ids. Se nenhum monstro deve mudar, retorne {"adjustments":[]}.`;
+}
+
+export async function adjustMonsters(idea: string, providerLog: string[]): Promise<AdjustResult> {
+  const where: any = { isActive: true };
+  const range = detectLevelRange(idea);
+  if (range) where.level = { gte: range.min, lte: range.max };
+
+  const monsters = await prisma.monster.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      level: true,
+      hp: true,
+      mana: true,
+      attack: true,
+      defense: true,
+      magic: true,
+      magicDefense: true,
+      speed: true,
+      criticalChance: true,
+      criticalDamage: true,
+      dodge: true,
+      accuracy: true,
+      attackSpeed: true,
+    },
+    orderBy: { level: "asc" },
+    take: 200,
+  });
+
+  if (monsters.length === 0) {
+    throw new AppError(404, range ? `Nenhum monstro ativo no nível ${range.min} a ${range.max}.` : "Nenhum monstro ativo encontrado.");
+  }
+
+  const prompt = buildAdjustPrompt(idea, monsters);
+  const attempts = [
+    { name: "Gemini", fn: callGemini, key: () => process.env.GEMINI_API_KEY },
+    { name: "Groq", fn: callGroq, key: () => process.env.GROQ_API_KEY },
+  ];
+  let lastErr: Error | null = null;
+  let raw: any = null;
+  for (const attempt of attempts) {
+    if (!attempt.key()) continue;
+    for (let retry = 0; retry < 2; retry++) {
+      try {
+        const text = await attempt.fn(prompt);
+        providerLog.push(`${attempt.name}${retry > 0 ? ` (após ${retry} retry)` : ""}`);
+        raw = extractJson(text);
+        break;
+      } catch (err: any) {
+        lastErr = err;
+      }
+    }
+    if (raw) break;
+  }
+  if (!raw) {
+    throw new AppError(502, `Falha ao ajustar monstros (Gemini e Groq indisponíveis): ${lastErr?.message?.slice(0, 200)}`);
+  }
+
+  const adjustments = Array.isArray(raw.adjustments) ? raw.adjustments : [];
+  const byId = new Map<string, any>(monsters.map((m) => [m.id, m]));
+  const updated: AdjustResult["updated"] = [];
+  let changes = 0;
+  let skipped = 0;
+
+  for (const adj of adjustments) {
+    const cur = byId.get(String(adj?.id || ""));
+    if (!cur) {
+      skipped++;
+      continue;
+    }
+    const diff: string[] = [];
+    const data: Record<string, any> = {};
+    for (const f of ADJUSTABLE_FIELDS) {
+      if (adj[f.name] === undefined || adj[f.name] === null) continue;
+      const val = clamp(Math.round(num(adj[f.name], cur[f.name])), f.min, f.max);
+      if (val !== cur[f.name]) {
+        data[f.name] = val;
+        diff.push(`${f.label}: ${cur[f.name]} → ${val}`);
+      }
+    }
+    if (diff.length === 0) {
+      skipped++;
+      continue;
+    }
+    await prisma.monster.update({ where: { id: cur.id }, data });
+    changes += diff.length;
+    updated.push({ id: cur.id, name: cur.name, changes: diff });
+  }
+
+  const warnings: string[] = [];
+  if (range && monsters.length >= 200) warnings.push("Limite de 200 monstros por ajuste atingido — refine a faixa de nível para ajustar o restante.");
+
+  return {
+    adjusted: updated.length,
+    changes,
+    skipped,
+    updated,
+    warnings,
+    preview: { count: updated.length, changes },
+  };
+}

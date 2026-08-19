@@ -9,7 +9,7 @@ import { AppError } from "../../core/middleware/errorHandler";
 import { DEFAULT_GAME_LIMITS, invalidateGameLimits } from "../../core/gameLimits";
 import { aiProvidersAvailable, generateClass, persistGeneratedClass } from "../../core/ai/classGenerator";
 import { generateItemSprite, defaultIconForItem } from "../../core/ai/itemGenerator";
-import { generateMonster, persistGeneratedMonster } from "../../core/ai/monsterGenerator";
+import { generateMonster, persistGeneratedMonster, adjustMonsters } from "../../core/ai/monsterGenerator";
 import { generateNpcs, persistGeneratedNpcs } from "../../core/ai/npcGenerator";
 import { generateQuests, persistGeneratedQuests } from "../../core/ai/questGenerator";
 import { generateSkillIcons } from "../../core/ai/skillIconGenerator";
@@ -1288,6 +1288,17 @@ export function createAdminModule(app: Express): void {
       const gen = await generateMonster(idea, providerLog);
       const saved = await persistGeneratedMonster(gen);
       res.status(201).json({ data: saved, providers: providerLog });
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/monsters/adjust", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const idea = String((req.body || {}).prompt || "").trim();
+      if (!idea) throw new AppError(400, "Descreva o ajuste que a IA deve aplicar (ex.: 'aumente em 10% o HP dos mobs level 11 ao 20')");
+      requireAi();
+      const providerLog: string[] = [];
+      const result = await adjustMonsters(idea, providerLog);
+      res.status(200).json({ data: result, providers: providerLog });
     } catch (err) { next(err); }
   });
 
