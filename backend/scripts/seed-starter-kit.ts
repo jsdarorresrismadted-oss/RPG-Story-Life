@@ -23,6 +23,14 @@ async function main() {
         continue;
       }
       const stats = autoEquipmentStats(it.type, 1, "common");
+      const iconMap: Record<string, string> = {
+        sword: "/weaponicon/sword.png",
+        spear: "/weaponicon/spear.png",
+        mace: "/weaponicon/mace.png",
+        light: "/armoricon/armor.png",
+        helmet: "/helmeticon/helm.png",
+        "": "/cloakicon/cape.png",
+      };
       await p.item.create({
         data: {
           name: it.name,
@@ -35,6 +43,7 @@ async function main() {
           buyPrice: BigInt(30),
           sellPrice: BigInt(6),
           isActive: true,
+          icon: iconMap[it.subtype] ?? null,
           ...stats,
           dps: 0,
           attackSpeedMs: 0,
