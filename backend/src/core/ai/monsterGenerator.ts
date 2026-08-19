@@ -6,7 +6,7 @@ import { getGameLimits } from "../gameLimits";
 // Mesmo padrão do classGenerator: Gemini primeiro, Groq como fallback.
 // Gera stats, skills (DSL do motor de batalha) e drops (por NOME de item + taxa).
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export interface GeneratedMonster {
@@ -84,7 +84,7 @@ FORMATO DE CADA MONSTRO (array "monsters"):
  "skills":[SKILL...], "drops":[DROP...]
 }
 
-SKILL (1-4 por monstro; a 1a eh o auto: trigger auto, kind attack, cooldown 2000):
+SKILL (1-3 por monstro; a 1a eh o auto: trigger auto, kind attack, cooldown 2000):
 {"name":"nome criativo pt-BR","description":"1 frase","kind":"attack|buff|debuff|heal|utility","trigger":"auto|active","target":"enemy|self","cooldown":3000,"manaCost":10,"rankRequired":1,"sortOrder":1,"actions":[...]}
 ACTION:
 - ataque: {"action":"damage","amount":20,"scaling":[{"stat":"attack|magic","factor":0.8}],"damageType":"physical|magic"}
@@ -92,7 +92,7 @@ ACTION:
 - efeito: {"action":"applyEffect","effect":"sangramento|chama-arcana|veneno-corrosivo|medo-abissal","target":"enemy|self","stacks":1}
 - mana: {"action":"mana","amount":20,"restore":true}
 
-DROP (2-5 por monstro, recursos tematicos da criatura: lobo->Presa de Lobo, aranha->Veno de Aranha, goblin->Osso de Goblin):
+DROP (2-3 por monstro, recursos tematicos da criatura: lobo->Presa de Lobo, aranha->Veno de Aranha, goblin->Osso de Goblin):
 {"name":"Recurso pt-BR","description":"materia-prima de craft","dropChance":50,"minQuantity":1,"maxQuantity":2,"guaranteed":false}
 (opicional max 1 drop de item existente: {"itemName":"Pocao de Vida","dropChance":5,"minQuantity":1,"maxQuantity":1,"guaranteed":false})
 
@@ -157,7 +157,9 @@ async function callGroq(prompt: string): Promise<string> {
         throw new Error(`Groq HTTP ${res.status}: ${bodyText.slice(0, 200)}`);
       }
       const data = JSON.parse(bodyText) as any;
-      const text = data?.choices?.[0]?.message?.content;
+      const msg = data?.choices?.[0]?.message;
+      // gpt-oss (OpenAI) do Groq devolve o texto no campo "reasoning" e content vazio
+      const text = msg?.content?.trim() || msg?.reasoning?.trim();
       if (!text) throw new Error("Groq: resposta vazia");
       return text;
     }
@@ -166,14 +168,14 @@ async function callGroq(prompt: string): Promise<string> {
   try {
     return await call(true);
   } catch (err: any) {
-    if (String(err.message).includes("json_validate_failed")) {
+    if (String(err.message).includes("json_validate_failed") || String(err.message).includes("resposta vazia")) {
       return await call(false);
     }
     throw err;
   }
 }
 
-export { callGemini, callGroq };
+export { callGemini, callGroq, buildPrompt };
 
 export function extractJson(text: string): any {
   let cleaned = text.trim();
