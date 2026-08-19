@@ -106,6 +106,40 @@ async function pollinationsImage(prompt: string, referenceUrl: string | null, se
   return { buffer, mime };
 }
 
+// OpenAI (gpt-image-1 — o gerador de imagens do ChatGPT). Sem env key a função
+// é pulada; o fallback segue para o próximo provedor (ex.: Pollinations).
+async function openaiImage(prompt: string, portrait = false): Promise<{ buffer: Buffer; mime: string }> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("OPENAI_API_KEY não definida");
+  const res = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    signal: genTimeout(120000),
+    body: JSON.stringify({
+      model: "gpt-image-1",
+      prompt,
+      n: 1,
+      size: portrait ? "1024x1536" : "1024x1024",
+      output_format: "png",
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`OpenAI Image HTTP ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as any;
+  const b64 = data?.data?.[0]?.b64_json;
+  if (!b64) {
+    const url = data?.data?.[0]?.url;
+    if (url) {
+      const imgRes = await fetch(url, { signal: genTimeout(60000) });
+      if (imgRes.ok) return { buffer: Buffer.from(await imgRes.arrayBuffer()), mime: imgRes.headers.get("content-type") || "image/png" };
+    }
+    throw new Error("OpenAI Image: resposta sem imagem");
+  }
+  return { buffer: Buffer.from(b64, "base64"), mime: "image/png" };
+}
+
 function extForMime(mime: string): string {
   if (mime.includes("png")) return "png";
   if (mime.includes("webp")) return "webp";
@@ -178,17 +212,40 @@ export async function generateSkillIconsBatch(inputs: SkillIconInput[]): Promise
   });
   const prompt = buildBatchPrompt(list);
 
-  const useGemini = !!process.env.GEMINI_API_KEY && !!process.env.GEMINI_IMAGE_MODEL;
-  let buffer: Buffer;
-  if (useGemini) {
-    const refB64 = await firstReferenceB64(list);
-    const result = await geminiImage(prompt, refB64, true);
-    buffer = result.buffer;
-  } else {
-    const seed = hashSeed(list.map((i) => String(i.name)).join("|"));
-    const result = await pollinationsImage(prompt, null, seed, n);
-    buffer = result.buffer;
+  // Fallback em cadeia: Gemini → OpenAI (ChatGPT) → Pollinations (grátis).
+  // Se o provedor principal falhar (quota 429, erro), o próximo assume.
+  const providers: { name: string; run: () => Promise<{ buffer: Buffer; mime: string }> }[] = [];
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_IMAGE_MODEL) {
+    providers.push({
+      name: "Gemini",
+      run: async () => {
+        const refB64 = await firstReferenceB64(list);
+        return geminiImage(prompt, refB64, true);
+      },
+    });
   }
+  if (process.env.OPENAI_API_KEY) {
+    providers.push({ name: "OpenAI", run: () => openaiImage(prompt, true) });
+  }
+  providers.push({
+    name: "Pollinations",
+    run: () => pollinationsImage(prompt, null, hashSeed(list.map((i) => String(i.name)).join("|")), n),
+  });
+
+  let buffer: Buffer | null = null;
+  let used = "";
+  const errors: string[] = [];
+  for (const p of providers) {
+    try {
+      const result = await p.run();
+      buffer = result.buffer;
+      used = p.name;
+      break;
+    } catch (err: any) {
+      errors.push(`${p.name}: ${String(err?.message || err).slice(0, 150)}`);
+    }
+  }
+  if (!used || !buffer) throw new Error(`Todas as IAs de imagem falharam: ${errors.join(" | ")}`);
 
   const urls = await sliceAndSave(fileNames, buffer, n);
   const out: Record<string, string> = {};
@@ -223,20 +280,41 @@ export async function generateSkillIcons(input: SkillIconInput): Promise<{ icon:
 
   const prompt = buildBatchPrompt([{ ...input, key: slug }]);
 
-  const useGemini = !!process.env.GEMINI_API_KEY && !!process.env.GEMINI_IMAGE_MODEL;
-  let refB64: string | null = null;
-  if (useGemini && referenceUrl) {
+  // Fallback em cadeia: Gemini → OpenAI (ChatGPT) → Pollinations (grátis).
+  const providers: { name: string; run: () => Promise<{ buffer: Buffer; mime: string }> }[] = [];
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_IMAGE_MODEL) {
+    providers.push({
+      name: "Gemini",
+      run: async () => {
+        let refB64: string | null = null;
+        if (referenceUrl) {
+          try {
+            const r = await fetch(referenceUrl, { signal: genTimeout(20000) });
+            if (r.ok) refB64 = Buffer.from(await r.arrayBuffer()).toString("base64");
+          } catch {
+            refB64 = null;
+          }
+        }
+        return geminiImage(prompt, refB64);
+      },
+    });
+  }
+  if (process.env.OPENAI_API_KEY) {
+    providers.push({ name: "OpenAI", run: () => openaiImage(prompt, false) });
+  }
+  providers.push({ name: "Pollinations", run: () => pollinationsImage(prompt, referenceUrl, seed) });
+
+  let result: { buffer: Buffer; mime: string } | null = null;
+  const errors: string[] = [];
+  for (const p of providers) {
     try {
-      const r = await fetch(referenceUrl, { signal: genTimeout(20000) });
-      if (r.ok) refB64 = Buffer.from(await r.arrayBuffer()).toString("base64");
-    } catch {
-      refB64 = null;
+      result = await p.run();
+      break;
+    } catch (err: any) {
+      errors.push(`${p.name}: ${String(err?.message || err).slice(0, 150)}`);
     }
   }
-
-  const result = useGemini
-    ? await geminiImage(prompt, refB64)
-    : await pollinationsImage(prompt, referenceUrl, seed);
+  if (!result) throw new Error(`Todas as IAs de imagem falharam: ${errors.join(" | ")}`);
 
   const icon = await writeIcon(`ai-${slug}-${seed}`, result);
   return { icon };
