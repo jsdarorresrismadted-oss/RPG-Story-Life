@@ -528,9 +528,9 @@ export async function generateItemSprite(input: GenerateItemInput, log: string[]
           : autoEquipmentStats(type, baseLevel, rarity);
     }
 
-    // Armas ganham 3 boosters rolados (valor capado pela raridade, máx 51%).
+    // Armas ganham 1 booster rolado (valor capado pela raridade, máx 51%).
     if (type === "weapon") {
-      plan.boosters = rollWeaponBoosters(rarity, 3, undefined, baseSubtype);
+      plan.boosters = rollWeaponBoosters(rarity, 1, undefined, baseSubtype);
     }
 
     plans.push(plan);

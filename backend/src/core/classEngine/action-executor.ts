@@ -160,21 +160,12 @@ export function computeDamageAmount(
     return { amount: 0, isCritical: false, isMissed: false, isDodged: true };
   }
 
-  const critMult = isCritical ? actorStats.critDamage / 100 : 1;
-  let amount = raw * critMult;
-
   const type = action.damageType || "physical";
-  if (type === "physical" || type === "magic") {
-    const def = type === "physical" ? targetStats.defense : targetStats.magicDefense;
-    if (!action.ignoreDefense) {
-      // Penetração reduz a defesa efetiva do alvo
-      const penetration = Math.min(80, Math.max(0, actorStats.penetration || 0));
-      const effectiveDef = Math.max(0, def * (1 - penetration / 100));
-      const reduction = effectiveDef / (effectiveDef + 100);
-      amount *= 1 - reduction;
-    }
-  }
 
+  // ===== Etapa 1: Dano base × multiplicador da skill (scaling) =====
+  let amount = raw;
+
+  // ===== Etapa 2: Buffs de dano do ATACANTE (uma etapa, multiplicador único) =====
   const skillMods = ctx.getSkillModifiers();
   let boost = 0;
   if (type === "physical") boost += actorStats.physicalDamagePercent;
@@ -190,16 +181,31 @@ export function computeDamageAmount(
   if (skillMods?.damagePercent) boost += skillMods.damagePercent;
   amount *= 1 + boost / 100;
 
-  // Resistências do alvo (reduzem o dano final por tipo)
-  let resistance = targetStats.damageResistance || 0;
-  if (type === "physical") resistance += targetStats.physicalResistance || 0;
-  if (type === "magic") resistance += targetStats.magicalResistance || 0;
-  resistance = Math.min(80, Math.max(0, resistance));
-  if (resistance > 0) amount *= 1 - resistance / 100;
+  // ===== Etapa 3: Debuffs de dano RECEBIDO do alvo (ex.: "recebe +20% de dano") =====
+  // damageTakenReduction positivo REDUZ o dano; negativo AMPLIA (debuff).
+  const dmgTaken = Math.min(80, Math.max(-80, targetStats.damageTakenReduction || 0));
+  if (dmgTaken !== 0) amount *= 1 - dmgTaken / 100;
 
-  // Booster defensivo do alvo: redução de dano recebido (arma do defensor no PvP)
-  const dmgTakenRed = Math.min(80, Math.max(0, targetStats.damageTakenReduction || 0));
-  if (dmgTakenRed > 0) amount *= 1 - dmgTakenRed / 100;
+  // ===== Etapa 4: Crítico =====
+  if (isCritical) amount *= actorStats.critDamage / 100;
+
+  // ===== Etapa 5-6: Penetração + Resistência do alvo =====
+  if (type === "physical" || type === "magic") {
+    const def = type === "physical" ? targetStats.defense : targetStats.magicDefense;
+    const penetration = Math.min(80, Math.max(0, actorStats.penetration || 0));
+    if (!action.ignoreDefense) {
+      // Penetração reduz a defesa efetiva do alvo (armadura)
+      const effectiveDef = Math.max(0, def * (1 - penetration / 100));
+      const reduction = effectiveDef / (effectiveDef + 100);
+      amount *= 1 - reduction;
+    }
+    // Penetração também reduz a resistência % do alvo
+    let resistance = targetStats.damageResistance || 0;
+    if (type === "physical") resistance += targetStats.physicalResistance || 0;
+    if (type === "magic") resistance += targetStats.magicalResistance || 0;
+    const effectiveRes = Math.min(80, Math.max(0, resistance - penetration));
+    if (effectiveRes > 0) amount *= 1 - effectiveRes / 100;
+  }
 
   return { amount: Math.max(1, Math.floor(amount)), isCritical, isMissed: false, isDodged: false };
 }

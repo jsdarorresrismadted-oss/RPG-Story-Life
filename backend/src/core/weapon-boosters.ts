@@ -1,6 +1,7 @@
 // ===== Boosters de Arma =====
-// Toda arma carrega 1-3 boosters (campo Item.boosters: [{ slug, name, kind, value }]).
-// O valor MÁXIMO de cada booster é capado pela raridade da arma (mítico = 51%).
+// Toda arma carrega 1 booster (campo Item.boosters: [{ slug, name, kind, value }]).
+// O valor é definido pelo admin manualmente (0 ou 0.1 até 250%).
+// Na geração automática (IA/rolagem), o valor é capado pela raridade (mítico = 51%).
 // Os kinds mapeiam para stats da engine (DerivedStats) ou pontos de dano do combate.
 
 export type WeaponBoosterKind =
@@ -23,25 +24,25 @@ export type WeaponBoosterKind =
   | "executionPercent" // Dano contra alvo com HP ≤ 30%
   | "fullHpDamagePercent"; // Dano contra alvo com HP cheio
 
-export const WEAPON_BOOSTER_KINDS: Record<WeaponBoosterKind, { label: string; category: string; format: "%" | "add" }> = {
-  damagePercent: { label: "Dano Geral", category: "Dano/Ofensiva", format: "%" },
-  physicalDamagePercent: { label: "Dano Físico", category: "Dano/Ofensiva", format: "%" },
-  magicalDamagePercent: { label: "Dano Mágico", category: "Dano/Ofensiva", format: "%" },
-  pvpDamagePercent: { label: "Dano PvP", category: "PvP", format: "%" },
-  pveDamagePercent: { label: "Dano PvE", category: "PvE", format: "%" },
-  bossDamagePercent: { label: "Dano contra Chefes", category: "PvE", format: "%" },
-  critChance: { label: "Chance Crítica", category: "Crítico/Precisão", format: "%" },
-  critDamage: { label: "Dano Crítico", category: "Crítico/Precisão", format: "%" },
-  penetration: { label: "Penetração", category: "Crítico/Precisão", format: "%" },
-  hitChance: { label: "Precisão", category: "Crítico/Precisão", format: "%" },
-  lifestealPercent: { label: "Roubo de Vida", category: "Efeitos/Combate", format: "%" },
-  manaStealPercent: { label: "Roubo de Mana", category: "Efeitos/Combate", format: "%" },
-  doubleStrikeChance: { label: "Golpe Duplo", category: "Efeitos/Combate", format: "%" },
-  attackSpeedPercent: { label: "Velocidade de Ataque", category: "Efeitos/Combate", format: "%" },
-  cooldownReduction: { label: "Redução de Cooldown", category: "Efeitos/Combate", format: "%" },
-  dotPercent: { label: "Dano Contínuo (DOT)", category: "Efeitos/Combate", format: "%" },
-  executionPercent: { label: "Golpe de Execução", category: "Especiais/Avançados", format: "%" },
-  fullHpDamagePercent: { label: "Emboscada (HP cheio)", category: "Especiais/Avançados", format: "%" },
+export const WEAPON_BOOSTER_KINDS: Record<WeaponBoosterKind, { label: string; category: string; format: "%" | "add"; description: string }> = {
+  damagePercent: { label: "Dano Geral", category: "Dano/Ofensiva", format: "%", description: "Aumenta todo o dano causado em uma porcentagem. Aplicado depois do dano base da skill, antes do crítico." },
+  physicalDamagePercent: { label: "Dano Físico", category: "Dano/Ofensiva", format: "%", description: "Aumenta apenas o dano de ataques físicos. Aplicado depois do dano base da skill, antes do crítico." },
+  magicalDamagePercent: { label: "Dano Mágico", category: "Dano/Ofensiva", format: "%", description: "Aumenta apenas o dano de ataques mágicos. Aplicado depois do dano base da skill, antes do crítico." },
+  pvpDamagePercent: { label: "Dano PvP", category: "PvP", format: "%", description: "Aumenta o dano apenas contra outros jogadores (batalhas PvP)." },
+  pveDamagePercent: { label: "Dano PvE", category: "PvE", format: "%", description: "Aumenta o dano apenas contra monstros e inimigos do PvE." },
+  bossDamagePercent: { label: "Dano contra Chefes", category: "PvE", format: "%", description: "Aumenta o dano apenas contra chefes (bosses). Soma com o dano PvE." },
+  critChance: { label: "Chance Crítica", category: "Crítico/Precisão", format: "%", description: "Aumenta a chance de cada ataque ser um crítico. Críticos aplicam o multiplicador de dano crítico." },
+  critDamage: { label: "Dano Crítico", category: "Crítico/Precisão", format: "%", description: "Aumenta o multiplicador do crítico. Ex.: 150% de base + este bônus = dano crítico total." },
+  penetration: { label: "Penetração", category: "Crítico/Precisão", format: "%", description: "Ignora uma porcentagem da defesa e da resistência do alvo. Aplicada antes da resistência efetiva." },
+  hitChance: { label: "Precisão", category: "Crítico/Precisão", format: "%", description: "Aumenta a chance de acertar o ataque, reduzindo a chance de errar." },
+  lifestealPercent: { label: "Roubo de Vida", category: "Efeitos/Combate", format: "%", description: "Cura uma porcentagem do dano causado ao atacante." },
+  manaStealPercent: { label: "Roubo de Mana", category: "Efeitos/Combate", format: "%", description: "Recupera uma porcentagem do dano causado como mana." },
+  doubleStrikeChance: { label: "Golpe Duplo", category: "Efeitos/Combate", format: "%", description: "Chance de realizar um segundo ataque automático após cada ataque." },
+  attackSpeedPercent: { label: "Velocidade de Ataque", category: "Efeitos/Combate", format: "%", description: "Reduz o intervalo entre ataques automáticos." },
+  cooldownReduction: { label: "Redução de Cooldown", category: "Efeitos/Combate", format: "%", description: "Reduz o tempo de recarga de todas as skills." },
+  dotPercent: { label: "Dano Contínuo (DOT)", category: "Efeitos/Combate", format: "%", description: "Aumenta o dano de efeitos contínuos como veneno, fogo e sangramento." },
+  executionPercent: { label: "Golpe de Execução", category: "Especiais/Avançados", format: "%", description: "Aumenta o dano contra alvos com 30% ou menos de vida (execução)." },
+  fullHpDamagePercent: { label: "Emboscada (HP cheio)", category: "Especiais/Avançados", format: "%", description: "Aumenta o dano contra alvos com vida cheia (99.99%+)." },
 };
 
 export const WEAPON_BOOSTER_CATEGORIES = ["Dano/Ofensiva", "PvP", "PvE", "Crítico/Precisão", "Efeitos/Combate", "Especiais/Avançados"] as const;
@@ -146,18 +147,19 @@ const SUBTYPE_KIND_BIAS: Record<string, WeaponBoosterKind[]> = {
   bow: ["physicalDamagePercent", "critChance", "critDamage", "penetration", "attackSpeedPercent", "hitChance"],
 };
 
-// Rolagem de valor dentro do cap da raridade (min = metade do cap).
+// Rolagem de valor dentro do cap da raridade (min = metade do cap, com decimal).
 export function rollWeaponBoosterValue(kind: WeaponBoosterKind, rarity: string): number {
   const cap = WEAPON_BOOSTER_CAP_BY_RARITY[rarity] ?? 10;
-  const min = Math.max(1, Math.round(cap / 2));
-  const base = min + Math.floor(Math.random() * (cap - min + 1));
+  const min = Math.max(0.1, Math.round((cap / 2) * 10) / 10);
+  const value = min + Math.random() * (cap - min);
   const isAdd = WEAPON_BOOSTER_KINDS[kind]?.format === "add";
-  return isAdd ? Math.max(1, Math.round(base / 10)) : base;
+  const final = isAdd ? Math.max(1, Math.round(value / 10)) : Math.round(value * 10) / 10;
+  return Math.min(cap, Math.max(0.1, final));
 }
 
 // Sorteia `count` boosters únicos do pool (sem repetir slug).
 // Quando subtype é informado, favorece boosters do tipo correto (~60% biased, 40% geral).
-export function rollWeaponBoosters(rarity: string, count = 3, pool: WeaponBoosterDef[] = WEAPON_BOOSTER_POOL, subtype?: string): WeaponBoosterInstance[] {
+export function rollWeaponBoosters(rarity: string, count = 1, pool: WeaponBoosterDef[] = WEAPON_BOOSTER_POOL, subtype?: string): WeaponBoosterInstance[] {
   const biasedKinds = subtype ? SUBTYPE_KIND_BIAS[subtype.toLowerCase()] : undefined;
   const out: WeaponBoosterInstance[] = [];
   const usedSlugs = new Set<string>();

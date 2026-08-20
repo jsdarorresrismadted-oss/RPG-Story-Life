@@ -25,7 +25,7 @@ import {
 } from "../../core/enchantments/enchantmentStats";
 import { autoEquipmentStats } from "../../core/items/itemAutoStats";
 import { ensureGuildQuests } from "../../core/guildQuests";
-import { rollWeaponBoosters, WEAPON_BOOSTER_KINDS, WeaponBoosterKind } from "../../core/weapon-boosters";
+import { rollWeaponBoosters, WEAPON_BOOSTER_KINDS, WEAPON_BOOSTER_POOL, WeaponBoosterKind } from "../../core/weapon-boosters";
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   authenticate(req, res, () => {
@@ -843,22 +843,22 @@ export function createAdminModule(app: Express): void {
         for (const k of ["dps", "attackSpeedMs"]) body[k] = 0;
         if (type === "weapon") {
           for (const k of ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"]) body[k] = 0;
-          // Armas sem boosters (item novo/antigo) ganham 3 rolados pela raridade.
+          // Armas têm NO MÁXIMO 1 booster, definido manualmente pelo admin (0.1% até 250%).
           const list = Array.isArray(body.boosters) ? body.boosters : [];
           const subtype = String(body.subtype || "");
           if (list.length === 0) {
-            body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3, undefined, subtype);
+            body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 1, undefined, subtype);
           } else {
             body.boosters = list
               .filter((b: any) => b && typeof b === "object" && String(b.kind || "") in WEAPON_BOOSTER_KINDS)
-              .slice(0, 3)
+              .slice(0, 1)
               .map((b: any) => ({
                 slug: String(b.slug || b.name || b.kind),
                 name: String(b.name || WEAPON_BOOSTER_KINDS[b.kind as WeaponBoosterKind]?.label || b.kind),
                 kind: String(b.kind),
-                value: Math.max(1, Number(b.value) || 1),
+                value: Math.min(250, Math.max(0.1, Number(b.value) || 0.1)),
               }));
-            if (body.boosters.length === 0) body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 3, undefined, subtype);
+            if (body.boosters.length === 0) body.boosters = rollWeaponBoosters(String(body.rarity || "common"), 1, undefined, subtype);
           }
         } else if (!["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"].some((k) => Number(body[k]) > 0)) {
           // Sem atributos informados → calcula automaticamente pelo nível e raridade.
@@ -1730,6 +1730,18 @@ export function createAdminModule(app: Express): void {
   app.get("/api/admin/boosters", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(await prisma.booster.findMany({ orderBy: [{ rarity: "asc" }, { boostType: "asc" }] }));
+    } catch (err) { next(err); }
+  });
+
+  // Pool de boosters de ARMA (catálogo fixo: kinds + descrições para o tooltip do admin)
+  app.get("/api/admin/weapon-boosters", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        kinds: WEAPON_BOOSTER_KINDS,
+        pool: WEAPON_BOOSTER_POOL,
+        minValue: 0.1,
+        maxValue: 250,
+      });
     } catch (err) { next(err); }
   });
 

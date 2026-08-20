@@ -273,29 +273,10 @@ export const crudConfigs: CrudConfig[] = [
       { name: "rank", label: "Rank", type: "number", defaultValue: 1 },
       {
         name: "boosters",
-        label: "Boosters da arma",
-        type: "json",
+        label: "Booster da arma",
+        type: "booster",
         visibleIf: { field: "type", values: ["weapon"] },
-        hint: "1-3 boosters. O valor é capado pela raridade (mítico = 51%). Armazena { name, kind, value }.",
-        jsonSchema: {
-          mode: "object-array",
-          addLabel: "Adicionar booster",
-          fields: [
-            { name: "name", label: "Nome", type: "text", placeholder: "Dano Brutal" },
-            {
-              name: "kind",
-              label: "Mecânica",
-              type: "select",
-              options: [
-                "damagePercent", "physicalDamagePercent", "magicalDamagePercent", "pvpDamagePercent",
-                "pveDamagePercent", "bossDamagePercent", "critChance", "critDamage", "penetration",
-                "hitChance", "lifestealPercent", "manaStealPercent", "doubleStrikeChance", "attackSpeedPercent", "cooldownReduction", "dotPercent",
-                "executionPercent", "fullHpDamagePercent",
-              ],
-            },
-            { name: "value", label: "Valor (%)", type: "number", placeholder: "0-51" },
-          ],
-        },
+        hint: "1 booster por arma. Escolha na lista (passe o mouse para ver como funciona) e defina o valor de 0.1% a 250%. 0 desativa.",
       },
       { name: "buyPrice", label: "Preço de compra", type: "number", defaultValue: 0, step: "1" },
       { name: "sellPrice", label: "Preço de venda", type: "number", defaultValue: 0, step: "1" },

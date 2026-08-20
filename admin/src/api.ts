@@ -211,6 +211,7 @@ export const adminApi = {
     create: (data: any) => api.post("/admin/boosters", data),
     update: (id: string, data: any) => api.put(`/admin/boosters/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/boosters/${id}`, { params }),
+    weaponPool: () => api.get("/admin/weapon-boosters"),
   },
   craftRecipes: {
     list: () => api.get("/admin/craft-recipes"),

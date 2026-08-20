@@ -761,15 +761,17 @@ export class Battle {
     if (entityHasKind(this.monster, "stun")) return;
     const pStats = this.effectivePlayerStats();
     const mStats = this.effectiveMonsterStats();
-    // Penetração do monstro reduz a defesa efetiva do jogador
-    const pen = Math.min(80, Math.max(0, mStats.penetration || 0));
-    const effDef = Math.max(0, pStats.defense * (1 - pen / 100));
-    const reduction = Math.min(0.8, effDef / (effDef + 100));
-    let damage = Math.max(1, Math.floor(mStats.attack * (1 - reduction)));
-    // Resistências do jogador
-    const resist = Math.min(80, Math.max(0, (pStats.damageResistance || 0) + (pStats.physicalResistance || 0)));
-    if (resist > 0) damage = Math.max(1, Math.floor(damage * (1 - resist / 100)));
 
+    // ===== Etapa 1: Dano base do monstro =====
+    let damage = Math.max(1, Math.floor(mStats.attack));
+
+    // ===== Etapa 2-3: Buffs de dano do monstro + debuffs de dano recebido do jogador =====
+    const monsterBoost = (mStats.damagePercent || 0);
+    if (monsterBoost !== 0) damage = Math.max(1, Math.floor(damage * (1 + monsterBoost / 100)));
+    const dmgTaken = Math.min(80, Math.max(-80, pStats.damageTakenReduction || 0));
+    if (dmgTaken !== 0) damage = Math.max(1, Math.floor(damage * (1 - dmgTaken / 100)));
+
+    // ===== Etapa 4: Crítico =====
     let crit = Math.random() * 100 < mStats.critChance;
 
     // Nuke do monstro: stacks garantem crítico, mas reduzem a Hit Chance (risco)
@@ -785,7 +787,17 @@ export class Battle {
       crit = true;
       this.pushMessage(`${this.monster.name} disparou um Nuke...`);
     }
-    if (crit) damage = Math.floor(damage * (mStats.critDamage / 100));
+    if (crit) damage = Math.max(1, Math.floor(damage * (mStats.critDamage / 100)));
+
+    // ===== Etapa 5-6: Penetração + Resistência do jogador =====
+    // Penetração do monstro reduz a defesa efetiva do jogador
+    const pen = Math.min(80, Math.max(0, mStats.penetration || 0));
+    const effDef = Math.max(0, pStats.defense * (1 - pen / 100));
+    const reduction = Math.min(0.8, effDef / (effDef + 100));
+    damage = Math.max(1, Math.floor(damage * (1 - reduction)));
+    // Penetração também reduz a resistência % do jogador
+    const resist = Math.min(80, Math.max(0, (pStats.damageResistance || 0) + (pStats.physicalResistance || 0) - pen));
+    if (resist > 0) damage = Math.max(1, Math.floor(damage * (1 - resist / 100)));
 
     if (Math.random() * 100 < Math.min(60, pStats.dodge)) {
       this.pushEvent("player", "dodge", 0);
@@ -869,13 +881,17 @@ export class Battle {
     if (entityHasKind(enemy, "stun")) return;
     const pStats = this.effectivePlayerStats();
     const eStats = this.effectiveEnemyStats(enemy);
-    const pen = Math.min(80, Math.max(0, eStats.penetration || 0));
-    const effDef = Math.max(0, pStats.defense * (1 - pen / 100));
-    const reduction = Math.min(0.8, effDef / (effDef + 100));
-    let damage = Math.max(1, Math.floor(eStats.attack * (1 - reduction)));
-    const resist = Math.min(80, Math.max(0, (pStats.damageResistance || 0) + (pStats.physicalResistance || 0)));
-    if (resist > 0) damage = Math.max(1, Math.floor(damage * (1 - resist / 100)));
 
+    // ===== Etapa 1: Dano base do inimigo =====
+    let damage = Math.max(1, Math.floor(eStats.attack));
+
+    // ===== Etapa 2-3: Buffs de dano + debuffs de dano recebido =====
+    const enemyBoost = (eStats.damagePercent || 0);
+    if (enemyBoost !== 0) damage = Math.max(1, Math.floor(damage * (1 + enemyBoost / 100)));
+    const dmgTaken = Math.min(80, Math.max(-80, pStats.damageTakenReduction || 0));
+    if (dmgTaken !== 0) damage = Math.max(1, Math.floor(damage * (1 - dmgTaken / 100)));
+
+    // ===== Etapa 4: Crítico =====
     let crit = Math.random() * 100 < eStats.critChance;
 
     const nukeStacks = nukeStacksOf(enemy);
@@ -890,7 +906,15 @@ export class Battle {
       crit = true;
       this.pushMessage(`${enemy.name} disparou um Nuke...`);
     }
-    if (crit) damage = Math.floor(damage * (eStats.critDamage / 100));
+    if (crit) damage = Math.max(1, Math.floor(damage * (eStats.critDamage / 100)));
+
+    // ===== Etapa 5-6: Penetração + Resistência do jogador =====
+    const pen = Math.min(80, Math.max(0, eStats.penetration || 0));
+    const effDef = Math.max(0, pStats.defense * (1 - pen / 100));
+    const reduction = Math.min(0.8, effDef / (effDef + 100));
+    damage = Math.max(1, Math.floor(damage * (1 - reduction)));
+    const resist = Math.min(80, Math.max(0, (pStats.damageResistance || 0) + (pStats.physicalResistance || 0) - pen));
+    if (resist > 0) damage = Math.max(1, Math.floor(damage * (1 - resist / 100)));
 
     if (Math.random() * 100 < Math.min(60, pStats.dodge)) {
       this.pushEvent("player", "dodge", 0);

@@ -4,6 +4,7 @@ import { adminApi } from "../api";
 import JsonField, { JsonFieldDef } from "../components/JsonField";
 import IconPicker from "../components/IconPicker";
 import MonsterSkillsField from "../components/MonsterSkillsField";
+import WeaponBoosterField from "../components/WeaponBoosterField";
 
 // Constantes para filtros de items
 const TYPE_LABELS: Record<string, string> = {
@@ -32,7 +33,7 @@ const ITEM_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "mythi
 export interface FieldConfig {
   name: string;
   label: string;
-  type: "text" | "number" | "textarea" | "select" | "boolean" | "json" | "icon" | "monster-skills";
+  type: "text" | "number" | "textarea" | "select" | "boolean" | "json" | "icon" | "monster-skills" | "booster";
   options?: string[];
   optionsFrom?: string;
   optionsParams?: Record<string, string>;
@@ -174,7 +175,7 @@ export default function CrudPage({ config }: CrudPageProps) {
     for (const field of config.fields) {
       if (field.jsonSchema) {
         defaults[field.name] = field.jsonSchema.mode === "record" ? {} : [];
-      } else if (field.type === "monster-skills") {
+      } else if (field.type === "monster-skills" || field.type === "booster") {
         defaults[field.name] = [];
       } else {
         defaults[field.name] = field.defaultValue ?? (field.type === "boolean" ? false : field.type === "number" ? 0 : "");
@@ -204,12 +205,14 @@ export default function CrudPage({ config }: CrudPageProps) {
         } else {
           values[field.name] = raw ? JSON.stringify(raw, null, 2) : "";
         }
-      } else if (field.type === "monster-skills") {
+      } else if (field.type === "monster-skills" || field.type === "booster") {
         let parsed: any = [];
         if (typeof raw === "string" && raw.trim()) {
           try { parsed = JSON.parse(raw); } catch { parsed = []; }
         } else if (Array.isArray(raw)) {
           parsed = raw;
+        } else if (raw && typeof raw === "object") {
+          parsed = [raw];
         }
         values[field.name] = parsed;
       } else if (field.type === "number") {
@@ -246,6 +249,8 @@ export default function CrudPage({ config }: CrudPageProps) {
       if (field.type === "json") {
         payload[field.name] = field.jsonSchema ? JSON.stringify(value) : value && value.trim() ? value : null;
       } else if (field.type === "monster-skills") {
+        payload[field.name] = Array.isArray(value) && value.length > 0 ? JSON.stringify(value) : null;
+      } else if (field.type === "booster") {
         payload[field.name] = Array.isArray(value) && value.length > 0 ? JSON.stringify(value) : null;
       } else if (field.type === "number") {
         payload[field.name] = Number(value) || 0;
@@ -497,6 +502,13 @@ export default function CrudPage({ config }: CrudPageProps) {
       case "monster-skills":
         return (
           <MonsterSkillsField
+            value={value}
+            onChange={(v) => setForm({ ...form, [field.name]: v })}
+          />
+        );
+      case "booster":
+        return (
+          <WeaponBoosterField
             value={value}
             onChange={(v) => setForm({ ...form, [field.name]: v })}
           />
@@ -775,7 +787,7 @@ export default function CrudPage({ config }: CrudPageProps) {
                           </p>
                         </div>
                       )}
-                      <div className={field.type === "textarea" || field.type === "json" || field.type === "icon" || field.type === "monster-skills" ? "sm:col-span-2" : ""}>
+                      <div className={field.type === "textarea" || field.type === "json" || field.type === "icon" || field.type === "monster-skills" || field.type === "booster" ? "sm:col-span-2" : ""}>
                         <label className="block text-sm text-gray-400 mb-1.5">{field.label}</label>
                         {renderField(field)}
                         {field.hint && <p className="text-xs text-gray-500 mt-1">{field.hint}</p>}
