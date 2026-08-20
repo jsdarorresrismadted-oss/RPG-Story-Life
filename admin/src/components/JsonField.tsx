@@ -7,7 +7,7 @@ export type JsonFieldDef =
   | { mode: "string-array"; placeholder?: string; addLabel?: string }
   | {
       mode: "object-array";
-      fields: { name: string; label: string; type: "text" | "number" | "select" | "effect-slug" | "item-select" | "boolean"; options?: string[]; placeholder?: string; step?: string }[];
+      fields: { name: string; label: string; type: "text" | "number" | "select" | "effect-slug" | "item-select" | "boolean"; options?: string[]; placeholder?: string; step?: string; itemParams?: Record<string, string> }[];
       addLabel?: string;
     }
   | {
@@ -60,29 +60,31 @@ function useEffectOptions(schema: JsonFieldDef): { slug: string; name: string }[
 }
 
 function useItemOptions(schema: JsonFieldDef): { id: string; name: string }[] {
-  const needsItemOptions = schema.mode === "object-array" && schema.fields.some((f) => f.type === "item-select");
+  const itemFields = schema.mode === "object-array" ? schema.fields.filter((f) => f.type === "item-select") : [];
+  const needsItemOptions = itemFields.length > 0;
   const [list, setList] = useState(itemOptionsCache.list);
+  const params = itemFields[0]?.itemParams;
 
   useEffect(() => {
     if (!needsItemOptions) return;
-    if (itemOptionsCache.list.length > 0) {
+    if (itemOptionsCache.list.length > 0 && !params) {
       setList(itemOptionsCache.list);
       return;
     }
     let active = true;
     adminApi.items
-      .list()
+      .list(params)
       .then(({ data }) => {
         const items = Array.isArray(data) ? data : [];
         const mapped = items.map((i: any) => ({ id: i.id, name: i.name }));
-        itemOptionsCache.list = mapped;
+        if (!params) itemOptionsCache.list = mapped;
         if (active) setList(mapped);
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [needsItemOptions]);
+  }, [needsItemOptions, params]);
 
   return list;
 }

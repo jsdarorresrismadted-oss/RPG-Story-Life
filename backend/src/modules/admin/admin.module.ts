@@ -1027,11 +1027,16 @@ export function createAdminModule(app: Express): void {
   // Items CRUD
   app.get("/api/admin/items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { type, rarity, excludeDrops, excludeShop, forShop } = req.query;
+      const { type, rarity, excludeDrops, excludeShop, forShop, equipmentOnly } = req.query;
       // Listagem do admin mostra tudo (o frontend tem toggle "mostrar inativos").
       // O filtro isActive só é aplicado para a seleção da loja (só itens ativos).
       const where: any = {};
       if (forShop === "true") where.isActive = true;
+
+      // Só equipamentos (arma, armadura, capacete/elmo, capa)
+      if (equipmentOnly === "true") {
+        where.type = { in: ["weapon", "armor", "helm", "cape"] };
+      }
 
       if (type) where.type = String(type);
       if (rarity) where.rarity = String(rarity);
