@@ -1028,7 +1028,10 @@ export function createAdminModule(app: Express): void {
   app.get("/api/admin/items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { type, rarity, excludeDrops, excludeShop, forShop } = req.query;
-      const where: any = { isActive: true };
+      // Listagem do admin mostra tudo (o frontend tem toggle "mostrar inativos").
+      // O filtro isActive só é aplicado para a seleção da loja (só itens ativos).
+      const where: any = {};
+      if (forShop === "true") where.isActive = true;
 
       if (type) where.type = String(type);
       if (rarity) where.rarity = String(rarity);
