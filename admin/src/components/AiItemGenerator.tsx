@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Sparkles, Wand2, Loader2, RefreshCw, CheckCircle2, Layers } from "lucide-react";
 import { adminApi } from "../api";
+import BoosterPicker, { BoosterDef } from "./BoosterPicker";
 
 interface GeneratedItemResult {
   plan: ItemPlan;
@@ -91,6 +92,8 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
   const [result, setResult] = useState<GeneratedItemResult | null>(null);
   const [seed, setSeed] = useState(1);
   const [prompt, setPrompt] = useState("");
+  const [boosterDef, setBoosterDef] = useState<BoosterDef | null>(null);
+  const [boosterValue, setBoosterValue] = useState(10);
 
   useEffect(() => {
     adminApi.classes
@@ -98,6 +101,12 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
       .then(({ data }) => setProviders(data))
       .catch(() => {});
   }, []);
+
+  const applyManualBooster = (plan: ItemPlan): ItemPlan => {
+    if (type !== "weapon" || !boosterDef) return plan;
+    const value = Math.min(250, Math.max(0.1, Number(boosterValue) || 0.1));
+    return { ...plan, boosters: [{ slug: boosterDef.slug, name: boosterDef.name, kind: boosterDef.kind, value }] };
+  };
 
   const handleGenerate = async () => {
     setBusy(true);
@@ -111,7 +120,11 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
         seed,
         prompt: prompt.trim() || undefined,
       });
-      setResult(data);
+      setResult({
+        ...data,
+        plan: data.plan ? applyManualBooster(data.plan) : undefined,
+        plans: data.plans?.map((p: ItemPlan) => applyManualBooster(p)),
+      });
       setSeed((s) => s + 1);
       toast.success((data.plans?.length || 1) > 1 ? `${data.plans.length} itens gerados! Revise e salve.` : "Item gerado! Revise e salve.");
     } catch (err: any) {
@@ -292,6 +305,36 @@ export default function AiItemGenerator({ onSaved }: { onSaved: () => void }) {
                 <span className="block text-[10px] text-gray-500 mt-0.5">Padrão: 1 (nível do item)</span>
               </label>
             </div>
+
+            {type === "weapon" && (
+              <div className="mt-3 border border-fuchsia-500/20 bg-fuchsia-500/5 rounded-lg p-3">
+                <p className="text-xs font-semibold text-fuchsia-300 mb-2">
+                  Booster da arma (opcional) — se não escolher, a IA sorteia 1 automaticamente
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="text-xs text-gray-400">
+                    Booster
+                    <span className="block mt-1">
+                      <BoosterPicker value={boosterDef} onChange={setBoosterDef} />
+                    </span>
+                    <span className="block text-[10px] text-gray-500 mt-0.5">Passe o mouse na lista para ver o que cada um faz.</span>
+                  </label>
+                  <label className="text-xs text-gray-400">
+                    Valor (%)
+                    <input
+                      type="number"
+                      min={0}
+                      max={250}
+                      step={0.1}
+                      value={boosterValue}
+                      onChange={(e) => setBoosterValue(Number(e.target.value))}
+                      className={inputClass + " mt-1"}
+                    />
+                    <span className="block text-[10px] text-gray-500 mt-0.5">0 a 250 (0 desativa). O nome do booster a IA escolhe.</span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 mt-4">
               <button
