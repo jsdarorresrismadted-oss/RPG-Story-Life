@@ -474,9 +474,10 @@ export const crudConfigs: CrudConfig[] = [
         label: "Ingredientes",
         type: "json",
         jsonSchema: { mode: "object-array", addLabel: "Adicionar material", fields: [
-            { name: "itemName", label: "Nome do material", type: "text", placeholder: "ex: Espada de Iniciante" },
+            { name: "itemName", label: "Item (ingrediente)", type: "item-select" },
             { name: "quantity", label: "Quantidade", type: "number" },
           ] },
+        hint: "Escolha o item da lista — pode ser material (ex.: minério, essência) ou qualquer outro item. O nome salvo é o exato do item.",
       },
       { name: "isActive", label: "Active", type: "boolean", defaultValue: true },
     ],
