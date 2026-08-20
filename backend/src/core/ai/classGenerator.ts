@@ -1,7 +1,7 @@
 import { prisma } from "../database";
 import { AppError } from "../middleware/errorHandler";
 import { computeStats } from "../classEngine/stat-calculator";
-import { generateSkillIconsBatch } from "./skillIconGenerator";
+import { generateClassSkillIcons } from "./skillIconGenerator";
 
 // ===== Gerador de classes via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
 // Chaves: GEMINI_API_KEY e GROQ_API_KEY (variáveis de ambiente).
@@ -548,15 +548,14 @@ export async function persistGeneratedClass(gen: GeneratedClass): Promise<any> {
   });
 
   // 4) Skills + passivas — cada skill recebe ARTE REAL gerada por IA de imagem
-  //    (Gemini Image se configurado, com fallback OpenAI). TODOS os ícones de
-  //    uma classe são pedidos em UMA imagem só (1 chamada de IA) e recortados
-  //    em células 64x64. Se a arte falhar, mantém o ícone padrão e registra
-  //    o aviso — a classe continua salva.
+  //    (NVIDIA NIM FLUX.1-dev com fallback HuggingFace SD3). Cada ícone é gerado
+  //    individualmente (1 chamada de IA por skill) para máxima qualidade.
+  //    Se a arte falhar, mantém o ícone padrão e registra o aviso — a classe continua salva.
   const iconWarnings: string[] = [];
   const artInputs = gen.skills.map((s) => ({ key: s.slug, name: s.name, description: s.description, kind: s.kind, class: gen.cls.name, rarity: gen.cls.rarity }));
   let batchArt: Record<string, string> = {};
   try {
-    batchArt = await generateSkillIconsBatch(artInputs);
+    batchArt = await generateClassSkillIcons(artInputs);
   } catch (err: any) {
     iconWarnings.push(`Arte das skills não gerada (${(err as Error).message?.slice(0, 120)}), usando ícones padrão`);
   }

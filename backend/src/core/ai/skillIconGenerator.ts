@@ -66,18 +66,17 @@ async function huggingfaceImage(prompt: string, portrait = false): Promise<{ buf
 }
 
 // NVIDIA NIM (FLUX.1-dev â€" gratuito para prototipagem, sem cartÃ£o, ~40 req/min).
+// FLUX.1-dev sÃ³ aceita o campo "prompt" (sem width/height/seed).
 async function nvidiaImage(prompt: string, portrait = false): Promise<{ buffer: Buffer; mime: string }> {
   const key = process.env.NVIDIA_NIM_API_KEY;
   if (!key) throw new Error("NVIDIA_NIM_API_KEY nÃ£o definido");
-  const width = portrait ? 384 : 1024;
-  const height = portrait ? 384 * Math.min(10, Math.max(1, Math.ceil(2048 / 384))) : 1024;
   const res = await fetch(
     "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       signal: genTimeout(120000),
-      body: JSON.stringify({ prompt, width, height }),
+      body: JSON.stringify({ prompt }),
     }
   );
   if (!res.ok) {
@@ -224,4 +223,24 @@ const seed = typeof input.seed === "number" ? input.seed : hashSeed(String(input
 
   const icon = await writeIcon(`ai-${slug}-${seed}`, result);
   return { icon };
+}
+
+// Gera ícones para uma classe inteira — 1 chamada de IA por skill (qualidade superior ao batch).
+// Retorna um mapa key (slug da skill) → caminho do ícone.
+export async function generateClassSkillIcons(inputs: SkillIconInput[]): Promise<Record<string, string>> {
+  const list = inputs.slice(0, 10);
+  if (list.length === 0) return {};
+  const out: Record<string, string> = {};
+  const errors: string[] = [];
+  for (const inp of list) {
+    const slug = inp.key || slugify(inp.name);
+    try {
+      const { icon } = await generateSkillIcons(inp);
+      out[slug] = icon;
+    } catch (err: any) {
+      errors.push(`${inp.name}: ${(err as Error).message?.slice(0, 100)}`);
+    }
+  }
+  if (errors.length) console.log(`[skillIconGenerator] erros individuais: ${errors.join(" | ")}`);
+  return out;
 }
