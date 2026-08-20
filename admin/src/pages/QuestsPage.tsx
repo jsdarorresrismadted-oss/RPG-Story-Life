@@ -46,11 +46,11 @@ const QUEST_FIELDS: EntityField[] = [
       fields: [
         { name: "type", label: "Tipo", type: "select", options: ["kill", "collect", "talk", "reach", "use", "escort", "defeat_boss"] },
         { name: "monsterName", label: "Alvo (nome ou ID)", type: "text", placeholder: "ex: Rato da Floresta" },
-        { name: "itemName", label: "Item (collect)", type: "text", placeholder: "ex: Poção de Vida" },
+        { name: "itemName", label: "Item (collect)", type: "item-select" },
         { name: "amount", label: "Quantidade", type: "number" },
       ],
     },
-    hint: "kill = matar monstro por NOME • collect = coletar item por NOME. O progresso é contado pelo nome exato.",
+    hint: "kill = matar monstro por NOME • collect = coletar item selecionado da lista. O progresso é contado pelo nome exato.",
   },
   {
     name: "itemRewards",
@@ -60,10 +60,11 @@ const QUEST_FIELDS: EntityField[] = [
       mode: "object-array",
       addLabel: "Adicionar recompensa",
       fields: [
-        { name: "itemName", label: "Nome do Item", type: "text" },
+        { name: "itemName", label: "Item", type: "item-select" },
         { name: "quantity", label: "Quantidade", type: "number" },
       ],
     },
+    hint: "Escolha o item da lista — assim o nome sempre bate com o item do jogo.",
   },
   { name: "isRepeatable", label: "Repetível", type: "boolean", defaultValue: false },
   { name: "isActive", label: "Ativa (aparece no jogo)", type: "boolean", defaultValue: true },
