@@ -58,11 +58,12 @@ export const adminApi = {
     activateAll: () => api.post("/admin/classes/activate-all"),
   },
   items: {
-    list: () => api.get("/admin/items"),
+    list: (params?: Record<string, string>) => api.get("/admin/items", { params }),
     create: (data: any) => api.post("/admin/items", data),
     update: (id: string, data: any) => api.put(`/admin/items/${id}`, data),
     delete: (id: string, params?: any) => api.delete(`/admin/items/${id}`, { params }),
     generate: (data: any) => api.post("/admin/items/generate", data),
+    forShop: () => api.get("/admin/items", { params: { forShop: "true" } }),
   },
   ai: {
     config: () => api.get("/admin/ai/config"),

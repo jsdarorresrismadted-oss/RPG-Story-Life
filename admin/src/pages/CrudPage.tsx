@@ -5,12 +5,37 @@ import JsonField, { JsonFieldDef } from "../components/JsonField";
 import IconPicker from "../components/IconPicker";
 import MonsterSkillsField from "../components/MonsterSkillsField";
 
+// Constantes para filtros de items
+const TYPE_LABELS: Record<string, string> = {
+  weapon: "Arma",
+  helm: "Elmo",
+  armor: "Armadura",
+  cape: "Capa",
+  ring: "Anel",
+  necklace: "Colar",
+  consumable: "Consumível",
+  material: "Material",
+};
+
+const RARITY_COLORS: Record<string, string> = {
+  common: "bg-gray-600/30 text-gray-300",
+  uncommon: "bg-green-600/30 text-green-300",
+  rare: "bg-blue-600/30 text-blue-300",
+  epic: "bg-purple-600/30 text-purple-300",
+  legendary: "bg-yellow-600/30 text-yellow-300",
+  mythic: "bg-red-600/30 text-red-300",
+};
+
+const ITEM_TYPES = ["weapon", "helm", "armor", "cape", "ring", "necklace", "consumable", "material"];
+const ITEM_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+
 export interface FieldConfig {
   name: string;
   label: string;
   type: "text" | "number" | "textarea" | "select" | "boolean" | "json" | "icon" | "monster-skills";
   options?: string[];
   optionsFrom?: string;
+  optionsParams?: Record<string, string>;
   optionsFor?: { source: string; map: Record<string, string[]> };
   visibleIf?: { field: string; values: any[] };
   required?: boolean;
@@ -76,12 +101,17 @@ export default function CrudPage({ config }: CrudPageProps) {
   const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
   const [deleteTipo, setDeleteTipo] = useState(10);
 
+  // Filtros específicos para items
+  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [rarityFilter, setRarityFilter] = useState<string>("");
+
   useEffect(() => {
     const sources = config.fields.filter((f) => f.optionsFrom);
     if (sources.length === 0) return;
     sources.forEach((f) => {
+      const params = f.optionsParams || {};
       (adminApi as any)[f.optionsFrom!]
-        .list()
+        .list(params)
         .then(({ data }: any) =>
           setRemoteOptions((prev) => ({ ...prev, [f.optionsFrom!]: Array.isArray(data) ? data : [] }))
         )
@@ -89,10 +119,10 @@ export default function CrudPage({ config }: CrudPageProps) {
     });
   }, [config.key]);
 
-  const load = async () => {
+  const load = async (params?: Record<string, string>) => {
     setLoading(true);
     try {
-      const { data } = await (adminApi as any)[config.key].list();
+      const { data } = await (adminApi as any)[config.key].list(params);
       setItems(Array.isArray(data) ? data : []);
     } catch (err: any) {
       toast.error(err.response?.data?.message || `Failed to load ${config.title}`);
@@ -102,8 +132,13 @@ export default function CrudPage({ config }: CrudPageProps) {
   };
 
   useEffect(() => {
-    load();
-  }, [config.key]);
+    const params: Record<string, string> = {};
+    if (config.key === "items") {
+      if (typeFilter) params.type = typeFilter;
+      if (rarityFilter) params.rarity = rarityFilter;
+    }
+    load(params);
+  }, [config.key, typeFilter, rarityFilter]);
 
   const hasActiveField = config.fields.some((f) => f.name === "isActive");
 
@@ -111,6 +146,11 @@ export default function CrudPage({ config }: CrudPageProps) {
     let base = items;
     if (hasActiveField && !showInactive) {
       base = items.filter((it) => it.isActive !== false);
+    }
+    // Filtros locais para items (além dos filtros da API)
+    if (config.key === "items") {
+      if (typeFilter) base = base.filter((it) => it.type === typeFilter);
+      if (rarityFilter) base = base.filter((it) => it.rarity === rarityFilter);
     }
     if (!search.trim()) return base;
     const q = search.toLowerCase();
@@ -122,7 +162,7 @@ export default function CrudPage({ config }: CrudPageProps) {
       }
       return false;
     });
-  }, [items, search, config.columns, hasActiveField, showInactive]);
+  }, [items, search, config.columns, hasActiveField, showInactive, typeFilter, rarityFilter, config.key]);
 
   const selectedItems = useMemo(
     () => items.filter((it) => selected.has(it.id)),
@@ -545,6 +585,33 @@ export default function CrudPage({ config }: CrudPageProps) {
             className={`${inputClass} pl-9`}
           />
         </div>
+        {/* Filtros específicos para Items */}
+        {config.key === "items" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className={`${inputClass} w-auto`}
+            >
+              <option value="">Todos os tipos</option>
+              {ITEM_TYPES.map((t) => (
+                <option key={t} value={t}>{TYPE_LABELS[t] || t}</option>
+              ))}
+            </select>
+            <select
+              value={rarityFilter}
+              onChange={(e) => setRarityFilter(e.target.value)}
+              className={`${inputClass} w-auto`}
+            >
+              <option value="">Todas as raridades</option>
+              {ITEM_RARITIES.map((r) => (
+                <option key={r} value={r}>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${RARITY_COLORS[r] ?? "bg-gray-700 text-gray-300"}`}>{r}</span>
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex items-center gap-2 text-sm text-gray-400">
           {hasActiveField && (
             <label className="flex items-center gap-1.5 cursor-pointer select-none">

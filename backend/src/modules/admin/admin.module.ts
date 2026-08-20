@@ -1025,8 +1025,31 @@ export function createAdminModule(app: Express): void {
   });
 
   // Items CRUD
-  app.get("/api/admin/items", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
-    try { res.json(await prisma.item.findMany({ include: { enchantment: true }, orderBy: { name: "asc" } })); } catch (err) { next(err); }
+  app.get("/api/admin/items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { type, rarity, excludeDrops, excludeShop, forShop } = req.query;
+      const where: any = { isActive: true };
+
+      if (type) where.type = String(type);
+      if (rarity) where.rarity = String(rarity);
+
+      // Excluir itens que são drops de mobs
+      if (excludeDrops === "true" || forShop === "true") {
+        where.dropItems = { none: {} };
+      }
+
+      // Excluir itens que já estão na loja
+      if (excludeShop === "true" || forShop === "true") {
+        where.shopItems = { none: {} };
+      }
+
+      // Para materials de monstros, incluir apenas tipo material
+      if (type === "material" || rarity === "material") {
+        where.type = "material";
+      }
+
+      res.json(await prisma.item.findMany({ where, include: { enchantment: true }, orderBy: { name: "asc" } }));
+    } catch (err) { next(err); }
   });
 
   app.post("/api/admin/items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
