@@ -157,7 +157,14 @@ export async function generateQuests(idea: string, providerLog: string[], mapId?
         distinct: ["itemId"],
       }).then((drops) => drops.map((d) => d.item).filter((i): i is { name: string } => !!i)),
       prisma.npc.findMany({ where: { id: { in: npcIds }, isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
-      prisma.item.findMany({ where: { type: "material", isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+      prisma.item.findMany({
+        where: {
+          isActive: true,
+          OR: [{ type: "material" }, { AND: [{ type: "consumable" }, { subtype: "material" }] }],
+        },
+        select: { name: true },
+        orderBy: { name: "asc" },
+      }),
     ]);
     monsters = monstersResult;
     items = [...new Set([...dropItemsResult.map((i) => i.name), ...materialsResult.map((i) => i.name)])].map((name) => ({ name }));
