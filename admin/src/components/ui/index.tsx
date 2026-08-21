@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 
 // ============================================================================
 // Primitivos visuais reutilizáveis do Admin Panel.
@@ -119,6 +119,31 @@ export function EmptyState({
       <p className="text-gray-300 font-medium">{title}</p>
       {description && <p className="text-sm text-gray-600 mt-1 max-w-sm">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+export function AccordionSection({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-dark-600 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-dark-700/40 hover:bg-dark-700 text-left transition-colors"
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-accent-400">{title}</span>
+        <span className="text-gray-500 text-sm">{open ? "−" : "+"}</span>
+      </button>
+      {open && <div className="p-4">{children}</div>}
     </div>
   );
 }

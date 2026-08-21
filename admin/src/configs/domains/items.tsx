@@ -89,14 +89,15 @@ export const itemsConfig: CrudConfig = {
     { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
   ],
   fields: [
-    { name: "name", label: "Name", type: "text", required: true },
-    { name: "description", label: "Description", type: "textarea", required: true },
+    { name: "name", label: "Name", type: "text", required: true, group: "Identidade" },
+    { name: "description", label: "Description", type: "textarea", required: true, group: "Identidade" },
     {
       name: "icon",
       label: "Ícone",
       type: "icon",
       placeholder: "/icons/64x64/...",
       iconCategories: ["Armas", "Elmo", "Elmos Magicos", "Armaduras", "Robes", "Capas", "Aneis", "Colares", "Potion", "Drop Boss"],
+      group: "Identidade",
     },
     {
       name: "type",
@@ -105,11 +106,13 @@ export const itemsConfig: CrudConfig = {
       required: true,
       defaultValue: "weapon",
       options: ["weapon", "helm", "armor", "cape", "consumable", "material"],
+      group: "Classificação",
     },
     {
       name: "subtype",
       label: "Sub-tipo",
       type: "select",
+      group: "Classificação",
       optionsFor: {
         source: "type",
         map: {
@@ -129,6 +132,7 @@ export const itemsConfig: CrudConfig = {
       required: true,
       defaultValue: "common",
       options: ["common", "uncommon", "rare", "epic", "legendary", "mythic"],
+      group: "Classificação",
       hint: "Arma = casca (DPS/velocidade só via encantamento). Elmo/armadura/capa ganham ATRIBUTOS calculados por nível+raridade automaticamente.",
     },
     {
@@ -136,22 +140,29 @@ export const itemsConfig: CrudConfig = {
       label: "Nível",
       type: "number",
       defaultValue: 1,
+      group: "Classificação",
       hint: "Define requisito, preço e os atributos automáticos de elmos/armaduras/capas.",
     },
-    { name: "rank", label: "Rank", type: "number", defaultValue: 1 },
+    { name: "rank", label: "Rank", type: "number", defaultValue: 1, group: "Classificação" },
     {
       name: "boosters",
       label: "Booster da arma",
       type: "booster",
+      group: "Combate",
       visibleIf: { field: "type", values: ["weapon"] },
       hint: "1 booster por arma. Escolha na lista (passe o mouse para ver como funciona) e defina o valor de 0.1% a 250%. 0 desativa.",
     },
-    { name: "buyPrice", label: "Preço de compra", type: "number", defaultValue: 0, step: "1" },
-    { name: "sellPrice", label: "Preço de venda", type: "number", defaultValue: 0, step: "1" },
+    { name: "buyPrice", label: "Preço de compra", type: "number", defaultValue: 0, step: "1", group: "Economia" },
+    { name: "sellPrice", label: "Preço de venda", type: "number", defaultValue: 0, step: "1", group: "Economia" },
+    { name: "isStackable", label: "Empilhável", type: "boolean", defaultValue: false, group: "Economia" },
+    { name: "maxStack", label: "Max stack", type: "number", defaultValue: 1, group: "Economia" },
+    { name: "isTradable", label: "Negociável", type: "boolean", defaultValue: true, group: "Economia" },
+    { name: "isSellable", label: "Vendável", type: "boolean", defaultValue: true, group: "Economia" },
     {
       name: "effects",
       label: "Effects (consumíveis)",
       type: "json",
+      group: "Consumível",
       visibleIf: { field: "type", values: ["consumable"] },
       jsonSchema: {
         mode: "fixed-record",
@@ -161,12 +172,8 @@ export const itemsConfig: CrudConfig = {
         ],
       },
     },
-    { name: "enchantmentId", label: "Encantamento (fixo)", type: "select", optionsFrom: "enchantments", hint: "Encantamento já gravado no item (opcional)" },
-    { name: "isStackable", label: "Empilhável", type: "boolean", defaultValue: false },
-    { name: "maxStack", label: "Max stack", type: "number", defaultValue: 1 },
-    { name: "isTradable", label: "Negociável", type: "boolean", defaultValue: true },
-    { name: "isSellable", label: "Vendável", type: "boolean", defaultValue: true },
-    { name: "isActive", label: "Active", type: "boolean", defaultValue: true },
+    { name: "enchantmentId", label: "Encantamento (fixo)", type: "select", optionsFrom: "enchantments", group: "Sistema", hint: "Encantamento já gravado no item (opcional)" },
+    { name: "isActive", label: "Active", type: "boolean", defaultValue: true, group: "Sistema" },
   ],
   bulkMoveFields: [
     {

@@ -1,6 +1,7 @@
-import { FormEvent, Fragment, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
+import { AccordionSection } from "../components/ui";
 import JsonField, { JsonFieldDef } from "../components/JsonField";
 import IconPicker from "../components/IconPicker";
 import MonsterSkillsField from "../components/MonsterSkillsField";
@@ -839,28 +840,39 @@ export default function CrudPage({ config }: CrudPageProps) {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {config.fields.filter(isFieldVisible).map((field, index, visibleFields) => {
-                  const prev = visibleFields[index - 1];
-                  const showHeader = !!field.group && (!prev || prev.group !== field.group);
-                  return (
-                    <Fragment key={field.name}>
-                      {showHeader && (
-                        <div className="sm:col-span-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-400 border-b border-dark-700 pb-1.5">
-                            {field.group}
-                          </p>
+              {(() => {
+                const visibleFields = config.fields.filter(isFieldVisible);
+                const sections: { name: string; fields: typeof visibleFields }[] = [];
+                const order = new Map<string, number>();
+                for (const f of visibleFields) {
+                  const g = f.group || "Geral";
+                  if (!order.has(g)) {
+                    order.set(g, sections.length);
+                    sections.push({ name: g, fields: [] });
+                  }
+                  sections[order.get(g)!].fields.push(f);
+                }
+                return sections.map((sec, si) => (
+                  <AccordionSection key={sec.name} title={sec.name} defaultOpen={si === 0}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {sec.fields.map((field) => (
+                        <div
+                          key={field.name}
+                          className={
+                            field.type === "textarea" || field.type === "json" || field.type === "icon" || field.type === "monster-skills" || field.type === "booster"
+                              ? "sm:col-span-2"
+                              : ""
+                          }
+                        >
+                          <label className="block text-sm text-gray-400 mb-1.5">{field.label}</label>
+                          {renderField(field)}
+                          {field.hint && <p className="text-xs text-gray-500 mt-1">{field.hint}</p>}
                         </div>
-                      )}
-                      <div className={field.type === "textarea" || field.type === "json" || field.type === "icon" || field.type === "monster-skills" || field.type === "booster" ? "sm:col-span-2" : ""}>
-                        <label className="block text-sm text-gray-400 mb-1.5">{field.label}</label>
-                        {renderField(field)}
-                        {field.hint && <p className="text-xs text-gray-500 mt-1">{field.hint}</p>}
-                      </div>
-                    </Fragment>
-                  );
-                })}
-              </div>
+                      ))}
+                    </div>
+                  </AccordionSection>
+                ));
+              })()}
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
