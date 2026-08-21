@@ -491,21 +491,24 @@ export default function CrudPage({ config }: CrudPageProps) {
                 }
                 return Object.entries(groups).map(([cat, opts]) => (
                   <optgroup key={cat} label={cat}>
-                    {opts.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ));
-              })()
-            ) : (
-              options.map((opt: any) => (
-                <option key={typeof opt === "string" ? opt : opt.id} value={typeof opt === "string" ? opt : opt.id}>
-                  {optionLabel(opt)}
-                </option>
-              ))
-            )}
+                  {opts.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ));
+            })()
+          ) : (
+            options.map((opt: any) => (
+              <option key={typeof opt === "string" ? opt : opt.id} value={typeof opt === "string" ? opt : opt.id}>
+                {optionLabel(opt)}
+              </option>
+            ))
+          )}
+          {value && !options.some((o: any) => (typeof o === "string" ? o : o.id) === value) && (
+            <option value={value}>{value} (atual)</option>
+          )}
           </select>
         );
       }

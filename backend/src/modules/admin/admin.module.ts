@@ -1027,7 +1027,10 @@ export function createAdminModule(app: Express): void {
   // Items CRUD
   app.get("/api/admin/items", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { type, rarity, excludeDrops, excludeShop, forShop, equipmentOnly, unlinkedMaterials, unlinkedEquipment } = req.query;
+      const {
+        type, rarity, excludeDrops, excludeShop, forShop, equipmentOnly,
+        unlinkedMaterials, unlinkedEquipment, excludeQuests, excludeCrafts,
+      } = req.query;
       // Listagem do admin mostra tudo (o frontend tem toggle "mostrar inativos").
       // O filtro isActive só é aplicado para a seleção da loja (só itens ativos).
       const where: any = {};
@@ -1084,23 +1087,52 @@ export function createAdminModule(app: Express): void {
       // Fetch items
       let items = await prisma.item.findMany({ where, include: { enchantment: true }, orderBy: { name: "asc" } });
 
-      // Se pediu unlinked, filtrar itens que aparecem em questRewards (JSON)
-      if (unlinkedMaterials === "true" || unlinkedEquipment === "true") {
-        const quests = await prisma.quest.findMany({ select: { itemRewards: true } });
-        const usedInQuests = new Set<string>();
-        for (const q of quests) {
-          if (q.itemRewards) {
-            try {
-              const rewards = JSON.parse(q.itemRewards);
-              if (Array.isArray(rewards)) {
-                for (const r of rewards) {
-                  if (r?.itemName) usedInQuests.add(r.itemName.toLowerCase());
+      // Filtros in-memory (baseados em JSON): quests e crafts.
+      // Um item usado em OUTRO sistema deve ficar oculto do seletor atual
+      // (exclusão mútua: shop / quest / craft / drop).
+      const needQuestFilter = unlinkedMaterials === "true" || unlinkedEquipment === "true" || excludeQuests === "true";
+      const needCraftFilter = unlinkedMaterials === "true" || unlinkedEquipment === "true" || excludeCrafts === "true";
+
+      if (needQuestFilter || needCraftFilter) {
+        const usedNames = new Set<string>(); // nomes usados em quests/crafts (JSON)
+        const usedIds = new Set<string>();   // ids usados em crafts (resultItemId)
+
+        if (needQuestFilter) {
+          const quests = await prisma.quest.findMany({ select: { itemRewards: true } });
+          for (const q of quests) {
+            if (q.itemRewards) {
+              try {
+                const rewards = JSON.parse(q.itemRewards);
+                if (Array.isArray(rewards)) {
+                  for (const r of rewards) {
+                    if (r?.itemName) usedNames.add(r.itemName.toLowerCase());
+                  }
                 }
-              }
-            } catch {}
+              } catch {}
+            }
           }
         }
-        items = items.filter((it) => !usedInQuests.has(it.name.toLowerCase()));
+
+        if (needCraftFilter) {
+          const crafts = await prisma.craftRecipe.findMany({ select: { resultItemId: true, ingredients: true } });
+          for (const c of crafts) {
+            if (c.resultItemId) usedIds.add(c.resultItemId);
+            if (c.ingredients) {
+              try {
+                const ings = JSON.parse(c.ingredients);
+                if (Array.isArray(ings)) {
+                  for (const ing of ings) {
+                    if (ing?.itemName) usedNames.add(ing.itemName.toLowerCase());
+                  }
+                }
+              } catch {}
+            }
+          }
+        }
+
+        items = items.filter(
+          (it) => !usedNames.has(it.name.toLowerCase()) && !usedIds.has(it.id)
+        );
       }
 
       res.json(items);

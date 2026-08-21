@@ -84,7 +84,7 @@ export default function MonstersPage() {
     try {
       const [mRes, iRes, mapRes] = await Promise.all([
         adminApi.monsters.list(),
-        adminApi.items.list(),
+        adminApi.items.list({ excludeShops: "true", excludeQuests: "true", excludeCrafts: "true" }),
         adminApi.maps.list(),
       ]);
       setMonsters(Array.isArray(mRes.data) ? mRes.data : []);
@@ -586,6 +586,9 @@ export default function MonstersPage() {
                           {items.filter((i) => i.isActive !== false).map((i) => (
                             <option key={i.id} value={i.id}>{i.name} ({i.rarity ?? "?"})</option>
                           ))}
+                          {dropForm.itemId && !items.some((i) => i.id === dropForm.itemId) && (
+                            <option value={dropForm.itemId}>{dropForm.itemId} (atual — fora da lista)</option>
+                          )}
                         </select>
                       </div>
                       <div>

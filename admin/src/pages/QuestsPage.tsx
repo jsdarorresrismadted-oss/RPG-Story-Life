@@ -46,7 +46,7 @@ const QUEST_FIELDS: EntityField[] = [
       fields: [
         { name: "type", label: "Tipo", type: "select", options: ["kill", "collect", "talk", "reach", "use", "escort", "defeat_boss"] },
         { name: "monsterName", label: "Alvo (nome ou ID)", type: "text", placeholder: "ex: Rato da Floresta" },
-        { name: "itemName", label: "Item (collect)", type: "item-select", itemParams: { equipmentOnly: "true", excludeShop: "true" } },
+        { name: "itemName", label: "Item (collect)", type: "item-select", itemParams: { equipmentOnly: "true", excludeShop: "true", excludeQuests: "true", excludeCrafts: "true" } },
         { name: "amount", label: "Quantidade", type: "number" },
       ],
     },
