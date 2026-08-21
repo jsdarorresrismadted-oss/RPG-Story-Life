@@ -52,20 +52,20 @@ const QUEST_FIELDS: EntityField[] = [
     },
     hint: "kill = matar monstro por NOME • collect = coletar item selecionado (só equipamentos fora das lojas). O progresso é contado pelo nome exato.",
   },
-  {
-    name: "itemRewards",
-    label: "Recompensas de item",
-    type: "json",
-    jsonSchema: {
-      mode: "object-array",
-      addLabel: "Adicionar recompensa",
-      fields: [
-        { name: "itemName", label: "Item", type: "item-select", itemParams: { equipmentOnly: "true", excludeShop: "true" } },
-        { name: "quantity", label: "Quantidade", type: "number" },
-      ],
-    },
-    hint: "Escolha o item da lista (só armas, armaduras, capacetes/elmos e capas que NÃO estão nas lojas). Assim o nome sempre bate com o item do jogo.",
-  },
+{
+        name: "itemRewards",
+        label: "Recompensas de item",
+        type: "json",
+        jsonSchema: {
+          mode: "object-array",
+          addLabel: "Adicionar recompensa",
+          fields: [
+            { name: "itemName", label: "Item", type: "item-select", itemParams: { unlinkedMaterials: "true" } },
+            { name: "quantity", label: "Quantidade", type: "number" },
+          ],
+        },
+        hint: "Escolha o item da lista (só materiais que NÃO dropam de nenhum mob).",
+      },
   { name: "isRepeatable", label: "Repetível", type: "boolean", defaultValue: false },
   { name: "isActive", label: "Ativa (aparece no jogo)", type: "boolean", defaultValue: true },
   { name: "sortOrder", label: "Ordem", type: "number", defaultValue: 0 },

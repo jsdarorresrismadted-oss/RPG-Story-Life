@@ -149,7 +149,7 @@ export async function generateQuests(idea: string, providerLog: string[], mapId?
     const monsterIds = mapMonsters.map((mm) => mm.monsterId);
     const npcIds = mapNpcs.map((mn) => mn.npcId);
 
-    const [monstersResult, dropItemsResult, npcsResult, materialsResult] = await Promise.all([
+    const [monstersResult, dropItemsResult, npcsResult] = await Promise.all([
       prisma.monster.findMany({ where: { id: { in: monsterIds }, isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
       prisma.dropItem.findMany({
         where: { monsterId: { in: monsterIds } },
@@ -157,17 +157,9 @@ export async function generateQuests(idea: string, providerLog: string[], mapId?
         distinct: ["itemId"],
       }).then((drops) => drops.map((d) => d.item).filter((i): i is { name: string } => !!i)),
       prisma.npc.findMany({ where: { id: { in: npcIds }, isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
-      prisma.item.findMany({
-        where: {
-          isActive: true,
-          OR: [{ type: "material" }, { AND: [{ type: "consumable" }, { subtype: "material" }] }],
-        },
-        select: { name: true },
-        orderBy: { name: "asc" },
-      }),
     ]);
     monsters = monstersResult;
-    items = [...new Set([...dropItemsResult.map((i) => i.name), ...materialsResult.map((i) => i.name)])].map((name) => ({ name }));
+    items = dropItemsResult; // only mob drops for AI to pick as rewards/collect
     npcs = npcsResult;
     maps = map ? [{ name: map.name }] : [];
   } else {
