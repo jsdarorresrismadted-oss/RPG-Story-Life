@@ -133,13 +133,41 @@ function normalize(raw: any, errors: string[], hints: { monsters: Set<string>; i
   };
 }
 
-export async function generateQuests(idea: string, providerLog: string[]): Promise<GeneratedQuests> {
-  const [monsters, items, maps, npcs] = await Promise.all([
-    prisma.monster.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
-    prisma.item.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
-    prisma.map.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
-    prisma.npc.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
-  ]);
+export async function generateQuests(idea: string, providerLog: string[], mapId?: string): Promise<GeneratedQuests> {
+  let monsters: any[] = [];
+  let items: any[] = [];
+  let maps: any[] = [];
+  let npcs: any[] = [];
+
+  if (mapId) {
+    // Map-based: fetch only monsters/NPCs on that map, and items that drop from those monsters
+    const [mapMonsters, mapNpcs, map] = await Promise.all([
+      prisma.mapMonster.findMany({ where: { mapId }, select: { monsterId: true, minLevel: true, maxLevel: true } }),
+      prisma.mapNpc.findMany({ where: { mapId }, select: { npcId: true } }),
+      prisma.map.findUnique({ where: { id: mapId }, select: { name: true } }),
+    ]);
+    const monsterIds = mapMonsters.map((mm) => mm.monsterId);
+    const npcIds = mapNpcs.map((mn) => mn.npcId);
+
+    [monsters, items, npcs] = await Promise.all([
+      prisma.monster.findMany({ where: { id: { in: monsterIds }, isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+      prisma.dropItem.findMany({
+        where: { monsterId: { in: monsterIds } },
+        select: { item: { select: { name: true } } },
+        distinct: ["itemId"],
+      }).then((drops) => drops.map((d) => d.item).filter((i): i is { name: string } => !!i)),
+      prisma.npc.findMany({ where: { id: { in: npcIds }, isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+    ]);
+    maps = map ? [{ name: map.name }] : [];
+  } else {
+    // Global: all active
+    [monsters, items, maps, npcs] = await Promise.all([
+      prisma.monster.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+      prisma.item.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+      prisma.map.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+      prisma.npc.findMany({ where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+    ]);
+  }
   const monstersHint = monsters.map((m) => m.name).slice(0, 50).join(", ");
   const itemsHint = items.map((i) => i.name).slice(0, 80).join(", ");
   const mapsHint = maps.map((m) => m.name).slice(0, 30).join(", ");

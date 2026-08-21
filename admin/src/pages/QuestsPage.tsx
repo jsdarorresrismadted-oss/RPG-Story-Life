@@ -116,13 +116,24 @@ export default function QuestsPage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiMapId, setAiMapId] = useState("");
+  const [maps, setMaps] = useState<Array<{ id: string; name: string }>>([]);
 
   const load = async (keepSelection = true) => {
     setLoading(true);
     try {
-      const [qRes, nRes] = await Promise.all([adminApi.quests.list(), adminApi.npcs.list()]);
+      const [qRes, nRes, mRes] = await Promise.all([
+        adminApi.quests.list(),
+        adminApi.npcs.list(),
+        adminApi.maps.list(),
+      ]);
       setQuests(Array.isArray(qRes.data) ? qRes.data : []);
       setNpcs(Array.isArray(nRes.data) ? nRes.data : []);
+      setMaps(
+        Array.isArray(mRes.data)
+          ? mRes.data.map((m: any) => ({ id: m.id, name: m.name }))
+          : []
+      );
       if (!keepSelection) setSelectedId(null);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to load data");
@@ -214,7 +225,7 @@ export default function QuestsPage() {
     }
     setAiBusy(true);
     try {
-      const res = await adminApi.quests.generate(aiPrompt.trim());
+      const res = await adminApi.quests.generate(aiPrompt.trim(), aiMapId || undefined);
       const saved = res.data?.data;
       const created = saved?.quests ?? [];
       if (created.length > 0) {
@@ -386,6 +397,21 @@ export default function QuestsPage() {
               monstros/itens existentes — o progresso no jogo é contado pelo nome exato. Você pode pedir várias de uma
               vez (ex.: "5 quests da vila de pedra, níveis 5 a 15").
             </p>
+            <label className={labelClass}>
+              Mapa (opcional) — se escolher, a IA usa só monstros/drops/NPCs desse mapa
+            </label>
+            <select
+              value={aiMapId}
+              onChange={(e) => setAiMapId(e.target.value)}
+              className={inputClass + " mb-3"}
+            >
+              <option value="">— Todos os mapas (geral) —</option>
+              {maps.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
             <label className={labelClass}>Prompt para a IA</label>
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={4} className={inputClass} placeholder='Descreva as quests... ex.: "2 quests de história sobre um artefato roubado e 3 de caçada na floresta"' />
             <div className="flex justify-end gap-2 mt-4">

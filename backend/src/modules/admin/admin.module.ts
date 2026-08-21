@@ -1496,11 +1496,13 @@ export function createAdminModule(app: Express): void {
 
   app.post("/api/admin/quests/generate", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const idea = String((req.body || {}).prompt || "").trim();
+      const body = req.body || {};
+      const idea = String(body.prompt || "").trim();
+      const mapId = body.mapId ? String(body.mapId) : undefined;
       if (!idea) throw new AppError(400, "Descreva as quests que a IA deve criar (ex.: '5 quests de caçada na floresta, níveis 5 a 10')");
       requireAi();
       const providerLog: string[] = [];
-      const gen = await generateQuests(idea, providerLog);
+      const gen = await generateQuests(idea, providerLog, mapId);
       const saved = await persistGeneratedQuests(gen);
       res.status(201).json({ data: saved, providers: providerLog });
     } catch (err) { next(err); }
