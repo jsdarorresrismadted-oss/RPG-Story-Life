@@ -1,4 +1,4 @@
-import { CrudConfig } from "../pages/CrudPage";
+import { CrudConfig } from "../configs/types";
 import { classesConfig } from "./domains/classes";
 import { itemsConfig } from "./domains/items";
 import { statModelsConfig } from "./domains/statModels";

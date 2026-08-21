@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Sparkles } from "lucide-react";
-import { CrudConfig } from "../pages/CrudPage";
+import { CrudConfig } from "../configs/types";
 
 // ============================================================================
 // Helpers compartilhados entre as configurações de CRUD (evita duplicação).

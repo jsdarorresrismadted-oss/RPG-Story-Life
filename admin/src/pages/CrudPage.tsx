@@ -2,10 +2,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import { AccordionSection } from "../components/ui";
-import JsonField, { JsonFieldDef } from "../components/JsonField";
-import IconPicker from "../components/IconPicker";
-import MonsterSkillsField from "../components/MonsterSkillsField";
-import WeaponBoosterField from "../components/WeaponBoosterField";
+import FieldRenderer from "../components/FieldRenderer";
+import { Modal, ConfirmationDialog } from "../components/Modal";
+import { FieldConfig, CrudConfig } from "../configs/types";
 
 // Constantes para filtros de items
 const TYPE_LABELS: Record<string, string> = {
@@ -30,57 +29,6 @@ const RARITY_COLORS: Record<string, string> = {
 
 const ITEM_TYPES = ["weapon", "helm", "armor", "cape", "ring", "necklace", "consumable", "material"];
 const ITEM_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
-
-function itemCategory(it: { type?: string; subtype?: string }): string {
-  if (it.type === "material" || (it.type === "consumable" && it.subtype === "material")) return "Materiais";
-  if (it.type === "weapon" || it.type === "armor" || it.type === "helm" || it.type === "cape") return "Equipamentos";
-  return "Outros";
-}
-
-function itemRoleGroup(it: any): string {
-  if (it.inShop) return "🏪 Já na Loja";
-  if (it.inDrop) return "🗡️ Drop de Mob";
-  if (it.inQuest) return "📜 Em Quest";
-  if (it.inCraft) return "⚒️ Em Craft";
-  return "✨ Disponíveis";
-}
-
-export interface FieldConfig {
-  name: string;
-  label: string;
-  type: "text" | "number" | "textarea" | "select" | "boolean" | "json" | "icon" | "monster-skills" | "booster";
-  options?: string[];
-  optionsFrom?: string;
-  optionsParams?: Record<string, string>;
-  optionsFor?: { source: string; map: Record<string, string[]> };
-  visibleIf?: { field: string; values: any[] };
-  autoFrom?: string; // preenche este campo automaticamente com o "name" do item selecionado em `autoFrom`
-  required?: boolean;
-  defaultValue?: any;
-  step?: string;
-  placeholder?: string;
-  hint?: string;
-  iconCategories?: string[];
-  jsonSchema?: JsonFieldDef;
-  group?: string; // renderiza um cabeçalho de seção antes deste campo
-}
-
-export interface ColumnConfig {
-  key: string;
-  label: string;
-  render?: (value: any, item?: any) => any;
-}
-
-export interface CrudConfig {
-  key: string;
-  title: string;
-  columns: ColumnConfig[];
-  fields: FieldConfig[];
-  extraActions?: (item: any) => React.ReactNode;
-  headerActions?: (reload: () => void) => React.ReactNode;
-  searchPlaceholder?: string;
-  bulkMoveFields?: FieldConfig[]; // campos (select) permitidos na ação "Mover"
-}
 
 interface CrudPageProps {
   config: CrudConfig;
@@ -117,6 +65,7 @@ export default function CrudPage({ config }: CrudPageProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
   const [deleteTipo, setDeleteTipo] = useState(10);
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
 
   // Filtros específicos para items
   const [typeFilter, setTypeFilter] = useState<string>("");
@@ -440,177 +389,6 @@ export default function CrudPage({ config }: CrudPageProps) {
     return opt.slug && opt.slug !== opt.name ? `${opt.name} (${opt.slug})` : opt.name;
   };
 
-  const renderField = (field: FieldConfig) => {
-    const value = form[field.name];
-    switch (field.type) {
-      case "textarea":
-        return (
-          <textarea
-            value={value ?? ""}
-            onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-            className={`${inputClass} resize-y`}
-            rows={3}
-            placeholder={field.placeholder}
-            required={field.required}
-          />
-        );
-      case "select": {
-        const options = field.optionsFrom
-          ? remoteOptions[field.optionsFrom] || []
-          : field.optionsFor
-            ? field.optionsFor.map[form[field.optionsFor.source]] || []
-            : field.options || [];
-        const optionLabel = (opt: any) => {
-          if (typeof opt === "string") return opt;
-          return opt.slug && opt.slug !== opt.name ? `${opt.name} (${opt.slug})` : opt.name;
-        };
-        const groupByRole = field.optionsFrom === "items" && options.length > 0 && options[0]?.inShop !== undefined;
-        const groupItems = field.optionsFrom === "items" && options.length > 0 && !!options[0]?.type && !groupByRole;
-        return (
-          <select
-            value={value ?? ""}
-            onChange={(e) => {
-              const next = { ...form, [field.name]: e.target.value };
-              if (field.optionsFor) {
-                const allowed = field.optionsFor.map[next[field.optionsFor.source]] || [];
-                if (!allowed.includes(next[field.name])) {
-                  const target = config.fields.find((f) => f.optionsFor?.source === field.name);
-                  if (target) next[target.name] = "";
-                }
-              }
-              if (field.optionsFrom === "items") {
-                for (const f of config.fields) {
-                  if (f.autoFrom === field.name) {
-                    const sel = options.find((o: any) => o.id === e.target.value);
-                    next[f.name] = sel ? sel.name : "";
-                  }
-                }
-              }
-              setForm(next);
-            }}
-            className={inputClass}
-            required={field.required}
-          >
-            <option value="">{field.optionsFrom ? "Nenhum" : "Select..."}</option>
-            {groupByRole ? (
-              (() => {
-                const groups: Record<string, any[]> = {};
-                for (const opt of options) {
-                  const cat = itemRoleGroup(opt);
-                  (groups[cat] ||= []).push(opt);
-                }
-                return Object.entries(groups).map(([cat, opts]) => (
-                  <optgroup key={cat} label={cat}>
-                  {opts.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ));
-            })()
-          ) : groupItems ? (
-              (() => {
-                const groups: Record<string, any[]> = {};
-                for (const opt of options) {
-                  const cat = itemCategory(opt);
-                  (groups[cat] ||= []).push(opt);
-                }
-                return Object.entries(groups).map(([cat, opts]) => (
-                  <optgroup key={cat} label={cat}>
-                  {opts.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ));
-            })()
-          ) : (
-            options.map((opt: any) => (
-              <option key={typeof opt === "string" ? opt : opt.id} value={typeof opt === "string" ? opt : opt.id}>
-                {optionLabel(opt)}
-              </option>
-            ))
-          )}
-          {value && !options.some((o: any) => (typeof o === "string" ? o : o.id) === value) && (
-            <option value={value}>{value} (atual)</option>
-          )}
-          </select>
-        );
-      }
-      case "icon":
-        return <IconPicker value={value ?? ""} onChange={(v) => setForm({ ...form, [field.name]: v })} categories={field.iconCategories} />;
-      case "boolean":
-        return (
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="checkbox"
-              checked={!!value}
-              onChange={(e) => setForm({ ...form, [field.name]: e.target.checked })}
-              className="w-4 h-4 accent-accent-500"
-            />
-            <span className="text-sm text-gray-400">{value ? "Yes" : "No"}</span>
-          </div>
-        );
-      case "number":
-        return (
-          <input
-            type="number"
-            step={field.step || "1"}
-            value={value ?? 0}
-            onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-            className={inputClass}
-            required={field.required}
-          />
-        );
-      case "monster-skills":
-        return (
-          <MonsterSkillsField
-            value={value}
-            onChange={(v) => setForm({ ...form, [field.name]: v })}
-          />
-        );
-      case "booster":
-        return (
-          <WeaponBoosterField
-            value={value}
-            onChange={(v) => setForm({ ...form, [field.name]: v })}
-          />
-        );
-      case "json":
-        if (field.jsonSchema) {
-          return (
-            <JsonField
-              schema={field.jsonSchema}
-              value={value}
-              onChange={(v) => setForm({ ...form, [field.name]: v })}
-            />
-          );
-        }
-        return (
-          <textarea
-            value={value ?? ""}
-            onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-            className={`${inputClass} resize-y font-mono text-xs`}
-            rows={5}
-            placeholder='{"key": "value"}'
-          />
-        );
-      default:
-        return (
-          <input
-            type="text"
-            value={value ?? ""}
-            disabled={!!field.autoFrom}
-            onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-            className={field.autoFrom ? `${inputClass} opacity-70 cursor-not-allowed` : inputClass}
-            placeholder={field.placeholder}
-            required={field.required && !field.autoFrom}
-          />
-        );
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -620,10 +398,7 @@ export default function CrudPage({ config }: CrudPageProps) {
           {config.headerActions && config.headerActions(load)}
           {filtered.length > 0 && (
             <button
-              onClick={() => {
-                setSelected(new Set(filtered.map((it) => it.id)));
-                openDeleteModal(filtered.map((it) => it.id));
-              }}
+              onClick={() => setConfirmAllOpen(true)}
               disabled={busy}
               title="Seleciona todos e abre o tipo de exclusão"
               className="px-3 py-2 text-xs font-medium rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/30 transition-colors disabled:opacity-50"
@@ -823,182 +598,176 @@ export default function CrudPage({ config }: CrudPageProps) {
       </div>
 
       {modalOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={closeModal}
+        <Modal
+          open={modalOpen}
+          onClose={closeModal}
+          title={editing?.id ? `Edit ${config.title}` : `New ${config.title}`}
         >
-          <div
-            className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold">
-                {editing?.id ? `Edit ${config.title}` : `New ${config.title}`}
-              </h2>
-              <button onClick={closeModal} className="text-gray-500 hover:text-gray-300 text-xl leading-none">
-                ✕
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {(() => {
+              const visibleFields = config.fields.filter(isFieldVisible);
+              const sections: { name: string; fields: typeof visibleFields }[] = [];
+              const order = new Map<string, number>();
+              for (const f of visibleFields) {
+                const g = f.group || "Geral";
+                if (!order.has(g)) {
+                  order.set(g, sections.length);
+                  sections.push({ name: g, fields: [] });
+                }
+                sections[order.get(g)!].fields.push(f);
+              }
+              return sections.map((sec, si) => (
+                <AccordionSection key={sec.name} title={sec.name} defaultOpen={si === 0}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {sec.fields.map((field) => (
+                      <div
+                        key={field.name}
+                        className={
+                          field.type === "textarea" || field.type === "json" || field.type === "icon" || field.type === "monster-skills" || field.type === "booster"
+                            ? "sm:col-span-2"
+                            : ""
+                        }
+                      >
+                        <label className="block text-sm text-gray-400 mb-1.5">{field.label}</label>
+                        <FieldRenderer
+                          field={field}
+                          value={form[field.name]}
+                          options={field.optionsFrom ? remoteOptions[field.optionsFrom] : undefined}
+                          form={form}
+                          fields={config.fields}
+                          onChange={(v) => setForm({ ...form, [field.name]: v })}
+                          onFormChange={setForm}
+                        />
+                        {field.hint && <p className="text-xs text-gray-500 mt-1">{field.hint}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </AccordionSection>
+              ));
+            })()}
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {saving ? "Saving..." : editing?.id ? "Save changes" : "Create"}
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {(() => {
-                const visibleFields = config.fields.filter(isFieldVisible);
-                const sections: { name: string; fields: typeof visibleFields }[] = [];
-                const order = new Map<string, number>();
-                for (const f of visibleFields) {
-                  const g = f.group || "Geral";
-                  if (!order.has(g)) {
-                    order.set(g, sections.length);
-                    sections.push({ name: g, fields: [] });
-                  }
-                  sections[order.get(g)!].fields.push(f);
-                }
-                return sections.map((sec, si) => (
-                  <AccordionSection key={sec.name} title={sec.name} defaultOpen={si === 0}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {sec.fields.map((field) => (
-                        <div
-                          key={field.name}
-                          className={
-                            field.type === "textarea" || field.type === "json" || field.type === "icon" || field.type === "monster-skills" || field.type === "booster"
-                              ? "sm:col-span-2"
-                              : ""
-                          }
-                        >
-                          <label className="block text-sm text-gray-400 mb-1.5">{field.label}</label>
-                          {renderField(field)}
-                          {field.hint && <p className="text-xs text-gray-500 mt-1">{field.hint}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </AccordionSection>
-                ));
-              })()}
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : editing?.id ? "Save changes" : "Create"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          </form>
+        </Modal>
       )}
 
       {deleteOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={() => setDeleteOpen(false)}
+        <Modal
+          open={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          title={`Deletar ${deleteTargets.length > 1 ? `${deleteTargets.length} registro(s)` : config.title}`}
+          maxWidth="max-w-md"
         >
-          <div
-            className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-bold mb-1">
-              Deletar {deleteTargets.length > 1 ? `${deleteTargets.length} registro(s)` : config.title}
-            </h2>
-            <p className="text-sm text-gray-400 mb-4">Escolha o tipo/motivo da exclusão:</p>
+          <p className="text-sm text-gray-400 mb-4">Escolha o tipo/motivo da exclusão:</p>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1.5">Tipo</label>
+            <select
+              value={deleteTipo}
+              onChange={(e) => setDeleteTipo(Number(e.target.value))}
+              className={inputClass}
+            >
+              {DELETE_TIPOS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-5">
+            <button
+              onClick={() => setDeleteOpen(false)}
+              disabled={busy}
+              className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDelete}
+              disabled={busy}
+              className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {busy ? "Deletando..." : "Deletar"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      <ConfirmationDialog
+        open={confirmAllOpen}
+        onClose={() => setConfirmAllOpen(false)}
+        onConfirm={() => {
+          setConfirmAllOpen(false);
+          setSelected(new Set(filtered.map((it) => it.id)));
+          openDeleteModal(filtered.map((it) => it.id));
+        }}
+        title="Deletar todos"
+        message={`Tem certeza que deseja deletar ${filtered.length} registro(s)? Esta ação não pode ser desfeita.`}
+        confirmLabel="Deletar todos"
+      />
+
+      {moveOpen && (
+        <Modal open={moveOpen} onClose={() => setMoveOpen(false)} title={`Mover ${selected.size} item(ns)`} maxWidth="max-w-md">
+          <p className="text-sm text-gray-400 mb-4">Define um valor para os registros selecionados.</p>
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">Tipo</label>
+              <label className="block text-sm text-gray-400 mb-1.5">Campo</label>
               <select
-                value={deleteTipo}
-                onChange={(e) => setDeleteTipo(Number(e.target.value))}
+                value={moveField}
+                onChange={(e) => {
+                  const f = moveCandidates.find((c) => c.name === e.target.value);
+                  setMoveField(e.target.value);
+                  setMoveValue(f?.options?.[0] ?? "");
+                }}
                 className={inputClass}
               >
-                {DELETE_TIPOS.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                {moveCandidates.map((f) => (
+                  <option key={f.name} value={f.name}>{f.label}</option>
                 ))}
               </select>
             </div>
-            <div className="flex justify-end gap-3 pt-5">
-              <button
-                onClick={() => setDeleteOpen(false)}
-                disabled={busy}
-                className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+            <div>
+              <label className="block text-sm text-gray-400 mb-1.5">Novo valor</label>
+              <select
+                value={moveValue}
+                onChange={(e) => setMoveValue(e.target.value)}
+                className={inputClass}
               >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                disabled={busy}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {busy ? "Deletando..." : "Deletar"}
-              </button>
+                {moveFieldOptions(moveCandidates.find((f) => f.name === moveField)).map((opt: any) => (
+                  <option key={typeof opt === "string" ? opt : opt.id} value={typeof opt === "string" ? opt : opt.id}>
+                    {moveOptionLabel(opt)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-        </div>
-      )}
-
-      {moveOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={() => setMoveOpen(false)}
-        >
-          <div
-            className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-bold mb-1">Mover {selected.size} item(ns)</h2>
-            <p className="text-sm text-gray-400 mb-4">Define um valor para os registros selecionados.</p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Campo</label>
-                <select
-                  value={moveField}
-                  onChange={(e) => {
-                    const f = moveCandidates.find((c) => c.name === e.target.value);
-                    setMoveField(e.target.value);
-                    setMoveValue(f?.options?.[0] ?? "");
-                  }}
-                  className={inputClass}
-                >
-                  {moveCandidates.map((f) => (
-                    <option key={f.name} value={f.name}>{f.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Novo valor</label>
-                <select
-                  value={moveValue}
-                  onChange={(e) => setMoveValue(e.target.value)}
-                  className={inputClass}
-                >
-                  {moveFieldOptions(moveCandidates.find((f) => f.name === moveField)).map((opt: any) => (
-                    <option key={typeof opt === "string" ? opt : opt.id} value={typeof opt === "string" ? opt : opt.id}>
-                      {moveOptionLabel(opt)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-5">
-              <button
-                onClick={() => setMoveOpen(false)}
-                className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={bulkMove}
-                disabled={busy || !moveField}
-                className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {busy ? "Movendo..." : "Mover"}
-              </button>
-            </div>
+          <div className="flex justify-end gap-3 pt-5">
+            <button
+              onClick={() => setMoveOpen(false)}
+              className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={bulkMove}
+              disabled={busy || !moveField}
+              className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {busy ? "Movendo..." : "Mover"}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
