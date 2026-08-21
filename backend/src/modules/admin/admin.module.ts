@@ -453,7 +453,7 @@ export function createAdminModule(app: Express): void {
   // Stats
   app.get("/api/admin/stats", requireAdmin, async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      const [totalUsers, totalCharacters, totalGuilds, totalClasses, totalItems, totalMonsters, totalMaps, totalQuests, totalSkills, totalEffects, totalStatModels, activePlayers] = await Promise.all([
+      const [totalUsers, totalCharacters, totalGuilds, totalClasses, totalItems, totalMonsters, totalMaps, totalQuests, totalSkills, totalEffects, totalStatModels, totalNpcs, totalCrafts, totalShops, totalEvents, activePlayers] = await Promise.all([
         prisma.user.count(),
         prisma.character.count(),
         prisma.guild.count(),
@@ -465,9 +465,13 @@ export function createAdminModule(app: Express): void {
         prisma.skill.count(),
         prisma.effect.count(),
         prisma.statModel.count(),
+        prisma.npc.count(),
+        prisma.craftRecipe.count(),
+        prisma.shopProduct.count(),
+        prisma.gameEvent.count(),
         prisma.user.count({ where: { isOnline: true } }),
       ]);
-      res.json({ totalUsers, totalCharacters, totalGuilds, totalClasses, totalItems, totalMonsters, totalMaps, totalQuests, totalSkills, totalEffects, totalStatModels, activePlayers });
+      res.json({ totalUsers, totalCharacters, totalGuilds, totalClasses, totalItems, totalMonsters, totalMaps, totalQuests, totalSkills, totalEffects, totalStatModels, totalNpcs, totalCrafts, totalShops, totalEvents, activePlayers });
     } catch (err) { next(err); }
   });
 

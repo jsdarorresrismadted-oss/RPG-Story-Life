@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
 
 export default function Layout() {
   const { isAuthenticated, loading } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   if (loading) {
     return (
@@ -22,8 +24,15 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-dark-950">
-      <Sidebar />
-      <main className="flex-1 ml-64 p-6 overflow-y-auto">
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+      />
+      <main
+        className={`flex-1 p-6 overflow-y-auto transition-all duration-200 ${
+          sidebarCollapsed ? 'ml-16' : 'ml-64'
+        }`}
+      >
         <Outlet />
       </main>
     </div>
