@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Package, Sparkles, Swords, Plus, Hammer, CheckCircle2, XCircle, MapPin, Pencil, Trash2, Trophy } from "lucide-react";
 import { adminApi } from "../api";
+import { Badge } from "../components/ui";
 
 const inputClass =
   "w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white focus:border-accent-500 focus:outline-none";
@@ -113,10 +114,6 @@ function imgIcon(src?: string | null, size = "w-11 h-11", className = "") {
       <img src={src} alt="" className="w-3/4 h-3/4 object-contain" />
     </div>
   );
-}
-
-function Badge({ children, cls }: { children: ReactNode; cls: string }) {
-  return <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${cls}`}>{children}</span>;
 }
 
 export default function ShopsPage() {
@@ -627,11 +624,11 @@ export default function ShopsPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-white">{item.name}</p>
-            {item.rarity && <Badge cls={`bg-dark-700 ${STATUS_COLORS[item.rarity] ?? ""}`}>{RARITY_LABELS[item.rarity] ?? item.rarity}</Badge>}
+            {item.rarity && <Badge className={`bg-dark-700 ${STATUS_COLORS[item.rarity] ?? ""}`}>{RARITY_LABELS[item.rarity] ?? item.rarity}</Badge>}
             {item.isActive ? (
-              <Badge cls="bg-green-500/15 text-green-300">Ativo</Badge>
+              <Badge className="bg-green-500/15 text-green-300">Ativo</Badge>
             ) : (
-              <Badge cls="bg-red-500/15 text-red-300">Inativo</Badge>
+              <Badge className="bg-red-500/15 text-red-300">Inativo</Badge>
             )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5 capitalize">
@@ -689,13 +686,13 @@ export default function ShopsPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-white">{e.name}</p>
-            <Badge cls="bg-purple-500/15 text-purple-300">{STAT_LABELS[e.category] ?? e.category}</Badge>
-            {e.rarity && <Badge cls={`bg-dark-700 ${STATUS_COLORS[e.rarity] ?? ""}`}>{RARITY_LABELS[e.rarity] ?? e.rarity}</Badge>}
-            <Badge cls="bg-purple-500/15 text-purple-300">Nv. {e.level ?? 1}</Badge>
+            <Badge className="bg-purple-500/15 text-purple-300">{STAT_LABELS[e.category] ?? e.category}</Badge>
+            {e.rarity && <Badge className={`bg-dark-700 ${STATUS_COLORS[e.rarity] ?? ""}`}>{RARITY_LABELS[e.rarity] ?? e.rarity}</Badge>}
+            <Badge className="bg-purple-500/15 text-purple-300">Nv. {e.level ?? 1}</Badge>
             {e.isActive ? (
-              <Badge cls="bg-green-500/15 text-green-300">Ativo</Badge>
+              <Badge className="bg-green-500/15 text-green-300">Ativo</Badge>
             ) : (
-              <Badge cls="bg-red-500/15 text-red-300">Inativo</Badge>
+              <Badge className="bg-red-500/15 text-red-300">Inativo</Badge>
             )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{e.description}</p>
@@ -722,12 +719,12 @@ export default function ShopsPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-white">{c.name}</p>
-            <Badge cls="bg-orange-500/15 text-orange-300 capitalize">{c.role ?? "Classe"}</Badge>
-            {c.requiredVip && <Badge cls="bg-yellow-500/15 text-yellow-300">VIP</Badge>}
+            <Badge className="bg-orange-500/15 text-orange-300 capitalize">{c.role ?? "Classe"}</Badge>
+            {c.requiredVip && <Badge className="bg-yellow-500/15 text-yellow-300">VIP</Badge>}
             {c.isActive ? (
-              <Badge cls="bg-green-500/15 text-green-300">Ativa</Badge>
+              <Badge className="bg-green-500/15 text-green-300">Ativa</Badge>
             ) : (
-              <Badge cls="bg-red-500/15 text-red-300">Inativa</Badge>
+              <Badge className="bg-red-500/15 text-red-300">Inativa</Badge>
             )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5 capitalize">
@@ -782,12 +779,12 @@ export default function ShopsPage() {
         <td className="py-2.5 px-4">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-purple-300 font-medium">{e?.name ?? enchantmentName(s.enchantmentId)}</span>
-            <Badge cls="bg-purple-500/15 text-purple-300">encantamento</Badge>
+            <Badge className="bg-purple-500/15 text-purple-300">encantamento</Badge>
             {e && (
               <>
-                <Badge cls="bg-dark-900 text-gray-400 capitalize">{STAT_LABELS[e.category] ?? e.category}</Badge>
-                <Badge cls="bg-dark-900 text-gray-400">{RARITY_LABELS[e.rarity] ?? e.rarity}</Badge>
-                <Badge cls="bg-purple-500/15 text-purple-300">Nv. {e.level ?? 1}</Badge>
+                <Badge className="bg-dark-900 text-gray-400 capitalize">{STAT_LABELS[e.category] ?? e.category}</Badge>
+                <Badge className="bg-dark-900 text-gray-400">{RARITY_LABELS[e.rarity] ?? e.rarity}</Badge>
+                <Badge className="bg-purple-500/15 text-purple-300">Nv. {e.level ?? 1}</Badge>
               </>
             )}
           </div>

@@ -1,9 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import { AccordionSection } from "../components/ui";
 import FieldRenderer from "../components/FieldRenderer";
 import { Modal, ConfirmationDialog } from "../components/Modal";
+import { DataTable } from "../components/DataTable";
+import { Pagination } from "../components/Pagination";
+import { SearchInput } from "../components/SearchInput";
 import { FieldConfig, CrudConfig } from "../configs/types";
 
 // Constantes para filtros de items
@@ -46,8 +50,8 @@ const inputClass =
   "w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white focus:border-accent-500 focus:outline-none";
 
 export default function CrudPage({ config }: CrudPageProps) {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const reload = () => queryClient.invalidateQueries({ queryKey: ["crud", config.key] });
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<Record<string, any>>({});
@@ -55,6 +59,8 @@ export default function CrudPage({ config }: CrudPageProps) {
   const [remoteOptions, setRemoteOptions] = useState<Record<string, any[]>>({});
 
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
   const [showInactive, setShowInactive] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moveOpen, setMoveOpen] = useState(false);
@@ -85,26 +91,22 @@ export default function CrudPage({ config }: CrudPageProps) {
     });
   }, [config.key]);
 
-  const load = async (params?: Record<string, string>) => {
-    setLoading(true);
-    try {
-      const { data } = await (adminApi as any)[config.key].list(params);
-      setItems(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || `Failed to load ${config.title}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    const params: Record<string, string> = {};
-    if (config.key === "items") {
-      if (typeFilter) params.type = typeFilter;
-      if (rarityFilter) params.rarity = rarityFilter;
-    }
-    load(params);
-  }, [config.key, typeFilter, rarityFilter]);
+    setPage(0);
+  }, [search, typeFilter, rarityFilter]);
+
+  const { data: items = [], isLoading: loading } = useQuery({
+    queryKey: ["crud", config.key, typeFilter, rarityFilter],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (config.key === "items") {
+        if (typeFilter) params.type = typeFilter;
+        if (rarityFilter) params.rarity = rarityFilter;
+      }
+      const { data } = await (adminApi as any)[config.key].list(params);
+      return Array.isArray(data) ? data : [];
+    },
+  });
 
   const hasActiveField = config.fields.some((f) => f.name === "isActive");
 
@@ -241,7 +243,7 @@ export default function CrudPage({ config }: CrudPageProps) {
         toast.success(`${config.title}: created`);
       }
       closeModal();
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Failed to save");
     } finally {
@@ -270,7 +272,7 @@ export default function CrudPage({ config }: CrudPageProps) {
       }
       setDeleteOpen(false);
       clearSelection();
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao deletar");
     } finally {
@@ -317,7 +319,7 @@ export default function CrudPage({ config }: CrudPageProps) {
       }
       toast.success(`${count} duplicado(s)`);
       clearSelection();
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao duplicar");
     } finally {
@@ -336,7 +338,7 @@ export default function CrudPage({ config }: CrudPageProps) {
       toast.success(`${count} movido(s) para "${moveValue || "—"}"`);
       clearSelection();
       setMoveOpen(false);
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao mover");
     } finally {
@@ -355,7 +357,7 @@ export default function CrudPage({ config }: CrudPageProps) {
       );
       toast.success(`${count} ${target ? "ativado(s)" : "desativado(s)"}`);
       clearSelection();
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao atualizar");
     } finally {
@@ -395,7 +397,7 @@ export default function CrudPage({ config }: CrudPageProps) {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{config.title}</h1>
         <div className="flex items-center gap-2">
-          {config.headerActions && config.headerActions(load)}
+          {config.headerActions && config.headerActions(reload)}
           {filtered.length > 0 && (
             <button
               onClick={() => setConfirmAllOpen(true)}
@@ -417,25 +419,10 @@ export default function CrudPage({ config }: CrudPageProps) {
 
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative w-full sm:max-w-md">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
+          <SearchInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder={config.searchPlaceholder || `Buscar ${config.title}...`}
-            className={`${inputClass} pl-9`}
           />
         </div>
         {/* Filtros específicos para Items */}
@@ -530,72 +517,38 @@ export default function CrudPage({ config }: CrudPageProps) {
         </div>
       )}
 
-      <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-dark-600">
-                <th className="py-3 px-4 w-10">
-                  <input
-                    type="checkbox"
-                    checked={filtered.length > 0 && filtered.every((it) => selected.has(it.id))}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 accent-accent-500"
-                  />
-                </th>
-                {config.columns.map((col) => (
-                  <th key={col.key} className="text-left py-3 px-4 text-gray-400 font-medium">
-                    {col.label}
-                  </th>
-                ))}
-                <th className="text-right py-3 px-4 text-gray-400 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((item) => (
-                <tr
-                  key={item.id}
-                  className={`border-b border-dark-700 hover:bg-dark-800/50 ${selected.has(item.id) ? "bg-accent-600/10" : ""}`}
-                >
-                  <td className="py-2.5 px-4">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(item.id)}
-                      onChange={() => toggleSelect(item.id)}
-                      className="w-4 h-4 accent-accent-500"
-                    />
-                  </td>
-                  {config.columns.map((col) => (
-                    <td key={col.key} className="py-2.5 px-4">
-                      {col.render ? col.render(item[col.key], item) : item[col.key] ?? "-"}
-                    </td>
-                  ))}
-                  <td className="py-2.5 px-4 text-right whitespace-nowrap">
-                    {config.extraActions && config.extraActions(item)}
-                    <button
-                      onClick={() => openEdit(item)}
-                      className="text-blue-400 hover:text-blue-300 mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item)}
-                      className="text-red-400 hover:text-red-300"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!loading && filtered.length === 0 && (
-            <p className="text-center text-gray-500 py-8">
-              {search.trim() ? "Nenhum resultado para a busca" : `No ${config.title.toLowerCase()} yet — click "New" to add one`}
-            </p>
-          )}
-        </div>
-      </div>
+      <DataTable
+        columns={config.columns}
+        rows={filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)}
+        loading={loading}
+        emptyMessage={
+          search.trim()
+            ? "Nenhum resultado para a busca"
+            : `No ${config.title.toLowerCase()} yet — click "New" to add one`
+        }
+        selected={selected}
+        onToggleRow={toggleSelect}
+        onToggleAll={toggleSelectAll}
+        allSelected={filtered.length > 0 && filtered.every((it) => selected.has(it.id))}
+        rowActions={(item) => (
+          <>
+            {config.extraActions && config.extraActions(item)}
+            <button onClick={() => openEdit(item)} className="text-blue-400 hover:text-blue-300 mr-3">
+              Edit
+            </button>
+            <button onClick={() => handleDelete(item)} className="text-red-400 hover:text-red-300">
+              Delete
+            </button>
+          </>
+        )}
+      />
+      <Pagination
+        page={page}
+        pageCount={Math.ceil(filtered.length / PAGE_SIZE)}
+        total={filtered.length}
+        pageSize={PAGE_SIZE}
+        onPage={setPage}
+      />
 
       {modalOpen && (
         <Modal
