@@ -1046,17 +1046,21 @@ export function createAdminModule(app: Express): void {
         where.type = { in: ["weapon", "armor", "helm", "cape"] };
       }
 
-      // Materiais NÃO ligados a mobs, shops, nem quests
-      if (unlinkedMaterials === "true") {
-        where.OR = [
-          { type: "material" },
-          { AND: [{ type: "consumable" }, { subtype: "material" }] },
-        ];
-      }
-
-      // Equipamentos NÃO ligados a mobs, shops, nem quests
-      if (unlinkedEquipment === "true") {
-        where.type = { in: ["weapon", "armor", "helm", "cape"] };
+      // Unlinked: itens NÃO em drops, shops, nem quests
+      if (unlinkedMaterials === "true" || unlinkedEquipment === "true") {
+        const typeFilters = [];
+        if (unlinkedMaterials === "true") {
+          typeFilters.push(
+            { type: "material" },
+            { AND: [{ type: "consumable" }, { subtype: "material" }] }
+          );
+        }
+        if (unlinkedEquipment === "true") {
+          typeFilters.push({ type: { in: ["weapon", "armor", "helm", "cape"] } });
+        }
+        if (typeFilters.length > 0) {
+          where.OR = typeFilters.length === 1 ? typeFilters[0] : typeFilters;
+        }
       }
 
       if (type) where.type = String(type);
