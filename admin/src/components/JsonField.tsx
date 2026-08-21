@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { adminApi } from "../api";
 
+function itemCategory(it: { type?: string; subtype?: string }): string {
+  if (it.type === "material" || (it.type === "consumable" && it.subtype === "material")) return "Materiais";
+  if (it.type === "weapon" || it.type === "armor" || it.type === "helm" || it.type === "cape") return "Equipamentos";
+  return "Outros";
+}
+
 export type JsonFieldDef =
   | { mode: "record"; keyPlaceholder?: string; valueType: "number" | "string"; valuePlaceholder?: string; addLabel?: string }
   | { mode: "string-array"; placeholder?: string; addLabel?: string }
@@ -76,7 +82,7 @@ function useItemOptions(schema: JsonFieldDef): { id: string; name: string }[] {
       .list(params)
       .then(({ data }) => {
         const items = Array.isArray(data) ? data : [];
-        const mapped = items.map((i: any) => ({ id: i.id, name: i.name }));
+        const mapped = items.map((i: any) => ({ id: i.id, name: i.name, type: i.type, subtype: i.subtype }));
         if (!params) itemOptionsCache.list = mapped;
         if (active) setList(mapped);
       })
@@ -301,11 +307,22 @@ export default function JsonField({ schema, value, onChange }: JsonFieldProps) {
                     }}
                   >
                     <option value="">Selecione...</option>
-                    {itemOptions.map((opt) => (
-                      <option key={opt.id} value={opt.name}>
-                        {opt.name}
-                      </option>
-                    ))}
+                    {(() => {
+                      const groups: Record<string, { id: string; name: string }[]> = {};
+                      for (const opt of itemOptions) {
+                        const cat = itemCategory(opt as any);
+                        (groups[cat] ||= []).push(opt as any);
+                      }
+                      return Object.entries(groups).map(([cat, opts]) => (
+                        <optgroup key={cat} label={cat}>
+                          {opts.map((opt) => (
+                            <option key={opt.id} value={opt.name}>
+                              {opt.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ));
+                    })()}
                     {item?.[f.name] && !itemOptions.some((o) => o.name === item[f.name]) && (
                       <option value={item[f.name]}>{item[f.name]} (não catalogado)</option>
                     )}

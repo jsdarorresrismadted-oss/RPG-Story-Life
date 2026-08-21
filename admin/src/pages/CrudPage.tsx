@@ -30,6 +30,12 @@ const RARITY_COLORS: Record<string, string> = {
 const ITEM_TYPES = ["weapon", "helm", "armor", "cape", "ring", "necklace", "consumable", "material"];
 const ITEM_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
 
+function itemCategory(it: { type?: string; subtype?: string }): string {
+  if (it.type === "material" || (it.type === "consumable" && it.subtype === "material")) return "Materiais";
+  if (it.type === "weapon" || it.type === "armor" || it.type === "helm" || it.type === "cape") return "Equipamentos";
+  return "Outros";
+}
+
 export interface FieldConfig {
   name: string;
   label: string;
@@ -39,6 +45,7 @@ export interface FieldConfig {
   optionsParams?: Record<string, string>;
   optionsFor?: { source: string; map: Record<string, string[]> };
   visibleIf?: { field: string; values: any[] };
+  autoFrom?: string; // preenche este campo automaticamente com o "name" do item selecionado em `autoFrom`
   required?: boolean;
   defaultValue?: any;
   step?: string;
@@ -448,6 +455,7 @@ export default function CrudPage({ config }: CrudPageProps) {
           if (typeof opt === "string") return opt;
           return opt.slug && opt.slug !== opt.name ? `${opt.name} (${opt.slug})` : opt.name;
         };
+        const groupItems = field.optionsFrom === "items" && options.length > 0 && !!options[0]?.type;
         return (
           <select
             value={value ?? ""}
@@ -460,17 +468,44 @@ export default function CrudPage({ config }: CrudPageProps) {
                   if (target) next[target.name] = "";
                 }
               }
+              if (field.optionsFrom === "items") {
+                for (const f of config.fields) {
+                  if (f.autoFrom === field.name) {
+                    const sel = options.find((o: any) => o.id === e.target.value);
+                    next[f.name] = sel ? sel.name : "";
+                  }
+                }
+              }
               setForm(next);
             }}
             className={inputClass}
             required={field.required}
           >
             <option value="">{field.optionsFrom ? "Nenhum" : "Select..."}</option>
-            {options.map((opt: any) => (
-              <option key={typeof opt === "string" ? opt : opt.id} value={typeof opt === "string" ? opt : opt.id}>
-                {optionLabel(opt)}
-              </option>
-            ))}
+            {groupItems ? (
+              (() => {
+                const groups: Record<string, any[]> = {};
+                for (const opt of options) {
+                  const cat = itemCategory(opt);
+                  (groups[cat] ||= []).push(opt);
+                }
+                return Object.entries(groups).map(([cat, opts]) => (
+                  <optgroup key={cat} label={cat}>
+                    {opts.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ));
+              })()
+            ) : (
+              options.map((opt: any) => (
+                <option key={typeof opt === "string" ? opt : opt.id} value={typeof opt === "string" ? opt : opt.id}>
+                  {optionLabel(opt)}
+                </option>
+              ))
+            )}
           </select>
         );
       }
@@ -537,10 +572,11 @@ export default function CrudPage({ config }: CrudPageProps) {
           <input
             type="text"
             value={value ?? ""}
+            disabled={!!field.autoFrom}
             onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-            className={inputClass}
+            className={field.autoFrom ? `${inputClass} opacity-70 cursor-not-allowed` : inputClass}
             placeholder={field.placeholder}
-            required={field.required}
+            required={field.required && !field.autoFrom}
           />
         );
     }

@@ -62,9 +62,10 @@ const QUEST_FIELDS: EntityField[] = [
           fields: [
             { name: "itemName", label: "Item", type: "item-select", itemParams: { unlinkedMaterials: "true", unlinkedEquipment: "true" } },
             { name: "quantity", label: "Quantidade", type: "number" },
+            { name: "dropChance", label: "Chance de drop (%)", type: "number", step: "0.1", placeholder: "100" },
           ],
         },
-        hint: "Escolha o item da lista (materiais e equipamentos que NÃO dropam de nenhum mob).",
+        hint: "Escolha o item da lista (materiais e equipamentos que NÃO dropam de nenhum mob). dropChance < 100 = chance de não vir.",
       },
   { name: "isRepeatable", label: "Repetível", type: "boolean", defaultValue: false },
   { name: "isActive", label: "Ativa (aparece no jogo)", type: "boolean", defaultValue: true },

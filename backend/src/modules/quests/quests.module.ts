@@ -157,13 +157,20 @@ export function createQuestsModule(app: Express): void {
       }
       const goldGain = clampGold(user?.gold ?? 0n, questGold, BigInt(limits.maxGold));
 
-      // Grant item rewards (JSON: [{ "itemName": "Poção de Vida", "quantity": 2 }])
+      // Grant item rewards (JSON: [{ "itemName": "Poção de Vida", "quantity": 2, "dropChance": 100 }])
       let rewards: any[] = [];
       try {
         rewards = JSON.parse(progress.quest.itemRewards || "[]");
       } catch {
         rewards = [];
       }
+
+      // Aplicar dropChance: se < 100, pode não vir
+      rewards = rewards.filter((r) => {
+        const chance = Number(r?.dropChance);
+        if (isNaN(chance) || chance >= 100) return true;
+        return Math.random() * 100 < chance;
+      });
 
       await prisma.$transaction(async (tx) => {
         await tx.questProgress.update({
