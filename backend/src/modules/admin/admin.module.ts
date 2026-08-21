@@ -1029,18 +1029,19 @@ export function createAdminModule(app: Express): void {
     try {
       const {
         type, rarity, excludeDrops, excludeShop, forShop, equipmentOnly,
-        unlinkedMaterials, unlinkedEquipment, excludeQuests, excludeCrafts,
+        unlinkedMaterials, unlinkedEquipment, excludeQuests, excludeCrafts, craftSelect, roles,
       } = req.query;
       // Listagem do admin mostra tudo (o frontend tem toggle "mostrar inativos").
       // O filtro isActive só é aplicado para a seleção da loja (só itens ativos).
       const where: any = {};
       if (forShop === "true") where.isActive = true;
+      if (roles === "true") where.isActive = true;
 
       // Base query: dropItems/shopItems conforme parâmetros
-      if (excludeDrops === "true" || forShop === "true" || unlinkedMaterials === "true" || unlinkedEquipment === "true") {
+      if (excludeDrops === "true" || forShop === "true" || unlinkedMaterials === "true" || unlinkedEquipment === "true" || craftSelect === "true") {
         where.dropItems = { none: {} };
       }
-      if (excludeShop === "true" || forShop === "true" || unlinkedMaterials === "true" || unlinkedEquipment === "true") {
+      if (excludeShop === "true" || forShop === "true" || unlinkedMaterials === "true" || unlinkedEquipment === "true" || craftSelect === "true") {
         where.shopItems = { none: {} };
       }
 
@@ -1049,8 +1050,8 @@ export function createAdminModule(app: Express): void {
         where.type = { in: ["weapon", "armor", "helm", "cape"] };
       }
 
-      // Unlinked: itens NÃO em drops, shops, nem quests
-      if (unlinkedMaterials === "true" || unlinkedEquipment === "true") {
+      // Unlinked / craftSelect: itens NÃO em drops, shops (e nem quests, no caso unlinked)
+      if (unlinkedMaterials === "true" || unlinkedEquipment === "true" || craftSelect === "true") {
         const typeFilters = [];
         if (unlinkedMaterials === "true") {
           typeFilters.push(
@@ -1058,7 +1059,7 @@ export function createAdminModule(app: Express): void {
             { AND: [{ type: "consumable" }, { subtype: "material" }] }
           );
         }
-        if (unlinkedEquipment === "true") {
+        if (unlinkedEquipment === "true" || craftSelect === "true") {
           typeFilters.push({ type: { in: ["weapon", "armor", "helm", "cape"] } });
         }
         if (typeFilters.length > 0) {
@@ -1090,14 +1091,17 @@ export function createAdminModule(app: Express): void {
       // Filtros in-memory (baseados em JSON): quests e crafts.
       // Um item usado em OUTRO sistema deve ficar oculto do seletor atual
       // (exclusão mútua: shop / quest / craft / drop).
+      // craftSelect: NÃO esconde itens de quest (aparecem agrupados à parte),
+      // mas ainda esconde loja/drop/outros crafts e marca usedInQuest.
       const needQuestFilter = unlinkedMaterials === "true" || unlinkedEquipment === "true" || excludeQuests === "true";
-      const needCraftFilter = unlinkedMaterials === "true" || unlinkedEquipment === "true" || excludeCrafts === "true";
+      const needQuestTag = craftSelect === "true";
+      const needCraftFilter = unlinkedMaterials === "true" || unlinkedEquipment === "true" || excludeCrafts === "true" || craftSelect === "true";
 
-      if (needQuestFilter || needCraftFilter) {
+      if (needQuestFilter || needQuestTag || needCraftFilter) {
         const usedNames = new Set<string>(); // nomes usados em quests/crafts (JSON)
         const usedIds = new Set<string>();   // ids usados em crafts (resultItemId)
 
-        if (needQuestFilter) {
+        if (needQuestFilter || needQuestTag) {
           const quests = await prisma.quest.findMany({ select: { itemRewards: true } });
           for (const q of quests) {
             if (q.itemRewards) {
@@ -1130,9 +1134,57 @@ export function createAdminModule(app: Express): void {
           }
         }
 
-        items = items.filter(
-          (it) => !usedNames.has(it.name.toLowerCase()) && !usedIds.has(it.id)
-        );
+        if (needQuestFilter || needCraftFilter) {
+          items = items.filter(
+            (it) => !usedNames.has(it.name.toLowerCase()) && !usedIds.has(it.id)
+          );
+        }
+
+        if (craftSelect === "true") {
+          for (const it of items) {
+            (it as any).usedInQuest = usedNames.has(it.name.toLowerCase());
+          }
+        }
+      }
+
+      // roles: marca cada item com onde ele já é usado (loja / mob / quest / craft)
+      // para o seletor da loja exibir agrupado e dar visibilidade do ecossistema.
+      if (roles === "true") {
+        const [shopRows, dropRows, questRows, craftRows] = await Promise.all([
+          prisma.shopItem.findMany({ select: { itemId: true } }),
+          prisma.dropItem.findMany({ select: { itemId: true } }),
+          prisma.quest.findMany({ select: { itemRewards: true } }),
+          prisma.craftRecipe.findMany({ select: { resultItemId: true, ingredients: true } }),
+        ]);
+        const shopIds = new Set<string>(shopRows.map((r: any) => r.itemId));
+        const dropIds = new Set<string>(dropRows.map((r: any) => r.itemId));
+        const questNames = new Set<string>();
+        for (const q of questRows) {
+          if (q.itemRewards) {
+            try {
+              const rewards = JSON.parse(q.itemRewards);
+              if (Array.isArray(rewards)) for (const r of rewards) if (r?.itemName) questNames.add(r.itemName.toLowerCase());
+            } catch {}
+          }
+        }
+        const craftIds = new Set<string>();
+        const craftNames = new Set<string>();
+        for (const c of craftRows) {
+          if (c.resultItemId) craftIds.add(c.resultItemId);
+          if (c.ingredients) {
+            try {
+              const ings = JSON.parse(c.ingredients);
+              if (Array.isArray(ings)) for (const ing of ings) if (ing?.itemName) craftNames.add(ing.itemName.toLowerCase());
+            } catch {}
+          }
+        }
+        for (const it of items) {
+          const nm = it.name.toLowerCase();
+          (it as any).inShop = shopIds.has(it.id);
+          (it as any).inDrop = dropIds.has(it.id);
+          (it as any).inQuest = questNames.has(nm);
+          (it as any).inCraft = craftIds.has(it.id) || craftNames.has(nm);
+        }
       }
 
       res.json(items);

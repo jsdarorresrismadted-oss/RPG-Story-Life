@@ -36,6 +36,14 @@ function itemCategory(it: { type?: string; subtype?: string }): string {
   return "Outros";
 }
 
+function itemRoleGroup(it: any): string {
+  if (it.inShop) return "🏪 Já na Loja";
+  if (it.inDrop) return "🗡️ Drop de Mob";
+  if (it.inQuest) return "📜 Em Quest";
+  if (it.inCraft) return "⚒️ Em Craft";
+  return "✨ Disponíveis";
+}
+
 export interface FieldConfig {
   name: string;
   label: string;
@@ -455,7 +463,8 @@ export default function CrudPage({ config }: CrudPageProps) {
           if (typeof opt === "string") return opt;
           return opt.slug && opt.slug !== opt.name ? `${opt.name} (${opt.slug})` : opt.name;
         };
-        const groupItems = field.optionsFrom === "items" && options.length > 0 && !!options[0]?.type;
+        const groupByRole = field.optionsFrom === "items" && options.length > 0 && options[0]?.inShop !== undefined;
+        const groupItems = field.optionsFrom === "items" && options.length > 0 && !!options[0]?.type && !groupByRole;
         return (
           <select
             value={value ?? ""}
@@ -482,7 +491,24 @@ export default function CrudPage({ config }: CrudPageProps) {
             required={field.required}
           >
             <option value="">{field.optionsFrom ? "Nenhum" : "Select..."}</option>
-            {groupItems ? (
+            {groupByRole ? (
+              (() => {
+                const groups: Record<string, any[]> = {};
+                for (const opt of options) {
+                  const cat = itemRoleGroup(opt);
+                  (groups[cat] ||= []).push(opt);
+                }
+                return Object.entries(groups).map(([cat, opts]) => (
+                  <optgroup key={cat} label={cat}>
+                  {opts.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ));
+            })()
+          ) : groupItems ? (
               (() => {
                 const groups: Record<string, any[]> = {};
                 for (const opt of options) {

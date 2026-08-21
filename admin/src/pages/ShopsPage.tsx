@@ -26,6 +26,14 @@ const RARITY_LABELS: Record<string, string> = {
   mythic: "Mítico",
 };
 
+function itemRoleGroup(it: any): string {
+  if (it.inShop) return "🏪 Já na Loja";
+  if (it.inDrop) return "🗡️ Drop de Mob";
+  if (it.inQuest) return "📜 Em Quest";
+  if (it.inCraft) return "⚒️ Em Craft";
+  return "✨ Disponíveis";
+}
+
 const STAT_LABELS: Record<string, string> = {
   strength: "Força",
   intellect: "Intelecto",
@@ -161,7 +169,7 @@ export default function ShopsPage() {
     try {
       const [npcsRes, itemsRes, mapsRes, classesRes, enchantmentsRes, recipesRes, shopProductsRes] = await Promise.all([
         adminApi.npcs.list(),
-        adminApi.items.list(),
+        adminApi.items.list({ roles: "true" }),
         adminApi.maps.list(),
         adminApi.classes.list(),
         adminApi.enchantments.list(),
@@ -1227,11 +1235,22 @@ export default function ShopsPage() {
                 className={inputClass}
               >
                 <option value="">Selecionar Item...</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name} {recipesByItem.has(i.id) ? "⚒" : ""}
-                  </option>
-                ))}
+                {(() => {
+                  const groups: Record<string, any[]> = {};
+                  for (const i of items) {
+                    const g = itemRoleGroup(i);
+                    (groups[g] ||= []).push(i);
+                  }
+                  return Object.entries(groups).map(([g, list]) => (
+                    <optgroup key={g} label={g}>
+                      {list.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.name} {recipesByItem.has(i.id) ? "⚒" : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ));
+                })()}
               </select>
             </div>
 
@@ -1414,9 +1433,20 @@ export default function ShopsPage() {
                 disabled={!!pvpModal.editing}
               >
                 <option value="">Selecionar Item...</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>{i.name}</option>
-                ))}
+                {(() => {
+                  const groups: Record<string, any[]> = {};
+                  for (const i of items) {
+                    const g = itemRoleGroup(i);
+                    (groups[g] ||= []).push(i);
+                  }
+                  return Object.entries(groups).map(([g, list]) => (
+                    <optgroup key={g} label={g}>
+                      {list.map((i) => (
+                        <option key={i.id} value={i.id}>{i.name}</option>
+                      ))}
+                    </optgroup>
+                  ));
+                })()}
               </select>
             </div>
 

@@ -412,7 +412,7 @@ export const crudConfigs: CrudConfig[] = [
       { name: "goldAmount", label: "Ouro entregue (tipo gold_pack)", type: "number", defaultValue: 0, visibleIf: { field: "type", values: ["gold_pack"] } },
       { name: "gachaTickets", label: "Tickets de gacha entregues (tipo gacha_ticket)", type: "number", defaultValue: 1, visibleIf: { field: "type", values: ["gacha_ticket"] }, hint: "Vendidos por gold ou SF Coins — única forma de comprar tickets" },
       { name: "enchantmentId", label: "Encantamento (tipo enchantment)", type: "select", optionsFrom: "enchantments" },
-      { name: "itemId", label: "Item (tipo item)", type: "select", optionsFrom: "items", optionsParams: { forShop: "true", excludeQuests: "true", excludeCrafts: "true" }, visibleIf: { field: "type", values: ["item"] } },
+      { name: "itemId", label: "Item (tipo item)", type: "select", optionsFrom: "items", optionsParams: { roles: "true" }, visibleIf: { field: "type", values: ["item"] }, hint: "Agrupado por onde o item já é usado: 🏪 Loja, 🗡️ Drop de Mob, 📜 Quest, ⚒️ Craft ou ✨ Disponível." },
       { name: "classId", label: "Classe (tipo class)", type: "select", optionsFrom: "classes", visibleIf: { field: "type", values: ["class"] } },
       { name: "quantity", label: "Quantidade (tipo item)", type: "number", defaultValue: 1, visibleIf: { field: "type", values: ["item"] }, hint: "Quantas unidades do item o jogador recebe por compra" },
       { name: "stock", label: "Estoque (-1 = infinito)", type: "number", defaultValue: -1, visibleIf: { field: "type", values: ["item", "class"] }, hint: "Limite de unidades que podem ser vendidas no total. -1 = sem limite. O jogo bloqueia a compra quando esgota." },
