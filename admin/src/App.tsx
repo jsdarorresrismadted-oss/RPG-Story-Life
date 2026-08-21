@@ -18,7 +18,7 @@ import EventsPage from "./pages/EventsPage";
 import GachaPage from "./pages/GachaPage";
 import SeasonsPage from "./pages/SeasonsPage";
 import CrudPage from "./pages/CrudPage";
-import { crudConfigs } from "./crudConfigs";
+import { crudConfigs } from "./configs";
 export default function App() {
   return (
     <Routes>
