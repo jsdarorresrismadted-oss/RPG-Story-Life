@@ -60,11 +60,11 @@ const QUEST_FIELDS: EntityField[] = [
           mode: "object-array",
           addLabel: "Adicionar recompensa",
           fields: [
-            { name: "itemName", label: "Item", type: "item-select", itemParams: { unlinkedMaterials: "true" } },
+            { name: "itemName", label: "Item", type: "item-select", itemParams: { unlinkedMaterials: "true", unlinkedEquipment: "true" } },
             { name: "quantity", label: "Quantidade", type: "number" },
           ],
         },
-        hint: "Escolha o item da lista (só materiais que NÃO dropam de nenhum mob).",
+        hint: "Escolha o item da lista (materiais e equipamentos que NÃO dropam de nenhum mob).",
       },
   { name: "isRepeatable", label: "Repetível", type: "boolean", defaultValue: false },
   { name: "isActive", label: "Ativa (aparece no jogo)", type: "boolean", defaultValue: true },
