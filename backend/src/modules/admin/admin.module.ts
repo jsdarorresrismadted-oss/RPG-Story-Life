@@ -1033,24 +1033,30 @@ export function createAdminModule(app: Express): void {
       const where: any = {};
       if (forShop === "true") where.isActive = true;
 
+      // Base query: dropItems/shopItems conforme parâmetros
+      if (excludeDrops === "true" || forShop === "true" || unlinkedMaterials === "true" || unlinkedEquipment === "true") {
+        where.dropItems = { none: {} };
+      }
+      if (excludeShop === "true" || forShop === "true" || unlinkedMaterials === "true" || unlinkedEquipment === "true") {
+        where.shopItems = { none: {} };
+      }
+
       // Só equipamentos (arma, armadura, capacete/elmo, capa)
       if (equipmentOnly === "true") {
         where.type = { in: ["weapon", "armor", "helm", "cape"] };
       }
 
-      // Materiais NÃO ligados a mobs (não estão em DropItem)
+      // Materiais NÃO ligados a mobs, shops, nem quests
       if (unlinkedMaterials === "true") {
         where.OR = [
           { type: "material" },
           { AND: [{ type: "consumable" }, { subtype: "material" }] },
         ];
-        where.dropItems = { none: {} };
       }
 
-      // Equipamentos NÃO ligados a mobs (não estão em DropItem)
+      // Equipamentos NÃO ligados a mobs, shops, nem quests
       if (unlinkedEquipment === "true") {
         where.type = { in: ["weapon", "armor", "helm", "cape"] };
-        where.dropItems = { none: {} };
       }
 
       if (type) where.type = String(type);
@@ -1071,7 +1077,29 @@ export function createAdminModule(app: Express): void {
         where.type = "material";
       }
 
-      res.json(await prisma.item.findMany({ where, include: { enchantment: true }, orderBy: { name: "asc" } }));
+      // Fetch items
+      let items = await prisma.item.findMany({ where, include: { enchantment: true }, orderBy: { name: "asc" } });
+
+      // Se pediu unlinked, filtrar itens que aparecem em questRewards (JSON)
+      if (unlinkedMaterials === "true" || unlinkedEquipment === "true") {
+        const quests = await prisma.quest.findMany({ select: { itemRewards: true } });
+        const usedInQuests = new Set<string>();
+        for (const q of quests) {
+          if (q.itemRewards) {
+            try {
+              const rewards = JSON.parse(q.itemRewards);
+              if (Array.isArray(rewards)) {
+                for (const r of rewards) {
+                  if (r?.itemName) usedInQuests.add(r.itemName.toLowerCase());
+                }
+              }
+            } catch {}
+          }
+        }
+        items = items.filter((it) => !usedInQuests.has(it.name.toLowerCase()));
+      }
+
+      res.json(items);
     } catch (err) { next(err); }
   });
 
