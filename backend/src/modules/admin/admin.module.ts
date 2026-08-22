@@ -793,7 +793,7 @@ export function createAdminModule(app: Express): void {
     const data = normalizeBody(model, body);
     // FK opcionais de shopitem: classId órfão (classe deletada) NÃO deve bloquear a oferta de item/encantamento.
     // Restrição de classe inválida vira "qualquer classe" (null).
-    if (model === "shopItem" && typeof data.classId === "string" && data.classId !== "") {
+    if ((model === "shopItem" || model === "shopProduct") && typeof data.classId === "string") {
       const exists = await prisma.gameClass.count({ where: { id: data.classId } });
       if (!exists) {
         console.warn(`[admin] shopitem classId órfão ignorado (${data.classId}) — oferta salva sem restrição de classe. Body:`, JSON.stringify(body));
@@ -813,6 +813,17 @@ export function createAdminModule(app: Express): void {
       }
       throw err;
     }
+  }
+
+  // Retorna o id se a FK existir, senão null (evita P2003 em classId/itemId/enchantmentId órfãos).
+  async function fkOrNull(model: any, id: any, label: string): Promise<string | null> {
+    if (!id || typeof id !== "string" || id === "") return null;
+    const exists = await model.count({ where: { id } });
+    if (!exists) {
+      console.warn(`[admin] FK órfã ignorada (${label}=${id}) — salvo como null.`);
+      return null;
+    }
+    return id;
   }
 
   function normalizeBody(model: string, body: any): any {
@@ -2008,13 +2019,16 @@ export function createAdminModule(app: Express): void {
     try {
       const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, goldAmount, gachaTickets, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder, stock, requiredLevel, requiredVip } = req.body;
       if (!slug || !name || !type) throw new AppError(400, "slug, name e type são obrigatórios");
+      const safeClassId = await fkOrNull(prisma.gameClass, classId, "classId");
+      const safeItemId = await fkOrNull(prisma.item, itemId, "itemId");
+      const safeEnchantmentId = await fkOrNull(prisma.enchantment, enchantmentId, "enchantmentId");
       res.status(201).json(await prisma.shopProduct.create({
         data: {
           slug, name, description: description || "", type, currency: currency || "sf_coins",
           price: Number(price) || 0, sfCoinAmount: Number(sfCoinAmount) || 0,
           vipDays: Number(vipDays) || 0, goldAmount: Number(goldAmount) || 0, gachaTickets: Number(gachaTickets) || 0,
-          enchantmentId: enchantmentId || null,
-          itemId: itemId || null, classId: classId || null, quantity: Math.max(1, Number(quantity) || 1),
+          enchantmentId: safeEnchantmentId,
+          itemId: safeItemId, classId: safeClassId, quantity: Math.max(1, Number(quantity) || 1),
           icon: icon || null, isActive: isActive !== false, sortOrder: Number(sortOrder) || 0,
           stock: Number(stock) === 0 ? 0 : Number(stock) || -1,
           requiredLevel: Math.max(0, Number(requiredLevel) || 0), requiredVip: !!requiredVip,
@@ -2026,13 +2040,16 @@ export function createAdminModule(app: Express): void {
   app.put("/api/admin/shop-products/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { slug, name, description, type, currency, price, sfCoinAmount, vipDays, goldAmount, gachaTickets, enchantmentId, itemId, classId, quantity, icon, isActive, sortOrder, stock, requiredLevel, requiredVip } = req.body;
+      const safeClassId = await fkOrNull(prisma.gameClass, classId, "classId");
+      const safeItemId = await fkOrNull(prisma.item, itemId, "itemId");
+      const safeEnchantmentId = await fkOrNull(prisma.enchantment, enchantmentId, "enchantmentId");
       res.json(await prisma.shopProduct.update({
         where: { id: req.params.id },
         data: {
           slug, name, description, type, currency,
           price: Number(price), sfCoinAmount: Number(sfCoinAmount), vipDays: Number(vipDays),
           goldAmount: Number(goldAmount) || 0, gachaTickets: Number(gachaTickets) || 0,
-          enchantmentId: enchantmentId || null, itemId: itemId || null, classId: classId || null,
+          enchantmentId: safeEnchantmentId, itemId: safeItemId, classId: safeClassId,
           quantity: Math.max(1, Number(quantity) || 1),
           icon: icon || null, isActive, sortOrder: Number(sortOrder),
           stock: Number(stock) === 0 ? 0 : Number(stock) || -1,
