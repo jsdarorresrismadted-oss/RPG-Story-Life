@@ -222,6 +222,9 @@ export async function addItemsToInventory(
   for (const entry of entries) {
     const item = items.find((i) => i.name.toLowerCase() === String(entry.itemName).toLowerCase());
     if (!item) continue;
+    // Itens temporários (de coleta de quest) NÃO vão para o inventário normal:
+    // permanecem apenas como progresso da quest (contador) e somem ao deslogar/concluir.
+    if (item.isTemporary) continue;
     const quantity = Math.max(1, Math.floor(Number(entry.quantity) || 1));
     const existing = await tx.inventory.findFirst({
       where: { userId, itemId: item.id, slotIndex: null },

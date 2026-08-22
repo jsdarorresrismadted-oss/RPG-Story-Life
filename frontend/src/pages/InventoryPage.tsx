@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { inventoryApi, authApi, marketApi, classesApi, craftApi } from "../services/api";
+import { inventoryApi, authApi, marketApi, classesApi, craftApi, questsApi } from "../services/api";
 import { InventoryItem, UserEnchantment } from "../types";
 import {
   Backpack, Search, Star, Coins, Trash2,
@@ -55,6 +55,7 @@ export function InventoryPage() {
   const [applyingInvId, setApplyingInvId] = useState<string | null>(null);
   const [unlockedClasses, setUnlockedClasses] = useState<any[]>([]);
   const [switchingClass, setSwitchingClass] = useState<string | null>(null);
+  const [questProgress, setQuestProgress] = useState<any[]>([]);
   const [crafting, setCrafting] = useState(false);
   const { selectedCharacter, setCharacter } = useGameStore();
   const { user, setUser } = useAuthStore();
@@ -67,6 +68,9 @@ export function InventoryPage() {
     inventoryApi.enchantments()
       .then(({ data }) => setOwnedEnchants(Array.isArray(data) ? data : []))
       .catch(() => {});
+    questsApi.progress()
+      .then(({ data }) => setQuestProgress(Array.isArray(data) ? data : []))
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -76,6 +80,9 @@ export function InventoryPage() {
       .finally(() => setLoading(false));
     inventoryApi.enchantments()
       .then(({ data }) => setOwnedEnchants(Array.isArray(data) ? data : []))
+      .catch(() => {});
+    questsApi.progress()
+      .then(({ data }) => setQuestProgress(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
 
@@ -345,6 +352,26 @@ export function InventoryPage() {
     .filter((ue) => !search || ue.enchantment.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => (b.enchantment.level || 1) - (a.enchantment.level || 1));
 
+  // Itens temporários (coleta de quest) — NÃO ficam no inventário normal, vivem só no progresso da quest.
+  const tempItems = useMemo(() => {
+    const out: { name: string; cur: number; target: number; questTitle: string }[] = [];
+    const keyOf = (o: any) => String(o?.id ?? `${o?.type}-${o?.itemName ?? o?.target ?? o?.itemId}`);
+    for (const p of questProgress) {
+      if (p.status === "claimed") continue;
+      let objs: any[] = [];
+      let prog: Record<string, number> = {};
+      try { objs = JSON.parse(p.quest?.objectives || "[]"); } catch { objs = []; }
+      try { prog = JSON.parse(p.progress || "{}"); } catch { prog = {}; }
+      for (const o of objs) {
+        if (o?.type !== "collect" && !o?.itemName) continue;
+        const target = Number(o?.amount ?? o?.count ?? 1);
+        const cur = Number(prog[keyOf(o)] ?? 0);
+        out.push({ name: o.itemName ?? o.target ?? "Item", cur, target, questTitle: p.quest?.title ?? "" });
+      }
+    }
+    return out;
+  }, [questProgress]);
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
@@ -371,6 +398,34 @@ export function InventoryPage() {
           />
         </div>
       </div>
+
+      {tempItems.length > 0 && (
+        <div className="panel p-4 border-orange-500/20">
+          <h2 className="font-display font-semibold mb-3 flex items-center gap-2">
+            <Sparkles size={16} className="text-orange-400" /> Temporary Items
+            <span className="text-[11px] text-gray-500 font-normal">— itens de quest (não ocupam o inventário)</span>
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {tempItems.map((t, i) => (
+              <div key={i} className="rounded-lg bg-dark-900/70 border border-dark-700 px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium truncate">{t.name}</span>
+                  <span className={`text-xs font-mono ${t.cur >= t.target ? "text-emerald-400" : "text-gray-400"}`}>
+                    {Math.min(t.cur, t.target)}/{t.target}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-dark-700 overflow-hidden mt-1.5">
+                  <div
+                    className="h-full rounded-full bg-orange-500"
+                    style={{ width: `${Math.min(100, (t.cur / t.target) * 100)}%` }}
+                  />
+                </div>
+                {t.questTitle && <p className="text-[10px] text-gray-500 truncate mt-1">{t.questTitle}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 max-w-xs">
