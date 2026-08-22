@@ -14,6 +14,7 @@ export const craftRecipesConfig: CrudConfig = {
       ),
     },
     { key: "resultQuantity", label: "Qtd." },
+    { key: "goldCost", label: "Ouro (obrigatório)" },
     { key: "requiredLevel", label: "Min Nv." },
     { key: "ingredients", label: "Ingredientes", render: (v) => jsonPreview(v) },
     { key: "isActive", label: "Ativo", render: (v) => boolBadge(v) },
@@ -31,6 +32,7 @@ export const craftRecipesConfig: CrudConfig = {
     },
     { name: "name", label: "Nome (automático)", type: "text", autoFrom: "resultItemId", group: "Resultado do Craft" },
     { name: "resultQuantity", label: "Quantidade do resultado", type: "number", defaultValue: 1, group: "Resultado do Craft" },
+    { name: "goldCost", label: "Custo em ouro (OBRIGATÓRIO no craft)", type: "number", defaultValue: 0, group: "Requisitos", hint: "Ouro é requisito do craft junto com os ingredientes (não é 'ou'). Use 0 apenas se não quiser cobrar ouro." },
     { name: "requiredLevel", label: "Nível mínimo para craftar", type: "number", defaultValue: 1, group: "Requisitos" },
     {
       name: "requiredQuestIds",

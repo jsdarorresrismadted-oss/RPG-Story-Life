@@ -743,11 +743,28 @@ model Npc {
   type        String
   dialogue    String?
   isActive    Boolean   @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   mapNpcs     MapNpc[]
   quests      Quest[]    @relation("QuestGiver")
   shopItems   ShopItem[]
+  actions     NpcAction[]
+}
+
+model NpcAction {
+  id           String   @id @default(uuid())
+  npcId        String
+  type         String   // shop | quest | dialogue | travel | craft | custom
+  label        String
+  icon         String?
+  order        Int      @default(0)
+  requirements String?  // JSON: { "level"?: number, "rank"?: number, "questIds"?: string[] }
+  target       String?  // ex.: mapId (travel), etc.
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  npc          Npc      @relation(fields: [npcId], references: [id], onDelete: Cascade)
+
+  @@index([npcId])
 }
 
 model ShopItem {

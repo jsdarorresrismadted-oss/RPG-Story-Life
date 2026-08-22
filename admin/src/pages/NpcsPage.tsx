@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Loader2, MapPin, Plus, RefreshCw, ShoppingBag, Sparkles, Trash2, Wand2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, MapPin, Plus, RefreshCw, ShoppingBag, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
 import { useCrudList } from "../lib/useCrud";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
@@ -53,6 +53,182 @@ function npcDefaults(): Record<string, any> {
 const DEFAULT_MAP = { mapId: "", positionX: 50, positionY: 50 };
 const DEFAULT_SHOP = { kind: "item", refId: "", price: 0, currency: "gold", requiredLevel: 0, requiredVip: false };
 
+const ACTION_TYPE_OPTIONS = [
+  { value: "shop", label: "Loja" },
+  { value: "quest", label: "Quests" },
+  { value: "dialogue", label: "Conversar" },
+  { value: "travel", label: "Viajar" },
+  { value: "craft", label: "Craftar" },
+  { value: "gacha", label: "Gacha" },
+  { value: "custom", label: "Custom" },
+];
+
+function NpcActionsEditor({ npcId }: { npcId: string }) {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["npcActions", npcId],
+    queryFn: async () => (await adminApi.npcActions.list(npcId)).data,
+  });
+  const actions: any[] = Array.isArray(data)
+    ? [...data].sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+    : [];
+  const [editing, setEditing] = useState<any | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const blank = () => ({
+    type: "shop",
+    label: "",
+    icon: "",
+    order: actions.length,
+    requirements: "",
+    target: "",
+    isActive: true,
+  });
+
+  const save = async () => {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const payload: any = {
+        type: editing.type,
+        label: editing.label,
+        icon: editing.icon || null,
+        order: Number(editing.order) || 0,
+        requirements:
+          editing.requirements
+            ? typeof editing.requirements === "string"
+              ? editing.requirements
+              : JSON.stringify(editing.requirements)
+            : null,
+        target: editing.target || null,
+        isActive: editing.isActive !== false,
+      };
+      if (editing.id) await adminApi.npcActions.update(npcId, editing.id, payload);
+      else await adminApi.npcActions.create(npcId, payload);
+      toast.success("Ação salva");
+      setEditing(null);
+      queryClient.invalidateQueries({ queryKey: ["npcActions", npcId] });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || e?.response?.data?.error || "Erro ao salvar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Excluir esta ação?")) return;
+    await adminApi.npcActions.delete(npcId, id);
+    queryClient.invalidateQueries({ queryKey: ["npcActions", npcId] });
+  };
+
+  const move = async (a: any, dir: -1 | 1) => {
+    const sorted = [...actions].sort((x: any, y: any) => (x.order || 0) - (y.order || 0));
+    const idx = sorted.findIndex((x: any) => x.id === a.id);
+    const j = idx + dir;
+    if (j < 0 || j >= sorted.length) return;
+    const other = sorted[j];
+    await adminApi.npcActions.update(npcId, a.id, { order: other.order });
+    await adminApi.npcActions.update(npcId, other.id, { order: a.order });
+    queryClient.invalidateQueries({ queryKey: ["npcActions", npcId] });
+  };
+
+  return (
+    <div className="bg-dark-800 border border-dark-600 rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-medium text-white">Ações de interação</h3>
+          <p className="text-xs text-gray-500">
+            Botões dinâmicos mostrados no jogo (ordem definida por "order"). Se vazio, o jogo usa o comportamento antigo por type.
+          </p>
+        </div>
+        <button
+          onClick={() => setEditing(blank())}
+          className="flex items-center gap-1.5 px-3 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          <Plus size={15} /> Nova ação
+        </button>
+      </div>
+
+      {isLoading && <p className="text-sm text-gray-500">Carregando...</p>}
+
+      {!isLoading && actions.length === 0 && (
+        <p className="text-sm text-gray-500">Nenhuma ação configurada — este NPC usará o modo legado (loja/quest por type).</p>
+      )}
+
+      <div className="space-y-2">
+        {actions.map((a: any) => (
+          <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-dark-900 border border-dark-700">
+            <div className="flex flex-col gap-1">
+              <button onClick={() => move(a, -1)} className="text-gray-500 hover:text-white" title="Subir"><ArrowUp size={14} /></button>
+              <button onClick={() => move(a, 1)} className="text-gray-500 hover:text-white" title="Descer"><ArrowDown size={14} /></button>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {a.icon ? `${a.icon} ` : ""}
+                {a.label || ACTION_TYPE_OPTIONS.find((o) => o.value === a.type)?.label || a.type}
+              </p>
+              <p className="text-[11px] text-gray-500">tipo: {a.type} • ordem: {a.order} {a.isActive ? "" : "• inativo"}</p>
+            </div>
+            <button onClick={() => setEditing({ ...a })} className="text-accent-400 hover:text-accent-300 text-sm">Editar</button>
+            <button onClick={() => remove(a.id)} className="text-red-400 hover:text-red-300 text-sm">Excluir</button>
+          </div>
+        ))}
+      </div>
+
+      {editing && (
+        <div className="rounded-xl border border-dark-600 bg-dark-900 p-4 space-y-3">
+          <h4 className="text-sm font-medium text-white">{editing.id ? "Editar ação" : "Nova ação"}</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Tipo</label>
+              <select value={editing.type} onChange={(e) => setEditing({ ...editing, type: e.target.value })} className={inputClass}>
+                {ACTION_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Ordem</label>
+              <input type="number" value={editing.order} onChange={(e) => setEditing({ ...editing, order: e.target.value })} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Rótulo (botão)</label>
+              <input value={editing.label} onChange={(e) => setEditing({ ...editing, label: e.target.value })} className={inputClass} placeholder="Ex.: Ver mercadorias" />
+            </div>
+            <div>
+              <label className={labelClass}>Ícone (emoji/opcional)</label>
+              <input value={editing.icon} onChange={(e) => setEditing({ ...editing, icon: e.target.value })} className={inputClass} placeholder="🛒" />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Target (ex.: mapId para travel)</label>
+            <input value={editing.target} onChange={(e) => setEditing({ ...editing, target: e.target.value })} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Requisitos (JSON, opcional)</label>
+            <input
+              value={typeof editing.requirements === "string" ? editing.requirements : JSON.stringify(editing.requirements || "")}
+              onChange={(e) => setEditing({ ...editing, requirements: e.target.value })}
+              className={inputClass}
+              placeholder='{"level":10,"questIds":["abc"]}'
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-300">
+            <input type="checkbox" checked={editing.isActive !== false} onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })} />
+            Ativo
+          </label>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setEditing(null)} className="px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors">Cancelar</button>
+            <button onClick={save} disabled={busy} className="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+              {busy ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NpcsPage() {
   const queryClient = useQueryClient();
   const { items: npcs, loading, reload: reloadNpcs } = useCrudList("npcs", () => adminApi.npcs.list());
@@ -77,7 +253,7 @@ export default function NpcsPage() {
   const [filter, setFilter] = useState("");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"geral" | "mapas" | "vendas" | "quests">("geral");
+  const [tab, setTab] = useState<"geral" | "mapas" | "vendas" | "quests" | "acoes">("geral");
   const [creating, setCreating] = useState(false);
 
   const [form, setForm] = useState<Record<string, any>>(npcDefaults());
@@ -127,7 +303,7 @@ export default function NpcsPage() {
     setForm(npcDefaults());
   };
 
-  const handleTab = (t: "geral" | "mapas" | "vendas" | "quests") => {
+  const handleTab = (t: "geral" | "mapas" | "vendas" | "quests" | "acoes") => {
     setTab(t);
     if (t !== "geral" && !selectedId) {
       toast.error("Selecione um NPC primeiro");
@@ -455,6 +631,12 @@ export default function NpcsPage() {
                       >
                         Quests {!creating && Array.isArray(selected?.quests) && selected!.quests.length > 0 ? `(${selected!.quests.length})` : ""}
                       </button>
+                      <button
+                        onClick={() => handleTab("acoes")}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${tab === "acoes" ? "bg-accent-600 text-white" : "text-gray-400 hover:text-white"}`}
+                      >
+                        Ações
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -661,7 +843,7 @@ export default function NpcsPage() {
                     </table>
                   </div>
                 </div>
-              ) : (
+              ) : tab === "acoes" ? null : (
                 <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 border-b border-dark-600">
                     <div className="flex items-center justify-between">
@@ -738,6 +920,9 @@ export default function NpcsPage() {
                 <Wand2 size={16} /> Gerar NPC com IA
               </button>
             </div>
+          )}
+          {tab === "acoes" && !creating && selected && (
+            <NpcActionsEditor npcId={selectedId!} />
           )}
         </div>
       </div>

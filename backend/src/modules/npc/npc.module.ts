@@ -40,6 +40,7 @@ export function createNpcModule(app: Express): void {
           mapNpcs: { include: { map: { select: { name: true, slug: true } } } },
           shopItems: { include: { item: true, enchantment: true, class: true } },
           quests: true,
+          actions: { orderBy: { order: "asc" } },
         },
       });
       for (const npc of npcs) {
@@ -60,6 +61,7 @@ export function createNpcModule(app: Express): void {
           shopItems: { include: { item: true, enchantment: true, class: true } },
           quests: true,
           mapNpcs: { include: { map: true } },
+          actions: { orderBy: { order: "asc" } },
         },
       });
       if (!npc) {

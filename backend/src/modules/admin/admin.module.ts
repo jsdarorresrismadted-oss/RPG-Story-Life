@@ -1846,6 +1846,7 @@ export function createAdminModule(app: Express): void {
           mapNpcs: { include: { map: true } },
           shopItems: { include: { item: true, enchantment: true } },
           quests: { select: { id: true, title: true, type: true, requiredLevel: true, isActive: true } },
+          actions: { orderBy: { order: "asc" } },
         },
         orderBy: { name: "asc" },
       }));
@@ -1862,6 +1863,54 @@ export function createAdminModule(app: Express): void {
 
   app.delete("/api/admin/npcs/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try { const r = await deleteWithSoftFallback(prisma.npc, req, "npc"); res.json({ message: r === "deleted" ? "Deleted" : "Desativado (estava referenciado)" }); } catch (err) { next(err); }
+  });
+
+  // NPC Actions (botões dinâmicos de interação: shop, quest, dialogue, travel, craft...)
+  app.get("/api/admin/npcs/:id/actions", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await prisma.npcAction.findMany({ where: { npcId: req.params.id }, orderBy: { order: "asc" } }));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/admin/npcs/:id/actions", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body || {};
+      const data = {
+        npcId: req.params.id,
+        type: String(body.type || "custom").slice(0, 40),
+        label: String(body.label || "").slice(0, 60),
+        icon: body.icon ? String(body.icon).slice(0, 40) : null,
+        order: Math.max(0, Math.round(Number(body.order) || 0)),
+        requirements: body.requirements ? JSON.stringify(body.requirements) : null,
+        target: body.target ? String(body.target).slice(0, 200) : null,
+        isActive: body.isActive !== false,
+      };
+      const created = await prisma.npcAction.create({ data });
+      res.status(201).json(created);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/admin/npcs/:id/actions/:actionId", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body || {};
+      const data: any = {};
+      if (body.type !== undefined) data.type = String(body.type).slice(0, 40);
+      if (body.label !== undefined) data.label = String(body.label).slice(0, 60);
+      if (body.icon !== undefined) data.icon = body.icon ? String(body.icon).slice(0, 40) : null;
+      if (body.order !== undefined) data.order = Math.max(0, Math.round(Number(body.order) || 0));
+      if (body.requirements !== undefined) data.requirements = body.requirements ? JSON.stringify(body.requirements) : null;
+      if (body.target !== undefined) data.target = body.target ? String(body.target).slice(0, 200) : null;
+      if (body.isActive !== undefined) data.isActive = !!body.isActive;
+      const updated = await prisma.npcAction.update({ where: { id: req.params.actionId }, data });
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/admin/npcs/:id/actions/:actionId", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await prisma.npcAction.delete({ where: { id: req.params.actionId } });
+      res.json({ message: "Deleted" });
+    } catch (err) { next(err); }
   });
 
   // ShopItems CRUD (itens que um NPC vende)

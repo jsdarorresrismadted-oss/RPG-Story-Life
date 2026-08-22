@@ -155,6 +155,12 @@ export const adminApi = {
     delete: (id: string, params?: any) => api.delete(`/admin/npcs/${id}`, { params }),
     generate: (prompt: string, mapId?: string) => api.post("/admin/npcs/generate", { prompt, mapId }),
   },
+  npcActions: {
+    list: (npcId: string) => api.get(`/admin/npcs/${npcId}/actions`),
+    create: (npcId: string, data: any) => api.post(`/admin/npcs/${npcId}/actions`, data),
+    update: (npcId: string, actionId: string, data: any) => api.put(`/admin/npcs/${npcId}/actions/${actionId}`, data),
+    delete: (npcId: string, actionId: string) => api.delete(`/admin/npcs/${npcId}/actions/${actionId}`),
+  },
   shopItems: {
     list: () => api.get("/admin/shopitems"),
     create: (data: any) => api.post("/admin/shopitems", data),

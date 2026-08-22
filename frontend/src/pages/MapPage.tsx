@@ -6,7 +6,7 @@ import { Map as MapType } from "../types";
 import { getSocket } from "../services/socket";
 import {
   ArrowLeft, Skull, Store, ScrollText, Navigation, Shield, Map as MapIcon,
-  X, ShoppingBag, CheckCircle2, Clock, Gift, Lock, Swords, Hammer, Crown, Sparkles,
+  X, ShoppingBag, CheckCircle2, Clock, Gift, Lock, Swords, Hammer, Crown, Sparkles, MessageSquare,
   Dices, Ticket, Gem, Package, Coins, Pen, Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -196,8 +196,11 @@ interface NpcDetail {
   id: string;
   name: string;
   type: string;
+  imageUrl?: string | null;
+  dialogue?: string | null;
   shopItems?: NpcShopItem[];
   quests?: { id: string; title: string; description: string; requiredLevel: number; requiredRank: number; requiredQuestIds?: string | null; xpReward: string | number; goldReward: string | number }[];
+  actions?: any[];
 }
 
 interface QuestProgressEntry {
@@ -384,6 +387,7 @@ export function MapPage() {
   const [loading, setLoading] = useState(true);
   const [npc, setNpc] = useState<NpcDetail | null>(null);
   const [npcLoading, setNpcLoading] = useState(false);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
   const [questProgress, setQuestProgress] = useState<QuestProgressEntry[]>([]);
   const [buyingItemId, setBuyingItemId] = useState<string | null>(null);
   const [crafts, setCrafts] = useState<CraftRecipe[]>([]);
@@ -487,6 +491,21 @@ export function MapPage() {
     !!npc &&
     (isShopNpc(npc.type) ||
       (npc.shopItems ?? []).some((s: any) => s.itemId && s.item));
+
+  // Ações dinâmicas de interação (nova sistema de NPC). Se o NPC tiver actions
+  // configuradas, a janela mostra apenas botões que abrem os sistemas existentes.
+  const npcActionsList: any[] = (npc?.actions ?? []).filter((a: any) => a.isActive !== false);
+  const showInline = npcActionsList.length === 0;
+  const showPanel = (key: string) => showInline || activeAction === key;
+
+  const ACTION_ICONS: Record<string, any> = {
+    shop: Store, quest: ScrollText, dialogue: MessageSquare, gacha: Dices,
+    travel: Navigation, craft: Hammer, custom: Sparkles,
+  };
+  const ACTION_LABELS: Record<string, string> = {
+    shop: "Loja", quest: "Quests", dialogue: "Conversar", gacha: "Gacha",
+    travel: "Viajar", craft: "Craftar", custom: "Ação",
+  };
 
   // ===== Quest Card (3 telas: Oferta / Progresso / Conclusão) =====
   const parseJson = (v: any, fallback: any = []) => {
@@ -719,6 +738,7 @@ export function MapPage() {
   const openNpc = async (npcId: string) => {
     setNpcLoading(true);
     setNpc(null);
+    setActiveAction(null);
     setShopSelectedId(null);
     setLastRoll(null);
     setGachaData(null);
@@ -1137,9 +1157,54 @@ export function MapPage() {
               </button>
             </div>
 
-            {npcHasItemShop && (
-              <div className="space-y-2">
-                {!isEnchantNpc(npc.type) && !isClassNpc(npc.type) && (() => {
+            {/* Janela de interação por Actions: mostra apenas botões dinâmicos que abrem os sistemas existentes */}
+            {npcActionsList.length > 0 && activeAction === null && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  {npc.imageUrl ? (
+                    <img src={npc.imageUrl} alt={npc.name} className="w-16 h-16 rounded-xl object-cover border border-dark-600" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl bg-dark-800 border border-dark-600 flex items-center justify-center text-2xl">🧝</div>
+                  )}
+                  <div>
+                    <h3 className="font-display font-semibold text-white">{npc.name}</h3>
+                    {npc.dialogue && <p className="text-sm text-gray-400 mt-1">{npc.dialogue}</p>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {npcActionsList.map((a: any) => {
+                    const key = a.type === "craft" ? "shop" : a.type;
+                    const Icon = ACTION_ICONS[a.type] || MessageSquare;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setActiveAction(key)}
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-dark-800 border border-dark-600 hover:border-purple-500/50 hover:bg-dark-700/60 text-left transition-colors"
+                      >
+                        <Icon size={16} className="text-purple-300 shrink-0" />
+                        <span className="text-sm font-medium">{a.label || ACTION_LABELS[a.type] || a.type}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Painéis dos sistemas (apenas o selecionado, quando o NPC usa Actions) */}
+            {(showInline || activeAction !== null) && (
+              <>
+                {npcActionsList.length > 0 && activeAction !== null && (
+                  <button
+                    onClick={() => setActiveAction(null)}
+                    className="mb-3 flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ArrowLeft size={13} /> Voltar
+                  </button>
+                )}
+
+                {showPanel("shop") && npcHasItemShop && (
+                  <div className="space-y-2">
+                    {!isEnchantNpc(npc.type) && !isClassNpc(npc.type) && (() => {
                   const entries = buildShopEntries();
                   const charLevel = user?.characters?.[0]?.level ?? user?.level ?? 0;
                   const gold = Number(user?.gold ?? 0);
@@ -1564,7 +1629,7 @@ export function MapPage() {
               </div>
             )}
 
-            {isQuestNpc(npc.type) && (
+            {showPanel("quest") && isQuestNpc(npc.type) && (
               <div className="space-y-2">
                 {npc.quests && npc.quests.length > 0 ? (
                   npc.quests.map((q: any) => <QuestCard key={q.id} q={q} />)
@@ -1574,7 +1639,7 @@ export function MapPage() {
               </div>
             )}
 
-            {isGachaNpc(npc.type) && (
+            {showPanel("gacha") && isGachaNpc(npc.type) && (
               <div className="space-y-4">
                 {gachaLoading && !gachaData ? (
                   <p className="text-sm text-gray-500">Carregando o gacha...</p>
@@ -1664,10 +1729,53 @@ export function MapPage() {
               </div>
             )}
 
-            {npc.type && !npcHasItemShop && !isQuestNpc(npc.type) && !isGachaNpc(npc.type) && (
+            {/* Painel de diálogo (modo Actions) */}
+            {showPanel("dialogue") && (
+              <div className="space-y-3">
+                <h3 className="font-display font-semibold text-white flex items-center gap-2">
+                  <MessageSquare size={16} className="text-purple-300" /> Conversa
+                </h3>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {npc.dialogue || "O NPC não tem nada a dizer no momento."}
+                </p>
+              </div>
+            )}
+
+            {/* Painel de viagem (modo Actions) */}
+            {showPanel("travel") && (
+              <div className="space-y-3">
+                <h3 className="font-display font-semibold text-white flex items-center gap-2">
+                  <Navigation size={16} className="text-purple-300" /> Viajar
+                </h3>
+                <div className="space-y-2">
+                  {(map?.connections ?? []).map((conn: any) => (
+                    <Link
+                      key={conn.id}
+                      to={`/map/${conn.toMap.slug}`}
+                      onClick={() => setNpc(null)}
+                      className="flex items-center gap-2 p-2 rounded-lg hover:bg-dark-700/50 transition-colors text-sm"
+                    >
+                      <ArrowLeft size={14} className="text-gray-500" />
+                      <span>{conn.toMap.name}</span>
+                      {conn.requiredLevel > 1 && (
+                        <span className="text-xs text-yellow-500 ml-auto">Lv.{conn.requiredLevel}</span>
+                      )}
+                    </Link>
+                  ))}
+                  {(map?.connections ?? []).length === 0 && (
+                    <p className="text-sm text-gray-500">Sem destinos de viagem disponíveis.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Legacy: placeholder quando NPC não tem loja/quest/gacha */}
+            {(showInline && npc.type && !npcHasItemShop && !isQuestNpc(npc.type) && !isGachaNpc(npc.type)) && (
               <p className="text-sm text-gray-500 flex items-center gap-2">
                 <Lock size={14} /> Funcionalidade em breve.
               </p>
+            )}
+              </>
             )}
           </div>
           </div>
