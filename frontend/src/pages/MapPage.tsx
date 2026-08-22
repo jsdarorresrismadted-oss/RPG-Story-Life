@@ -477,6 +477,13 @@ export function MapPage() {
     return Array.from(byId.values());
   };
 
+  // Loja de itens aparece para qualquer NPC que tenha ofertas de item vinculadas,
+  // independente do "type" (ex.: fornecedores/supridores criados pela IA).
+  const npcHasItemShop =
+    !!npc &&
+    (isShopNpc(npc.type) ||
+      (npc.shopItems ?? []).some((s: any) => s.itemId && !s.enchantmentId && !s.classId));
+
   const loadCrafts = () => {
     craftApi.list().then(({ data }) => {
       if (Array.isArray(data)) setCrafts(data);
@@ -951,7 +958,7 @@ export function MapPage() {
       {npc && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setNpc(null)}>
           <div className="min-h-full flex justify-center">
-          <div className={`panel w-full ${isShopNpc(npc.type) && !isEnchantNpc(npc.type) && !isClassNpc(npc.type) ? "max-w-6xl" : "max-w-lg"} max-h-[85vh] overflow-y-auto p-5 my-auto`} onClick={(e) => e.stopPropagation()}>
+          <div className={`panel w-full ${npcHasItemShop ? "max-w-6xl" : "max-w-lg"} max-h-[85vh] overflow-y-auto p-5 my-auto`} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="font-display font-bold text-lg">{npc.name}</h2>
@@ -962,7 +969,7 @@ export function MapPage() {
               </button>
             </div>
 
-            {isShopNpc(npc.type) && (
+            {npcHasItemShop && (
               <div className="space-y-2">
                 {!isEnchantNpc(npc.type) && !isClassNpc(npc.type) && (() => {
                   const entries = buildShopEntries();
@@ -1534,7 +1541,7 @@ export function MapPage() {
               </div>
             )}
 
-            {npc.type && !isShopNpc(npc.type) && !isQuestNpc(npc.type) && !isGachaNpc(npc.type) && (
+            {npc.type && !npcHasItemShop && !isQuestNpc(npc.type) && !isGachaNpc(npc.type) && (
               <p className="text-sm text-gray-500 flex items-center gap-2">
                 <Lock size={14} /> Funcionalidade em breve.
               </p>
