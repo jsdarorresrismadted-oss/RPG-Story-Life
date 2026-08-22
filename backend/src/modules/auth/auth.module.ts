@@ -149,7 +149,17 @@ export function createAuthModule(app: Express): void {
     }
   });
 
-  app.post("/api/auth/logout", (_req: Request, res: Response) => {
+  app.post("/api/auth/logout", authenticate, async (req: Request, res: Response) => {
+    // Temp items (itens de coleta de quest) somem ao deslogar.
+    if (req.user?.userId) {
+      try {
+        await prisma.inventory.deleteMany({
+          where: { userId: req.user.userId, item: { isTemporary: true } },
+        });
+      } catch {
+        /* best-effort */
+      }
+    }
     res.clearCookie("token");
     res.json({ message: "Logged out" });
   });

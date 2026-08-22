@@ -24,6 +24,7 @@ import {
   defaultEnchantmentScale,
 } from "../../core/enchantments/enchantmentStats";
 import { autoEquipmentStats } from "../../core/items/itemAutoStats";
+import { markCollectItemsTemporary } from "../../core/questItems";
 import { ensureGuildQuests } from "../../core/guildQuests";
 import { rollWeaponBoosters, WEAPON_BOOSTER_KINDS, WEAPON_BOOSTER_POOL, WeaponBoosterKind } from "../../core/weapon-boosters";
 
@@ -802,9 +803,14 @@ export function createAdminModule(app: Express): void {
     }
     try {
       const client = prisma as any;
-      return id
+      const result = id
         ? await client[model].update({ where: { id }, data })
         : await client[model].create({ data });
+      // Quests de coleta: itens referenciados viram temporários (somem ao deslogar/concluir).
+      if (model === "quest" && data.objectives) {
+        await markCollectItemsTemporary(prisma, data.objectives);
+      }
+      return result;
     } catch (err: any) {
       if (err?.code === "P2003") {
         const field = String(err?.meta?.field_name ?? "");

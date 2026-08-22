@@ -1,4 +1,5 @@
 import { prisma } from "./database";
+import { markCollectItemsTemporary } from "./questItems";
 import { applyCharacterXp, clampGold, isVipActive, VIP_XP_BONUS, VIP_GOLD_BONUS } from "./progression";
 import { getGameLimits } from "./gameLimits";
 import { grantPassXp } from "../modules/seasons/seasons.module";
@@ -131,6 +132,7 @@ export async function ensureGuildQuests(guildId: string, guildLevel = 1): Promis
   });
 
   for (const q of quests) {
+    if (q.type === "collect") await markCollectItemsTemporary(prisma, q.objectives);
     await prisma.guildQuest.create({ data: { guildId, ...q } });
   }
 }

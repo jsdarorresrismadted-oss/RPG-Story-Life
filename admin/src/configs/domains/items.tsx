@@ -87,6 +87,18 @@ export const itemsConfig: CrudConfig = {
         ),
     },
     { key: "isActive", label: "Active", render: (v) => boolBadge(v) },
+    {
+      key: "isTemporary",
+      label: "Temp",
+      render: (v) =>
+        v ? (
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-500/20 text-orange-300">
+            Temp
+          </span>
+        ) : (
+          <span className="text-gray-600 text-xs">—</span>
+        ),
+    },
   ],
   fields: [
     { name: "name", label: "Name", type: "text", required: true, group: "Identidade" },
@@ -174,6 +186,14 @@ export const itemsConfig: CrudConfig = {
     },
     { name: "enchantmentId", label: "Encantamento (fixo)", type: "select", optionsFrom: "enchantments", group: "Sistema", hint: "Encantamento já gravado no item (opcional)" },
     { name: "isActive", label: "Active", type: "boolean", defaultValue: true, group: "Sistema" },
+    {
+      name: "isTemporary",
+      label: "Item temporário (Temp Item)",
+      type: "boolean",
+      defaultValue: false,
+      group: "Sistema",
+      hint: "Itens de coleta de quest: somem do inventário ao deslogar e ao concluir a quest. Não poluem o inventário permanente.",
+    },
   ],
   bulkMoveFields: [
     {

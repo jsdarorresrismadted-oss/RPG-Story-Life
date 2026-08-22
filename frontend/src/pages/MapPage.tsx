@@ -203,6 +203,8 @@ interface NpcDetail {
 interface QuestProgressEntry {
   questId: string;
   status: "active" | "completed" | "claimed";
+  progress?: any; // contadores por objetivo (JSON)
+  quest?: any; // quest completa (objetivos, recompensas)
 }
 
 interface RaidStatusEntry {
@@ -483,6 +485,170 @@ export function MapPage() {
     !!npc &&
     (isShopNpc(npc.type) ||
       (npc.shopItems ?? []).some((s: any) => s.itemId && !s.enchantmentId && !s.classId));
+
+  // ===== Quest Card (3 telas: Oferta / Progresso / Conclusão) =====
+  const parseJson = (v: any, fallback: any = []) => {
+    try {
+      const p = typeof v === "string" ? JSON.parse(v) : v;
+      return Array.isArray(p) ? p : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const objKey = (o: any) => String(o?.id ?? `${o?.type}-${o?.itemName ?? o?.target ?? o?.itemId}`);
+  const objLabel = (o: any) => o?.itemName ?? o?.target ?? o?.monsterName ?? o?.name ?? "Objetivo";
+
+  const QuestCard = ({ q }: { q: any }) => {
+    const status = questStatus(q.id);
+    const entry = questProgress.find((p) => p.questId === q.id);
+    const progress: Record<string, number> = parseJson(entry?.progress, {});
+    const objectives = parseJson(q.objectives, []);
+    const rewards = parseJson(q.itemRewards, []);
+    const counts: any[] = objectives.map((o: any) => {
+      const target = Number(o?.amount ?? o?.count ?? 1);
+      const cur = Number(progress[objKey(o)] ?? 0);
+      return { o, target, cur, done: cur >= target };
+    });
+    const allDone = objectives.length > 0 && counts.every((c) => c.done);
+
+    const btnBase =
+      "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2";
+    const primary = "bg-purple-600 hover:bg-purple-500 text-white";
+    const ghost = "bg-dark-700 hover:bg-dark-600 text-gray-300";
+
+    // Tela de CONCLUSÃO (recompensas)
+    if (status === "completed" || status === "claimed") {
+      return (
+        <div className="card p-4 border border-purple-500/30">
+          <div className="text-center">
+            <p className="text-[11px] uppercase tracking-widest text-purple-400 font-semibold">Quest Complete</p>
+            <h3 className="font-display font-bold text-lg mt-1 text-white">{q.title}</h3>
+            <p className="text-[11px] text-emerald-400 mt-1">All objectives completed.</p>
+          </div>
+          {rewards.length > 0 && (
+            <div className="mt-3 rounded-lg bg-dark-900/70 border border-dark-700 p-3 space-y-1">
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Rewards</p>
+              {rewards.map((r: any, i: number) => (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-300">🎁 {r.itemName ?? r.name ?? "Item"}</span>
+                  {r.quantity ? <span className="text-gray-500">x{r.quantity}</span> : null}
+                </div>
+              ))}
+              {(Number(q.goldReward) > 0 || Number(q.xpReward) > 0) && (
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-dark-700 mt-1">
+                  <span className="text-yellow-400">🟡 {Number(q.goldReward).toLocaleString("pt-BR")} gold</span>
+                  <span className="text-sky-400">🔵 {Number(q.xpReward).toLocaleString("pt-BR")} XP</span>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="mt-3">
+            {status === "completed" ? (
+              <button onClick={() => claimQuest(q.id)} className={`${btnBase} ${primary} w-full`}>
+                <Gift size={15} /> Claim Rewards
+              </button>
+            ) : (
+              <span className="flex items-center justify-center gap-2 text-xs text-gray-400 py-2">
+                <CheckCircle2 size={14} /> Concluída
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Tela de PROGRESSO (aceita, em andamento)
+    if (status === "active") {
+      return (
+        <div className="card p-4 border border-purple-500/20">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display font-bold text-base text-white">{q.title}</h3>
+            <span className="text-[10px] uppercase tracking-wider text-green-400 flex items-center gap-1">
+              <Clock size={11} /> Em progresso
+            </span>
+          </div>
+          {q.description && <p className="text-[11px] text-gray-400 mt-1.5">{q.description}</p>}
+          <div className="mt-3 space-y-2">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">Objetivos</p>
+            {counts.map((c, i) => (
+              <div key={i}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-gray-300">{objLabel(c.o)}</span>
+                  <span className={`font-mono ${c.done ? "text-emerald-400" : "text-gray-400"}`}>
+                    {Math.min(c.cur, c.target)} / {c.target}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-dark-700 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-purple-500"
+                    style={{ width: `${Math.min(100, (c.cur / c.target) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            {allDone ? (
+              <button onClick={() => claimQuest(q.id)} className={`${btnBase} ${primary} w-full`}>
+                <Gift size={15} /> Turn In
+              </button>
+            ) : (
+              <p className="text-center text-[11px] text-gray-500 py-1">Continue para completar os objetivos</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Tela de OFERTA (ainda não aceita)
+    return (
+      <div className="card p-4 border border-purple-500/20">
+        <div className="text-center">
+          <p className="text-[11px] uppercase tracking-widest text-purple-400 font-semibold">⚔ Quest Available</p>
+          <h3 className="font-display font-bold text-lg mt-1 text-white">{q.title}</h3>
+        </div>
+        {q.description && (
+          <p className="text-[11px] text-gray-400 mt-2 text-center italic">"{q.description}"</p>
+        )}
+        {objectives.length > 0 && (
+          <div className="mt-3 rounded-lg bg-dark-900/70 border border-dark-700 p-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Itens necessários</p>
+            {counts.map((c, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-gray-300">{objLabel(c.o)}</span>
+                <span className="text-gray-500">0 / {c.target}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {rewards.length > 0 && (
+          <div className="mt-2 rounded-lg bg-dark-900/70 border border-dark-700 p-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Recompensas</p>
+            {rewards.map((r: any, i: number) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-gray-300">🎁 {r.itemName ?? r.name ?? "Item"}</span>
+                {r.quantity ? <span className="text-gray-500">x{r.quantity}</span> : null}
+              </div>
+            ))}
+            {(Number(q.goldReward) > 0 || Number(q.xpReward) > 0) && (
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-dark-700 mt-1">
+                <span className="text-yellow-400">🟡 {Number(q.goldReward).toLocaleString("pt-BR")} gold</span>
+                <span className="text-sky-400">🔵 {Number(q.xpReward).toLocaleString("pt-BR")} XP</span>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="mt-3 flex gap-2">
+          <button onClick={() => acceptQuest(q.id)} className={`${btnBase} ${primary}`}>
+            <CheckCircle2 size={15} /> Accept
+          </button>
+          <button onClick={() => setNpc(null)} className={`${btnBase} ${ghost}`}>
+            Decline
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const loadCrafts = () => {
     craftApi.list().then(({ data }) => {
@@ -1399,52 +1565,7 @@ export function MapPage() {
             {isQuestNpc(npc.type) && (
               <div className="space-y-2">
                 {npc.quests && npc.quests.length > 0 ? (
-                  npc.quests.map((q) => {
-                    const status = questStatus(q.id);
-                    return (
-                      <div key={q.id} className="card p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">{q.title}</p>
-                            <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{q.description}</p>
-                            <p className="text-[11px] text-gray-500 mt-2">
-                              <span className="text-purple-400">+{Number(q.xpReward)} XP</span> •{" "}
-                              <span className="text-yellow-400">+{Number(q.goldReward)} gold</span>
-                              {q.requiredLevel > 1 && <> • <span className="text-yellow-500">Lv.{q.requiredLevel}+</span></>}
-                              {q.requiredRank > 1 && <> • <span className="text-orange-400">Rank {q.requiredRank}+</span></>}
-                              {q.requiredQuestIds && (
-                                <span className="flex items-center gap-1 text-sky-400">
-                                  <Lock size={10} /> Cadeia: complete a quest anterior
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                          <div className="shrink-0">
-                            {!status && (
-                              <button onClick={() => acceptQuest(q.id)} className="btn-primary text-xs px-3 py-1.5">
-                                Aceitar
-                              </button>
-                            )}
-                            {status === "active" && (
-                              <span className="flex items-center gap-1 text-xs text-green-400 px-2 py-1">
-                                <Clock size={12} /> Em progresso
-                              </span>
-                            )}
-                            {status === "completed" && (
-                              <button onClick={() => claimQuest(q.id)} className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1">
-                                <Gift size={12} /> Resgatar
-                              </button>
-                            )}
-                            {status === "claimed" && (
-                              <span className="flex items-center gap-1 text-xs text-gray-400 px-2 py-1">
-                                <CheckCircle2 size={12} /> Concluída
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                  npc.quests.map((q: any) => <QuestCard key={q.id} q={q} />)
                 ) : (
                   <p className="text-sm text-gray-500">Nenhuma quest disponível.</p>
                 )}

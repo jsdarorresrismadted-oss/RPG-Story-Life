@@ -432,6 +432,7 @@ model Item {
   boosters    Json     @default("[]")
   requiredVip   Boolean  @default(false) // Exclusivo para VIP (comprar/equipar)
   isActive      Boolean  @default(true)
+  isTemporary   Boolean  @default(false) // Item de quest de coleta: some do inventário ao deslogar/concluir a quest
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

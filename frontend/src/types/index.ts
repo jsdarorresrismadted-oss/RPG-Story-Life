@@ -429,6 +429,7 @@ export interface Item {
   boostType?: string | null;
   boostValue?: number;
   boosters?: WeaponBoosterInstance[] | null;
+  isTemporary?: boolean;
 }
 
 export interface WeaponBoosterInstance {

@@ -565,7 +565,14 @@ export function InventoryPage() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{inv.item.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm truncate">{inv.item.name}</p>
+                  {inv.item.isTemporary && (
+                    <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-orange-500/20 text-orange-300">
+                      Temp
+                    </span>
+                  )}
+                </div>
                 <p className={`text-xs capitalize text-rarity-${inv.item.rarity || "common"}`}>
                   {inv.item.rarity} • Rank {inv.item.rank}
                 </p>

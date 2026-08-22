@@ -1,5 +1,6 @@
 import { prisma } from "../database";
 import { AppError } from "../middleware/errorHandler";
+import { markCollectItemsTemporary } from "../questItems";
 import { callGemini, callGroq, extractJson, num } from "./monsterGenerator";
 
 // ===== Gerador de Quests via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
@@ -247,6 +248,7 @@ export async function persistGeneratedQuests(gen: GeneratedQuests): Promise<any>
         itemRewards: JSON.stringify(itemRewards),
       },
     });
+    await markCollectItemsTemporary(prisma, q.objectives);
     quests.push({ id: created.id, title: q.title, type: q.type, difficulty: q.difficulty });
   }
   return {

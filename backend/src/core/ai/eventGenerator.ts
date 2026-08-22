@@ -1,5 +1,6 @@
 import { prisma } from "../database";
 import { AppError } from "../middleware/errorHandler";
+import { markCollectItemsTemporary } from "../questItems";
 import { callGemini, callGroq, extractJson, num, clamp } from "./monsterGenerator";
 
 // ===== Gerador de EVENTOS via IA (Gemini 2.5 Flash / Groq Llama 3.3 70B) =====
@@ -487,6 +488,7 @@ export async function persistGeneratedEvent(gen: GeneratedEvent): Promise<any> {
         isActive: true,
       },
     });
+    await markCollectItemsTemporary(prisma, q.objectives);
   }
 
   // 5. Crafts (itens e classes craftáveis)

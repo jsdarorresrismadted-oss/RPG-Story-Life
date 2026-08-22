@@ -189,6 +189,28 @@ export function createQuestsModule(app: Express): void {
         // Entregar recompensas de itens no inventário
         await addItemsToInventory(tx, req.user!.userId, rewards);
 
+        // Ao concluir, consome os Temp items de coleta desta quest.
+        let objs: any[] = [];
+        try {
+          objs = JSON.parse(progress.quest.objectives || "[]");
+        } catch {
+          objs = [];
+        }
+        const collectNames = objs
+          .filter((o: any) => o?.type === "collect")
+          .map((o: any) => String(o.itemName ?? o.target ?? "").toLowerCase())
+          .filter(Boolean);
+        if (collectNames.length > 0) {
+          const tempItems = await tx.item.findMany({
+            where: { name: { in: collectNames, mode: "insensitive" }, isTemporary: true },
+            select: { id: true },
+          });
+          const ids = tempItems.map((i: any) => i.id);
+          if (ids.length > 0) {
+            await tx.inventory.deleteMany({ where: { userId: req.user!.userId, itemId: { in: ids } } });
+          }
+        }
+
         // XP para o passe de temporada: quests de passe (diária/semanal/mensal)
         // dão o XP inteiro da quest; as demais dão 1/5 do XP.
         const passXp = progress.quest.period
