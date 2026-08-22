@@ -43,7 +43,6 @@ export function createNpcModule(app: Express): void {
         },
       });
       for (const npc of npcs) {
-        if (!SHOP_TYPES.has(npc.type)) (npc as any).shopItems = [];
         if (!QUEST_TYPES.has(npc.type)) (npc as any).quests = [];
         (npc as any).shopItems = enrichOffers((npc as any).shopItems);
       }
@@ -67,7 +66,6 @@ export function createNpcModule(app: Express): void {
         res.status(404).json({ error: "NPC not found" });
         return;
       }
-      if (!SHOP_TYPES.has(npc.type)) (npc as any).shopItems = [];
       if (!QUEST_TYPES.has(npc.type)) (npc as any).quests = [];
       (npc as any).shopItems = enrichOffers((npc as any).shopItems);
       res.json(npc);

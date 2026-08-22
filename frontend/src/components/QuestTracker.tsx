@@ -7,9 +7,12 @@ interface QuestObjectiveLike {
   id?: string;
   type?: string;
   target?: string;
+  itemName?: string;
+  itemId?: string;
   monsterName?: string;
   monsterId?: string;
   amount?: number;
+  count?: number;
   quantity?: number;
   current?: number;
   description?: string;
@@ -45,11 +48,11 @@ function parseProgress(raw: any): Record<string, number> {
 
 function objectiveKey(obj: QuestObjectiveLike): string {
   if (obj.id) return String(obj.id);
-  return `${obj.type ?? "obj"}-${obj.monsterName ?? obj.monsterId ?? obj.target ?? "?"}`;
+  return `${obj.type ?? "obj"}-${obj.itemName ?? obj.target ?? obj.itemId ?? obj.monsterName ?? obj.monsterId ?? "?"}`;
 }
 
 function objectiveLabel(obj: QuestObjectiveLike): string {
-  return obj.monsterName ?? obj.description ?? obj.target ?? obj.type ?? "Objetivo";
+  return obj.itemName ?? obj.monsterName ?? obj.description ?? obj.target ?? obj.type ?? "Objetivo";
 }
 
 // Mostrador compacto de quests ativas — usado no mapa e durante o farm.

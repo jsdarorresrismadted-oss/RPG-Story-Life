@@ -497,7 +497,7 @@ export function MapPage() {
       return fallback;
     }
   };
-  const objKey = (o: any) => String(o?.id ?? `${o?.type}-${o?.itemName ?? o?.target ?? o?.itemId}`);
+  const objKey = (o: any) => String(o?.id ?? `${o?.type}-${o?.itemName ?? o?.target ?? o?.itemId ?? o?.monsterName ?? o?.monsterId}`);
   const objLabel = (o: any) => o?.itemName ?? o?.target ?? o?.monsterName ?? o?.name ?? "Objetivo";
 
   const QuestCard = ({ q }: { q: any }) => {
@@ -518,8 +518,8 @@ export function MapPage() {
     const primary = "bg-purple-600 hover:bg-purple-500 text-white";
     const ghost = "bg-dark-700 hover:bg-dark-600 text-gray-300";
 
-    // Tela de CONCLUSÃO (recompensas)
-    if (status === "completed" || status === "claimed") {
+    // Tela de CONCLUSÃO (recompensas). Quests repetíveis voltam para a Oferta após resgatar.
+    if (status === "completed" || (status === "claimed" && !q.isRepeatable)) {
       return (
         <div className="card p-4 border border-purple-500/30">
           <div className="text-center">

@@ -1067,7 +1067,7 @@ export class CombatService {
       }
 
       const keyOf = (obj: any) =>
-        String(obj?.id ?? `${obj?.type}-${obj?.monsterName ?? obj?.monsterId}`);
+        String(obj?.id ?? `${obj?.type}-${obj?.itemName ?? obj?.target ?? obj?.itemId ?? obj?.monsterName ?? obj?.monsterId}`);
 
       let changed = false;
       for (const obj of objectives) {
@@ -1083,9 +1083,9 @@ export class CombatService {
 
       let allDone = true;
       for (const obj of objectives) {
-        if (obj?.type !== "kill") continue;
+        if (obj?.type !== "kill" && obj?.type !== "collect") continue;
         const count = Number(current[keyOf(obj)]) || 0;
-        if (count < Number(obj?.amount ?? 1)) {
+        if (count < Number(obj?.amount ?? obj?.count ?? obj?.monsterCount ?? 1)) {
           allDone = false;
           break;
         }
@@ -1143,9 +1143,9 @@ export class CombatService {
 
       let allDone = true;
       for (const obj of objectives) {
-        if (obj?.type !== "collect") continue;
+        if (obj?.type !== "kill" && obj?.type !== "collect") continue;
         const count = Number(current[keyOf(obj)]) || 0;
-        if (count < Number(obj?.amount ?? obj?.count ?? 1)) {
+        if (count < Number(obj?.amount ?? obj?.count ?? obj?.monsterCount ?? 1)) {
           allDone = false;
           break;
         }

@@ -67,7 +67,14 @@ export function createQuestsModule(app: Express): void {
       const existing = await prisma.questProgress.findUnique({
         where: { userId_questId: { userId: req.user!.userId, questId: req.params.id } },
       });
-      if (existing) throw new AppError(400, "Quest already accepted or completed");
+      if (existing) {
+        if (existing.status === "claimed" && quest.isRepeatable) {
+          // Quest repetível: ao reaceitar, zera o progresso para recomeçar.
+          await prisma.questProgress.delete({ where: { id: existing.id } });
+        } else {
+          throw new AppError(400, "Quest already accepted or completed");
+        }
+      }
 
       // Pré-requisitos: nível, rank e quests anteriores encadeadas
       const character = await prisma.character.findFirst({
