@@ -1112,6 +1112,7 @@ export function createAdminModule(app: Express): void {
       if (needQuestFilter || needQuestTag || needCraftFilter) {
         const usedNames = new Set<string>(); // nomes usados em quests/crafts (JSON)
         const usedIds = new Set<string>();   // ids usados em crafts (resultItemId)
+        const questItemNames = new Set<string>(); // nomes de itens de quest
 
         if (needQuestFilter || needQuestTag) {
           const quests = await prisma.quest.findMany({ select: { itemRewards: true } });
@@ -1121,7 +1122,10 @@ export function createAdminModule(app: Express): void {
                 const rewards = JSON.parse(q.itemRewards);
                 if (Array.isArray(rewards)) {
                   for (const r of rewards) {
-                    if (r?.itemName) usedNames.add(r.itemName.toLowerCase());
+                    if (r?.itemName) {
+                      usedNames.add(r.itemName.toLowerCase());
+                      questItemNames.add(r.itemName.toLowerCase());
+                    }
                   }
                 }
               } catch {}
@@ -1146,15 +1150,31 @@ export function createAdminModule(app: Express): void {
           }
         }
 
+        // craftSelect: garante que itens de quest apareçam no seletor de craft,
+        // mesmo que estejam em drops/lojas/outros crafts (são buscados por nome).
+        if (craftSelect === "true" && questItemNames.size > 0) {
+          const questItems = await prisma.item.findMany({
+            where: { name: { in: [...questItemNames] } },
+            include: { enchantment: true },
+          });
+          const existingIds = new Set<string>(items.map((i: any) => i.id));
+          for (const qi of questItems) {
+            if (!existingIds.has(qi.id)) items.push(qi);
+          }
+          items.sort((a: any, b: any) => a.name.localeCompare(b.name));
+        }
+
         if (needQuestFilter || needCraftFilter) {
           items = items.filter(
-            (it) => !usedNames.has(it.name.toLowerCase()) && !usedIds.has(it.id)
+            (it) =>
+              (craftSelect === "true" && questItemNames.has(it.name.toLowerCase())) ||
+              (!usedNames.has(it.name.toLowerCase()) && !usedIds.has(it.id))
           );
         }
 
         if (craftSelect === "true") {
           for (const it of items) {
-            (it as any).usedInQuest = usedNames.has(it.name.toLowerCase());
+            (it as any).usedInQuest = questItemNames.has(it.name.toLowerCase());
           }
         }
       }

@@ -82,7 +82,7 @@ function useItemOptions(schema: JsonFieldDef): { id: string; name: string }[] {
       .list(params)
       .then(({ data }) => {
         const items = Array.isArray(data) ? data : [];
-        const mapped = items.map((i: any) => ({ id: i.id, name: i.name, type: i.type, subtype: i.subtype }));
+        const mapped = items.map((i: any) => ({ id: i.id, name: i.name, type: i.type, subtype: i.subtype, usedInQuest: i.usedInQuest }));
         if (!params) itemOptionsCache.list = mapped;
         if (active) setList(mapped);
       })
