@@ -14,6 +14,12 @@ import { generateNpcs, persistGeneratedNpcs } from "../../core/ai/npcGenerator";
 import { generateQuests, persistGeneratedQuests } from "../../core/ai/questGenerator";
 import { generateSkillIcons } from "../../core/ai/skillIconGenerator";
 import { generateMap, persistGeneratedMap } from "../../core/ai/mapGenerator";
+import {
+  generateItemAdjustments,
+  generateQuestAdjustments,
+  generateMapAdjustments,
+  applyAdjustments,
+} from "../../core/ai/adjustmentGenerator";
 import { generateEvent, persistGeneratedEvent } from "../../core/ai/eventGenerator";
 import {
   withEnchantmentStats,
@@ -1685,6 +1691,36 @@ export function createAdminModule(app: Express): void {
       const gen = await generateQuests(idea, providerLog, mapId);
       const saved = await persistGeneratedQuests(gen);
       res.status(201).json({ data: saved, providers: providerLog });
+    } catch (err) { next(err); }
+  });
+
+  // IA de ajuste/balanceamento e limpeza (preview do plano)
+  app.post("/api/admin/ai/adjust", ...aiGuard, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body || {};
+      const domain = String(body.domain || "");
+      if (!["items", "quests", "maps"].includes(domain)) throw new AppError(400, "domain deve ser 'items', 'quests' ou 'maps'");
+      requireAi();
+      const providerLog: string[] = [];
+      const prompt = String(body.prompt || "").slice(0, 2000);
+      let plan;
+      if (domain === "items") plan = await generateItemAdjustments(prompt, providerLog);
+      else if (domain === "quests") plan = await generateQuestAdjustments(prompt, providerLog);
+      else plan = await generateMapAdjustments(prompt, providerLog);
+      res.json({ domain, ...plan });
+    } catch (err) { next(err); }
+  });
+
+  // Aplica o plano de ajuste (atualizações + deleções validadas pelo backend)
+  app.post("/api/admin/ai/adjust/apply", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body || {};
+      const domain = String(body.domain || "");
+      if (!["items", "quests", "maps"].includes(domain)) throw new AppError(400, "domain deve ser 'items', 'quests' ou 'maps'");
+      const updates = Array.isArray(body.updates) ? body.updates : [];
+      const deletes = Array.isArray(body.deletes) ? body.deletes : [];
+      const result = await applyAdjustments(domain, updates, deletes);
+      res.json({ domain, ...result });
     } catch (err) { next(err); }
   });
 

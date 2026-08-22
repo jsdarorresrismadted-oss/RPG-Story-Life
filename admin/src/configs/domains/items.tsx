@@ -1,4 +1,5 @@
 import AiItemGenerator from "../../components/AiItemGenerator";
+import { DomainAdjustButton } from "../../components/AIAdjustModal";
 import {
   CrudConfig,
   boolBadge,
@@ -12,7 +13,12 @@ import {
 export const itemsConfig: CrudConfig = {
   key: "items",
   title: "Items",
-  headerActions: (reload) => <AiItemGenerator onSaved={reload} />,
+  headerActions: (reload) => (
+    <>
+      <AiItemGenerator onSaved={reload} />
+      <DomainAdjustButton domain="items" onApplied={reload} />
+    </>
+  ),
   columns: [
     idColumn,
     {

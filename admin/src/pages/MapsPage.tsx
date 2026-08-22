@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { Loader2, MapPin, Plus, RefreshCw, Shield, Skull, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
+import { DomainAdjustButton } from "../components/AIAdjustModal";
 
 const inputClass =
   "w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white focus:border-accent-500 focus:outline-none";
@@ -286,6 +287,7 @@ export default function MapsPage() {
           >
             <Wand2 size={16} /> Gerar com IA
           </button>
+          <DomainAdjustButton domain="maps" onApplied={() => queryClient.invalidateQueries({ queryKey: ["crud", "maps"] })} label="IA: Balancear & Limpar" />
           <button
             onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors"

@@ -182,4 +182,10 @@ export const systemApi = {
   updateSeason: (data: any) => api.put('/admin/system/season', data),
 };
 
+export const aiApi = {
+  adjust: (domain: string, prompt: string) => api.post('/admin/ai/adjust', { domain, prompt }),
+  adjustApply: (domain: string, updates: any[], deletes: any[]) =>
+    api.post('/admin/ai/adjust/apply', { domain, updates, deletes }),
+};
+
 export default api;
