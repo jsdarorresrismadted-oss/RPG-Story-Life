@@ -1,7 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Loader2, Plus, RefreshCw, ScrollText, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
 
 const inputClass =
@@ -103,9 +105,19 @@ function fillFromQuest(q: any): Record<string, any> {
 }
 
 export default function QuestsPage() {
-  const [quests, setQuests] = useState<any[]>([]);
-  const [npcs, setNpcs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { items: quests, loading, reload: reloadQuests } = useCrudList("quests", () => adminApi.quests.list());
+  const { data: npcsData } = useQuery({ queryKey: ["crud", "npcs"], queryFn: async () => (await adminApi.npcs.list()).data });
+  const { data: mapsData } = useQuery({ queryKey: ["crud", "maps"], queryFn: async () => (await adminApi.maps.list()).data });
+  const npcs: any[] = npcsData ?? [];
+  const maps: { id: string; name: string }[] = (mapsData ?? []).map((m: any) => ({ id: m.id, name: m.name }));
+  const reload = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["crud", "quests"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "npcs"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "maps"] }),
+    ]);
+
   const [filter, setFilter] = useState("");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -118,34 +130,6 @@ export default function QuestsPage() {
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiMapId, setAiMapId] = useState("");
-  const [maps, setMaps] = useState<Array<{ id: string; name: string }>>([]);
-
-  const load = async (keepSelection = true) => {
-    setLoading(true);
-    try {
-      const [qRes, nRes, mRes] = await Promise.all([
-        adminApi.quests.list(),
-        adminApi.npcs.list(),
-        adminApi.maps.list(),
-      ]);
-      setQuests(Array.isArray(qRes.data) ? qRes.data : []);
-      setNpcs(Array.isArray(nRes.data) ? nRes.data : []);
-      setMaps(
-        Array.isArray(mRes.data)
-          ? mRes.data.map((m: any) => ({ id: m.id, name: m.name }))
-          : []
-      );
-      if (!keepSelection) setSelectedId(null);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   const selected = useMemo(() => quests.find((q) => q.id === selectedId) || null, [quests, selectedId]);
 
@@ -197,10 +181,10 @@ export default function QuestsPage() {
         saved = (await adminApi.quests.update(selectedId, payload)).data;
         toast.success("Quest atualizada!");
       }
-      setQuests((prev) => (creating ? [saved, ...prev] : prev.map((x) => (x.id === saved.id ? saved : x))));
       setSelectedId(saved.id);
       setCreating(false);
       setForm(fillFromQuest(saved));
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -213,7 +197,7 @@ export default function QuestsPage() {
     try {
       await adminApi.quests.delete(q.id);
       toast.success("Quest excluída");
-      await load(false);
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -235,7 +219,7 @@ export default function QuestsPage() {
         toast.success("Quest gerada e salva no banco!");
       }
       setAiOpen(false);
-      await load(false);
+      await reload();
       const first = created?.[0] ?? saved;
       if (first?.id) {
         setSelectedId(first.id);
@@ -273,7 +257,7 @@ export default function QuestsPage() {
           >
             <Plus size={16} /> Nova Quest
           </button>
-          <button onClick={() => load()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
+          <button onClick={() => reload()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
             <RefreshCw size={16} />
           </button>
         </div>

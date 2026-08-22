@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Loader2, MapPin, Plus, RefreshCw, Shield, Skull, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
@@ -46,9 +47,22 @@ function mapDefaults(): Record<string, any> {
 }
 
 export default function MapsPage() {
-  const [maps, setMaps] = useState<any[]>([]);
-  const [monsters, setMonsters] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: mapsData, isLoading: loading } = useQuery({
+    queryKey: ["crud", "maps"],
+    queryFn: async () => (await adminApi.maps.list()).data,
+  });
+  const { data: monstersData } = useQuery({
+    queryKey: ["crud", "monsters"],
+    queryFn: async () => (await adminApi.monsters.list()).data,
+  });
+  const maps: any[] = mapsData ?? [];
+  const monsters: any[] = monstersData ?? [];
+  const reload = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["crud", "maps"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "monsters"] }),
+    ]);
   const [filter, setFilter] = useState("");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,23 +79,6 @@ export default function MapsPage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [mapsRes, monstersRes] = await Promise.all([adminApi.maps.list(), adminApi.monsters.list()]);
-      setMaps(Array.isArray(mapsRes.data) ? mapsRes.data : []);
-      setMonsters(Array.isArray(monstersRes.data) ? monstersRes.data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   const selected = useMemo(() => maps.find((m) => m.id === selectedId) || null, [maps, selectedId]);
 
@@ -154,7 +151,7 @@ export default function MapsPage() {
         saved = (await adminApi.maps.update(selectedId, payload)).data;
         toast.success("Mapa atualizado!");
       }
-      await load();
+      await reload();
       if (saved?.id) {
         setSelectedId(saved.id);
         setCreating(false);
@@ -173,7 +170,7 @@ export default function MapsPage() {
       await adminApi.maps.delete(m.id);
       toast.success("Mapa excluído");
       setSelectedId(null);
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -225,7 +222,7 @@ export default function MapsPage() {
         toast.success("Monstro adicionado ao mapa");
       }
       resetMmForm();
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -238,7 +235,7 @@ export default function MapsPage() {
     try {
       await adminApi.mapMonsters.delete(s.id);
       toast.success("Removido");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -260,7 +257,7 @@ export default function MapsPage() {
         saved.warnings.forEach((w: string) => toast(w, { icon: "⚠️" }));
       }
       setAiOpen(false);
-      await load();
+      await reload();
       if (saved?.id) {
         setSelectedId(saved.id);
         setCreating(false);
@@ -295,7 +292,7 @@ export default function MapsPage() {
           >
             <Plus size={16} /> Novo mapa
           </button>
-          <button onClick={() => load()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
+          <button onClick={() => reload()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
             <RefreshCw size={16} />
           </button>
         </div>

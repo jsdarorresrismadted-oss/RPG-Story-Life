@@ -1,7 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ArrowUpDown, Loader2, MapPin, Plus, RefreshCw, SlidersHorizontal, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
 
 const inputClass =
@@ -52,10 +54,23 @@ function monsterDefaults(): Record<string, any> {
 }
 
 export default function MonstersPage() {
-  const [monsters, setMonsters] = useState<any[]>([]);
-  const [items, setItems] = useState<any[]>([]);
-  const [maps, setMaps] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { items: monsters, loading, reload: reloadMonsters } = useCrudList("monsters", () => adminApi.monsters.list());
+  const { data: itemsData } = useQuery({
+    queryKey: ["crud", "items", "drops"],
+    queryFn: async () => (await adminApi.items.list({ excludeShops: "true", excludeQuests: "true", excludeCrafts: "true" })).data,
+  });
+  const { data: mapsData } = useQuery({ queryKey: ["crud", "maps"], queryFn: async () => (await adminApi.maps.list()).data });
+  const items: any[] = itemsData ?? [];
+  const maps: any[] = mapsData ?? [];
+  const reload = (keepSelection = true) => {
+    if (!keepSelection) setSelectedId(null);
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["crud", "monsters"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "items", "drops"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "maps"] }),
+    ]);
+  };
   const [filter, setFilter] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "level">("name");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -78,29 +93,6 @@ export default function MonstersPage() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiMode, setAiMode] = useState<"generate" | "adjust">("generate");
   const [adjustResult, setAdjustResult] = useState<any>(null);
-
-  const load = async (keepSelection = true) => {
-    setLoading(true);
-    try {
-      const [mRes, iRes, mapRes] = await Promise.all([
-        adminApi.monsters.list(),
-        adminApi.items.list({ excludeShops: "true", excludeQuests: "true", excludeCrafts: "true" }),
-        adminApi.maps.list(),
-      ]);
-      setMonsters(Array.isArray(mRes.data) ? mRes.data : []);
-      setItems(Array.isArray(iRes.data) ? iRes.data : []);
-      setMaps(Array.isArray(mapRes.data) ? mapRes.data : []);
-      if (!keepSelection) setSelectedId(null);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   const selected = useMemo(() => monsters.find((m) => m.id === selectedId) || null, [monsters, selectedId]);
 
@@ -216,10 +208,10 @@ export default function MonstersPage() {
         saved = (await adminApi.monsters.update(selectedId, payload)).data;
         toast.success("Monstro atualizado!");
       }
-      setMonsters((prev) => (creating ? [saved, ...prev] : prev.map((m) => (m.id === saved.id ? saved : m))));
       setSelectedId(saved.id);
       setCreating(false);
       fillForm(saved);
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -232,7 +224,7 @@ export default function MonstersPage() {
     try {
       await adminApi.monsters.delete(m.id);
       toast.success("Monstro excluído");
-      await load(false);
+      await reload(false);
       setDrops([]);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
@@ -316,7 +308,7 @@ export default function MonstersPage() {
         toast.success(`Monstro "${saved?.name ?? "?"}" gerado e salvo no banco!`);
       }
       setAiOpen(false);
-      await load(false);
+      await reload(false);
       const first = saved?.monsters?.[0] ?? saved;
       if (first?.id) {
         setSelectedId(first.id);
@@ -349,7 +341,7 @@ export default function MonstersPage() {
       } else {
         toast("Nenhum monstro foi alterado — a IA entendeu que nada deveria mudar", { icon: "ℹ️" });
       }
-      await load(false);
+      await reload(false);
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.response?.data?.error || "Falha ao ajustar");
     } finally {
@@ -385,7 +377,7 @@ export default function MonstersPage() {
           >
             <Plus size={16} /> Novo monstro
           </button>
-          <button onClick={() => load()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
+          <button onClick={() => reload()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
             <RefreshCw size={16} />
           </button>
         </div>

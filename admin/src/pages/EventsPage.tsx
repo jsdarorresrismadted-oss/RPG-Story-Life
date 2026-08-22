@@ -5,6 +5,10 @@ import {
   ShoppingBag, Trash2, Wand2, X, Zap,
 } from "lucide-react";
 import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
+import { DataTable, DataTableColumn } from "../components/DataTable";
+import { Pagination } from "../components/Pagination";
+import { SearchInput } from "../components/SearchInput";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
 
 const inputClass =
@@ -76,15 +80,16 @@ const sectionHeaderClass =
   "px-4 py-3 border-b border-dark-600 flex items-center justify-between flex-wrap gap-2";
 
 export default function EventsPage() {
-  const [events, setEvents] = useState<any[]>([]);
+  const { items: events, loading, reload } = useCrudList("events", () => adminApi.events.list());
   const [items, setItems] = useState<any[]>([]);
   const [quests, setQuests] = useState<any[]>([]);
   const [maps, setMaps] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [shopItems, setShopItems] = useState<any[]>([]);
   const [crafts, setCrafts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -111,10 +116,8 @@ export default function EventsPage() {
   const [aiBusy, setAiBusy] = useState(false);
 
   const load = async () => {
-    setLoading(true);
     try {
-      const [ev, it, qu, mp, cl, sh, cr] = await Promise.all([
-        adminApi.events.list(),
+      const [it, qu, mp, cl, sh, cr] = await Promise.all([
         adminApi.items.list(),
         adminApi.quests.list(),
         adminApi.maps.list(),
@@ -122,7 +125,6 @@ export default function EventsPage() {
         adminApi.eventShopItems.list(),
         adminApi.craftRecipes.list(),
       ]);
-      setEvents(Array.isArray(ev.data) ? ev.data : []);
       setItems(Array.isArray(it.data) ? it.data : []);
       setQuests(Array.isArray(qu.data) ? qu.data : []);
       setMaps(Array.isArray(mp.data) ? mp.data : []);
@@ -131,8 +133,6 @@ export default function EventsPage() {
       setCrafts(Array.isArray(cr.data) ? cr.data : []);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to load data");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -151,6 +151,34 @@ export default function EventsPage() {
   const eventMaps = useMemo(() => maps.filter((m) => m.eventId === selectedId), [maps, selectedId]);
   const eventShop = useMemo(() => shopItems.filter((s) => s.eventId === selectedId), [shopItems, selectedId]);
   const eventCrafts = useMemo(() => crafts.filter((c) => c.eventId === selectedId), [crafts, selectedId]);
+
+  const eventColumns: DataTableColumn[] = [
+    {
+      key: "imageUrl",
+      label: "",
+      render: (_v: any, e: any) =>
+        e.imageUrl ? (
+          <img src={e.imageUrl} alt="" className="w-12 h-12 object-cover rounded-lg bg-dark-700 shrink-0" />
+        ) : (
+          <span className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center text-gray-600 shrink-0">
+            <CalendarDays size={20} />
+          </span>
+        ),
+    },
+    {
+      key: "name",
+      label: "Nome",
+      render: (v: any, e: any) => (
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-white truncate">{v}</span>
+            {e.isActive && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-500/20 text-green-400 shrink-0">ATIVO</span>}
+          </div>
+          <p className="text-xs text-gray-500">{e.type || "raid"} • Nv {e.levelMin} • {e.maps?.length ?? 0} mapa(s)</p>
+        </div>
+      ),
+    },
+  ];
 
   const itemName = (id: string) => items.find((i) => i.id === id)?.name ?? id;
   const className = (id: string) => classes.find((c) => c.id === id)?.name ?? id;
@@ -209,7 +237,7 @@ export default function EventsPage() {
         saved = (await adminApi.events.update(selectedId, payload)).data;
         toast.success("Evento atualizado!");
       }
-      await load();
+      await load(); reload();
       if (saved?.id) {
         setSelectedId(saved.id);
         setCreating(false);
@@ -227,7 +255,7 @@ export default function EventsPage() {
       await adminApi.events.delete(e.id);
       toast.success("Evento excluído");
       setSelectedId(null);
-      await load();
+      await load(); reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -240,7 +268,7 @@ export default function EventsPage() {
       await adminApi.maps.update(linkMapId, { eventId: selectedId });
       toast.success("Mapa vinculado ao evento");
       setLinkMapId("");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao vincular"); }
   };
 
@@ -248,7 +276,7 @@ export default function EventsPage() {
     try {
       await adminApi.maps.update(m.id, { eventId: null });
       toast.success("Mapa desvinculado do evento");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao desvincular"); }
   };
 
@@ -258,7 +286,7 @@ export default function EventsPage() {
       await adminApi.quests.update(linkQuestId, { eventId: selectedId });
       toast.success("Quest vinculada ao evento");
       setLinkQuestId("");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao vincular"); }
   };
 
@@ -266,7 +294,7 @@ export default function EventsPage() {
     try {
       await adminApi.quests.update(q.id, { eventId: null });
       toast.success("Quest desvinculada do evento");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao desvincular"); }
   };
 
@@ -276,7 +304,7 @@ export default function EventsPage() {
       await adminApi.items.update(linkItemId, { eventId: selectedId });
       toast.success("Item vinculado ao evento");
       setLinkItemId("");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao vincular"); }
   };
 
@@ -284,7 +312,7 @@ export default function EventsPage() {
     try {
       await adminApi.items.update(i.id, { eventId: null });
       toast.success("Item desvinculado do evento");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao desvincular"); }
   };
 
@@ -330,7 +358,7 @@ export default function EventsPage() {
         toast.success("Item adicionado à loja do evento");
       }
       resetSiForm();
-      await load();
+      await load(); reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -343,7 +371,7 @@ export default function EventsPage() {
     try {
       await adminApi.eventShopItems.delete(s.id);
       toast.success("Removido");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao excluir"); }
   };
 
@@ -369,7 +397,7 @@ export default function EventsPage() {
       await adminApi.items.create(payload);
       toast.success(`Item "${icForm.name}" criado no evento!`);
       setIcForm({ ...DEFAULT_IC });
-      await load();
+      await load(); reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao criar item");
     } finally {
@@ -443,7 +471,7 @@ export default function EventsPage() {
         toast.success("Receita criada no evento");
       }
       resetCrForm();
-      await load();
+      await load(); reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar receita");
     } finally {
@@ -456,7 +484,7 @@ export default function EventsPage() {
     try {
       await adminApi.craftRecipes.delete(c.id);
       toast.success("Receita excluída");
-      await load();
+      await load(); reload();
     } catch (err: any) { toast.error(err.response?.data?.message || "Falha ao excluir"); }
   };
 
@@ -475,7 +503,7 @@ export default function EventsPage() {
         saved.warnings.forEach((w: string) => toast(w, { icon: "⚠️" }));
       }
       setAiOpen(false);
-      await load();
+      await load(); reload();
       if (saved?.event?.id) {
         setSelectedId(saved.event.id);
         setCreating(false);
@@ -509,7 +537,7 @@ export default function EventsPage() {
           >
             <Plus size={16} /> Novo evento
           </button>
-          <button onClick={() => load()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
+            <button onClick={() => { load(); reload(); }} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
             <RefreshCw size={16} />
           </button>
         </div>
@@ -518,43 +546,24 @@ export default function EventsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
         {/* Cards de eventos */}
         <div className="space-y-2 h-fit">
-          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Buscar evento..." className={inputClass} />
-          <div className="max-h-[72vh] overflow-y-auto space-y-2 pr-1">
-            {loading && <p className="text-center text-gray-500 py-8">Carregando...</p>}
-            {!loading && filteredEvents.length === 0 && (
-              <p className="text-center text-gray-500 py-8">Nenhum evento — crie um novo ou use a IA</p>
+          <SearchInput value={filter} onChange={(v) => { setFilter(v); setPage(0); }} placeholder="Buscar evento..." />
+          <DataTable
+            columns={eventColumns}
+            rows={filteredEvents.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)}
+            loading={loading}
+            selected={new Set(selectedId ? [selectedId] : [])}
+            emptyMessage="Nenhum evento — crie um novo ou use a IA"
+            rowActions={(e: any) => (
+              <button onClick={() => selectEvent(e.id)} className="text-blue-400 hover:text-blue-300 text-sm">Abrir</button>
             )}
-            {filteredEvents.map((e) => (
-              <button
-                key={e.id}
-                onClick={() => selectEvent(e.id)}
-                className={`w-full text-left bg-dark-800 border rounded-xl overflow-hidden transition-colors ${
-                  selectedId === e.id ? "border-accent-500 bg-accent-600/10" : "border-dark-600 hover:border-gray-500"
-                }`}
-              >
-                <div className="flex items-center gap-3 p-3">
-                  {e.imageUrl ? (
-                    <img src={e.imageUrl} alt="" className="w-12 h-12 object-cover rounded-lg bg-dark-700 shrink-0" />
-                  ) : (
-                    <span className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center text-gray-600 shrink-0">
-                      <CalendarDays size={20} />
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-white truncate">{e.name}</span>
-                      {e.isActive && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-500/20 text-green-400 shrink-0">ATIVO</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {e.type || "raid"} • Nv {e.levelMin} • {e.maps?.length ?? 0} mapa(s)
-                    </p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+          />
+          <Pagination
+            page={page}
+            pageCount={Math.ceil(filteredEvents.length / PAGE_SIZE)}
+            total={filteredEvents.length}
+            pageSize={PAGE_SIZE}
+            onPage={setPage}
+          />
         </div>
 
         {/* Detalhe — seções empilhadas (uma em baixo da outra) */}

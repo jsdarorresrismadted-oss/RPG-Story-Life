@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import { Dices, Save } from "lucide-react";
@@ -23,32 +24,28 @@ export default function GachaPage() {
     slotChances: { ring: 50, necklace: 50 },
     active: true,
   });
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
+  const { data: cfg, isLoading: loading } = useQuery({
+    queryKey: ["gacha-config"],
+    queryFn: async () => {
       const { data } = await adminApi.gachaConfig.get();
-      if (data) {
-        setForm({
-          freeTickets: Number(data.freeTickets ?? 3),
-          ticketCost: Number(data.ticketCost ?? 0),
-          chances: { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3, ...(data.chances ?? {}) },
-          slotChances: { ring: 50, necklace: 50, ...(data.slotChances ?? {}) },
-          active: data.active !== false,
-        });
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Falha ao carregar a config do gacha");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data;
+    },
+  });
 
   useEffect(() => {
-    load();
-  }, []);
+    if (cfg) {
+      setForm({
+        freeTickets: Number(cfg.freeTickets ?? 3),
+        ticketCost: Number(cfg.ticketCost ?? 0),
+        chances: { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3, ...(cfg.chances ?? {}) },
+        slotChances: { ring: 50, necklace: 50, ...(cfg.slotChances ?? {}) },
+        active: cfg.active !== false,
+      });
+    }
+  }, [cfg]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -62,6 +59,7 @@ export default function GachaPage() {
         active: form.active,
       });
       toast.success("Configuração do gacha salva");
+      queryClient.invalidateQueries({ queryKey: ["gacha-config"] });
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {

@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
 import toast from "react-hot-toast";
-import { adminApi } from "../api";
 import { RefreshCw, Plus, Pencil, Trash2, X, Ticket } from "lucide-react";
+import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
+import { DataTable, DataTableColumn } from "../components/DataTable";
+import { Pagination } from "../components/Pagination";
+import { SearchInput } from "../components/SearchInput";
 import JsonField from "../components/JsonField";
 
 interface RedeemCode {
@@ -30,28 +34,24 @@ const emptyForm = {
 };
 
 export default function CodesPage() {
-  const [codes, setCodes] = useState<RedeemCode[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: codes, loading, reload } = useCrudList("codes", () => adminApi.codes.list());
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
   const [editing, setEditing] = useState<RedeemCode | null>(null);
   const [form, setForm] = useState<any>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<RedeemCode | null>(null);
   const [confirmText, setConfirmText] = useState("");
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data } = await adminApi.codes.list();
-      setCodes(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load codes");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
+  const filtered = useMemo(() => {
+    if (!search.trim()) return codes;
+    const q = search.toLowerCase();
+    return codes.filter(
+      (c) =>
+        c.code.toLowerCase().includes(q) ||
+        (c.description || "").toLowerCase().includes(q)
+    );
+  }, [codes, search]);
 
   const openNew = () => {
     setForm(emptyForm);
@@ -108,7 +108,7 @@ export default function CodesPage() {
         toast.success("Code created");
       }
       setEditing(null);
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save code");
     }
@@ -126,11 +126,47 @@ export default function CodesPage() {
       await adminApi.codes.delete(deleteTarget.id);
       toast.success("Code deleted");
       setDeleteTarget(null);
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete code");
     }
   };
+
+  const columns: DataTableColumn[] = [
+    {
+      key: "id",
+      label: "ID",
+      render: (v: string) => (
+        <span className="font-mono text-[11px] text-gray-500" title={v}>{String(v ?? "").slice(0, 8)}</span>
+      ),
+    },
+    { key: "code", label: "Code", render: (v: string) => <span className="font-mono font-medium text-yellow-300">{v}</span> },
+    { key: "description", label: "Description", render: (v: string) => <span className="text-gray-400 max-w-xs truncate block">{v || "-"}</span> },
+    { key: "gold", label: "Gold", render: (v: any) => <span className="font-mono">{Number(v).toLocaleString()}</span> },
+    { key: "sfCoins", label: "SF Coins", render: (v: any) => <span className="font-mono">{v}</span> },
+    { key: "experience", label: "XP", render: (v: any) => <span className="font-mono">{Number(v).toLocaleString()}</span> },
+    {
+      key: "items",
+      label: "Items",
+      render: (_v: any, item: RedeemCode) => (
+        <span className="text-xs text-gray-400">
+          {(item.items || []).length > 0
+            ? (item.items as any[]).map((i: any) => i.type === "class" ? `[CLASSE] ${i.itemName}` : `${i.itemName} x${i.quantity}`).join(", ")
+            : "-"}
+        </span>
+      ),
+    },
+    { key: "uses", label: "Uses", render: (v: any, item: RedeemCode) => <span className="font-mono">{item.uses}/{item.maxUses}</span> },
+    {
+      key: "isActive",
+      label: "Active",
+      render: (v: boolean) => (
+        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${v ? "bg-green-500/20 text-green-400" : "bg-gray-600/20 text-gray-400"}`}>
+          {v ? "Yes" : "No"}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -138,9 +174,13 @@ export default function CodesPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Ticket size={22} className="text-yellow-400" /> Redeem Codes
         </h1>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(0); }} placeholder="Buscar código..." />
         <div className="flex items-center gap-2">
           <button
-            onClick={load}
+            onClick={reload}
             disabled={loading}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-dark-800 border border-dark-600 rounded-lg text-gray-300 hover:text-white transition-colors disabled:opacity-50"
           >
@@ -153,68 +193,29 @@ export default function CodesPage() {
         </div>
       </div>
 
-      <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-dark-600">
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">ID</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Code</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Description</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Gold</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">SF Coins</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">XP</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Items</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Uses</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Active</th>
-                <th className="text-right py-3 px-4 text-gray-400 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {codes.map((c) => (
-                <tr key={c.id} className="border-b border-dark-700 hover:bg-dark-800/50">
-                  <td className="py-2.5 px-4">
-                    <span className="font-mono text-[11px] text-gray-500" title={c.id}>{String(c.id ?? "").slice(0, 8)}</span>
-                  </td>
-                  <td className="py-2.5 px-4 font-mono font-medium text-yellow-300">{c.code}</td>
-                  <td className="py-2.5 px-4 text-gray-400 max-w-xs truncate">{c.description || "-"}</td>
-                  <td className="py-2.5 px-4 font-mono">{Number(c.gold).toLocaleString()}</td>
-                  <td className="py-2.5 px-4 font-mono">{c.sfCoins}</td>
-                  <td className="py-2.5 px-4 font-mono">{Number(c.experience).toLocaleString()}</td>
-                  <td className="py-2.5 px-4 text-xs text-gray-400">
-                    {(c.items || []).length > 0
-                      ? (c.items as any[]).map((i: any) => i.type === "class" ? `[CLASSE] ${i.itemName}` : `${i.itemName} x${i.quantity}`).join(", ")
-                      : "-"}
-                  </td>
-                  <td className="py-2.5 px-4 font-mono">{c.uses}/{c.maxUses}</td>
-                  <td className="py-2.5 px-4">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.isActive ? "bg-green-500/20 text-green-400" : "bg-gray-600/20 text-gray-400"}`}>
-                      {c.isActive ? "Yes" : "No"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => openEdit(c)}
-                      className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mr-3"
-                    >
-                      <Pencil size={14} /> Edit
-                    </button>
-                    <button
-                      onClick={() => askDelete(c)}
-                      className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
-                    >
-                      <Trash2 size={14} /> Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!loading && codes.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No codes found</p>
-          )}
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)}
+        loading={loading}
+        emptyMessage="No codes found"
+        rowActions={(c) => (
+          <>
+            <button onClick={() => openEdit(c)} className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mr-3">
+              <Pencil size={14} /> Edit
+            </button>
+            <button onClick={() => askDelete(c)} className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300">
+              <Trash2 size={14} /> Delete
+            </button>
+          </>
+        )}
+      />
+      <Pagination
+        page={page}
+        pageCount={Math.ceil(filtered.length / PAGE_SIZE)}
+        total={filtered.length}
+        pageSize={PAGE_SIZE}
+        onPage={setPage}
+      />
 
       {editing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto" onClick={() => setEditing(null)}>

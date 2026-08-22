@@ -4,7 +4,7 @@ import MonsterSkillsField from "./MonsterSkillsField";
 import WeaponBoosterField from "./WeaponBoosterField";
 import { inputClass } from "./ui";
 import { FieldConfig } from "../configs/types";
-import { itemCategory, itemRoleGroup } from "../lib/itemGroups";
+import { itemCategory, itemRoleGroup, itemCraftGroup } from "../lib/itemGroups";
 
 interface FieldRendererProps {
   field: FieldConfig;
@@ -68,7 +68,8 @@ export default function FieldRenderer({
         return opt.slug && opt.slug !== opt.name ? `${opt.name} (${opt.slug})` : opt.name;
       };
       const groupByRole = field.optionsFrom === "items" && opts.length > 0 && opts[0]?.inShop !== undefined;
-      const groupItems = field.optionsFrom === "items" && opts.length > 0 && !!opts[0]?.type && !groupByRole;
+      const groupByCraft = field.optionsFrom === "items" && opts.length > 0 && opts[0]?.usedInQuest !== undefined;
+      const groupItems = field.optionsFrom === "items" && opts.length > 0 && !!opts[0]?.type && !groupByRole && !groupByCraft;
       return (
         <select
           value={value ?? ""}
@@ -77,7 +78,24 @@ export default function FieldRenderer({
           required={field.required}
         >
           <option value="">{field.optionsFrom ? "Nenhum" : "Select..."}</option>
-          {groupByRole ? (
+          {groupByCraft ? (
+            (() => {
+              const groups: Record<string, any[]> = {};
+              for (const opt of opts) {
+                const cat = itemCraftGroup(opt);
+                (groups[cat] ||= []).push(opt);
+              }
+              return Object.entries(groups).map(([cat, g]) => (
+                <optgroup key={cat} label={cat}>
+                  {g.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ));
+            })()
+          ) : groupByRole ? (
             (() => {
               const groups: Record<string, any[]> = {};
               for (const opt of opts) {

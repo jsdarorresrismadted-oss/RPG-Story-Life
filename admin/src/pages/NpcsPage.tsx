@@ -1,7 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Loader2, MapPin, Plus, RefreshCw, ShoppingBag, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
 import EntityFormFields, { EntityField } from "../components/EntityFormFields";
 
 const inputClass =
@@ -52,11 +54,26 @@ const DEFAULT_MAP = { mapId: "", positionX: 50, positionY: 50 };
 const DEFAULT_SHOP = { kind: "item", refId: "", price: 0, currency: "gold", requiredLevel: 0, requiredVip: false };
 
 export default function NpcsPage() {
-  const [npcs, setNpcs] = useState<any[]>([]);
-  const [maps, setMaps] = useState<any[]>([]);
-  const [items, setItems] = useState<any[]>([]);
-  const [enchantments, setEnchantments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { items: npcs, loading, reload: reloadNpcs } = useCrudList("npcs", () => adminApi.npcs.list());
+  const { data: mapsData } = useQuery({ queryKey: ["crud", "maps"], queryFn: async () => (await adminApi.maps.list()).data });
+  const { data: itemsData } = useQuery({ queryKey: ["crud", "items"], queryFn: async () => (await adminApi.items.list()).data });
+  const { data: enchantmentsData } = useQuery({ queryKey: ["crud", "enchantments"], queryFn: async () => (await adminApi.enchantments.list()).data });
+  const { data: questsData } = useQuery({ queryKey: ["crud", "quests"], queryFn: async () => (await adminApi.quests.list()).data });
+  const maps: any[] = mapsData ?? [];
+  const items: any[] = itemsData ?? [];
+  const enchantments: any[] = enchantmentsData ?? [];
+  const quests: any[] = questsData ?? [];
+  const reload = (keepSelection = true) => {
+    if (!keepSelection) setSelectedId(null);
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["crud", "npcs"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "maps"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "items"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "enchantments"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "quests"] }),
+    ]);
+  };
   const [filter, setFilter] = useState("");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -72,7 +89,6 @@ export default function NpcsPage() {
   const [shopForm, setShopForm] = useState({ ...DEFAULT_SHOP });
   const [shopBusy, setShopBusy] = useState(false);
 
-  const [quests, setQuests] = useState<any[]>([]);
   const [questLinkId, setQuestLinkId] = useState("");
   const [questBusy, setQuestBusy] = useState(false);
 
@@ -80,33 +96,6 @@ export default function NpcsPage() {
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
   const [aiMapId, setAiMapId] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
-
-  const load = async (keepSelection = true) => {
-    setLoading(true);
-    try {
-      const [nRes, mapRes, iRes, eRes, qRes] = await Promise.all([
-        adminApi.npcs.list(),
-        adminApi.maps.list(),
-        adminApi.items.list(),
-        adminApi.enchantments.list(),
-        adminApi.quests.list(),
-      ]);
-      setNpcs(Array.isArray(nRes.data) ? nRes.data : []);
-      setMaps(Array.isArray(mapRes.data) ? mapRes.data : []);
-      setItems(Array.isArray(iRes.data) ? iRes.data : []);
-      setEnchantments(Array.isArray(eRes.data) ? eRes.data : []);
-      setQuests(Array.isArray(qRes.data) ? qRes.data : []);
-      if (!keepSelection) setSelectedId(null);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   const selected = useMemo(() => npcs.find((n) => n.id === selectedId) || null, [npcs, selectedId]);
 
@@ -174,10 +163,10 @@ export default function NpcsPage() {
         saved = (await adminApi.npcs.update(selectedId, payload)).data;
         toast.success("NPC atualizado!");
       }
-      setNpcs((prev) => (creating ? [saved, ...prev] : prev.map((n) => (n.id === saved.id ? saved : n))));
       setSelectedId(saved.id);
       setCreating(false);
       fillForm(saved);
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -190,7 +179,7 @@ export default function NpcsPage() {
     try {
       await adminApi.npcs.delete(n.id);
       toast.success("NPC excluído");
-      await load(false);
+      await reload(false);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -212,7 +201,7 @@ export default function NpcsPage() {
       });
       toast.success("NPC posicionado no mapa");
       setMapForm({ ...DEFAULT_MAP });
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.error || err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -225,7 +214,7 @@ export default function NpcsPage() {
     try {
       await adminApi.mapNpcs.delete(m.id);
       toast.success("Removido do mapa");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -252,7 +241,7 @@ export default function NpcsPage() {
       await adminApi.shopItems.create(payload);
       toast.success("Oferta adicionada");
       setShopForm({ ...DEFAULT_SHOP });
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.error || err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -266,7 +255,7 @@ export default function NpcsPage() {
     try {
       await adminApi.shopItems.delete(s.id);
       toast.success("Oferta removida");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -283,7 +272,7 @@ export default function NpcsPage() {
       await adminApi.quests.update(questLinkId, { giverNpcId: selectedId });
       toast.success("Quest vinculada ao NPC");
       setQuestLinkId("");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.error || err.response?.data?.message || "Falha ao vincular");
     } finally {
@@ -296,7 +285,7 @@ export default function NpcsPage() {
     try {
       await adminApi.quests.update(q.id, { giverNpcId: null });
       toast.success("Quest desvinculada");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao desvincular");
     }
@@ -318,7 +307,7 @@ export default function NpcsPage() {
         toast.success(`NPC "${saved?.name ?? "?"}" gerado e salvo no banco!`);
       }
       setAiOpen(false);
-      await load(false);
+      await reload(false);
       const first = created?.[0] ?? saved;
       if (first?.id) {
         setSelectedId(first.id);
@@ -355,7 +344,7 @@ export default function NpcsPage() {
           >
             <Plus size={16} /> Novo NPC
           </button>
-          <button onClick={() => load()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
+          <button onClick={() => reload()} className="p-2.5 bg-dark-700 hover:bg-dark-600 text-white rounded-lg transition-colors" title="Recarregar">
             <RefreshCw size={16} />
           </button>
         </div>

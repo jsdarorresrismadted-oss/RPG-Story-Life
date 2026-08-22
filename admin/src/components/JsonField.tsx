@@ -307,10 +307,13 @@ export default function JsonField({ schema, value, onChange }: JsonFieldProps) {
                     }}
                   >
                     <option value="">Selecione...</option>
-                    {(() => {
+                     {(() => {
+                      const useCraft = itemOptions.length > 0 && (itemOptions[0] as any)?.usedInQuest !== undefined;
                       const groups: Record<string, { id: string; name: string }[]> = {};
                       for (const opt of itemOptions) {
-                        const cat = itemCategory(opt as any);
+                        const cat = useCraft
+                          ? ((opt as any).usedInQuest ? "📜 Itens de Quest (também usáveis no craft)" : "✨ Outros itens de craft")
+                          : itemCategory(opt as any);
                         (groups[cat] ||= []).push(opt as any);
                       }
                       return Object.entries(groups).map(([cat, opts]) => (

@@ -12,3 +12,10 @@ export function itemRoleGroup(it: any): string {
   if (it.inCraft) return "⚒️ Em Craft";
   return "✨ Disponíveis";
 }
+
+// Agrupamento do seletor de craft (craftSelect): itens de quest vão para um
+// grupo separado, marcados para o admin saber que também são usados em quests.
+export function itemCraftGroup(it: any): string {
+  if (it.usedInQuest) return "📜 Itens de Quest (também usáveis no craft)";
+  return "✨ Outros itens de craft";
+}

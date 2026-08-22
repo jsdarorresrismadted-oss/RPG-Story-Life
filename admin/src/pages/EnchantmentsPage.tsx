@@ -1,8 +1,12 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Copy, Search, Sparkles, Table2, Trash2, Eye, Plus, Loader2, Pencil } from "lucide-react";
+import { Copy, Sparkles, Table2, Trash2, Eye, Plus, Loader2, Pencil } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
+import { DataTable, DataTableColumn } from "../components/DataTable";
+import { Pagination } from "../components/Pagination";
+import { SearchInput } from "../components/SearchInput";
 import IconPicker from "../components/IconPicker";
 import {
   ENCHANTMENT_CATEGORIES,
@@ -117,9 +121,14 @@ const emptyForm = () => ({
 });
 
 export default function EnchantmentsPage() {
-  const [items, setItems] = useState<Enchantment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items, loading, reload } = useCrudList("enchantments", () => adminApi.enchantments.list()) as unknown as {
+    items: Enchantment[];
+    loading: boolean;
+    reload: () => void;
+  };
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
   const [filterCategory, setFilterCategory] = useState("");
   const [filterRarity, setFilterRarity] = useState("");
   const [filterMinLevel, setFilterMinLevel] = useState("");
@@ -133,22 +142,6 @@ export default function EnchantmentsPage() {
   const [progressionItem, setProgressionItem] = useState<Enchantment | null>(null);
   const [progression, setProgression] = useState<Array<{ level: number; stats: Record<string, number> }>>([]);
   const [loadingProgression, setLoadingProgression] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data } = await adminApi.enchantments.list();
-      setItems(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Falha ao carregar encantamentos");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -216,7 +209,7 @@ export default function EnchantmentsPage() {
         isActive: false,
       });
       toast.success(`"${data.name}" criado (inativo)`);
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao duplicar");
     }
@@ -227,7 +220,7 @@ export default function EnchantmentsPage() {
     try {
       await adminApi.enchantments.delete(item.id);
       toast.success("Encantamento excluído");
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao excluir");
     }
@@ -276,7 +269,7 @@ export default function EnchantmentsPage() {
         toast.success("Encantamento criado");
       }
       setModalOpen(false);
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -303,7 +296,7 @@ export default function EnchantmentsPage() {
     try {
       const { data } = await adminApi.enchantments.syncShop();
       toast.success(data.message || "Loja de encantamentos atualizada!");
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao sincronizar a loja");
     } finally {
@@ -345,13 +338,7 @@ export default function EnchantmentsPage() {
       {/* Filtros */}
       <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <div className="lg:col-span-2 relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nome ou slug..."
-            className={inputClass + " pl-9"}
-          />
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nome ou slug..." />
         </div>
         <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={inputClass}>
           <option value="">Todas as categorias</option>
@@ -484,7 +471,7 @@ export default function EnchantmentsPage() {
                         onClick={async () => {
                           try {
                             await adminApi.enchantments.update(item.id, { isActive: !item.isActive });
-                            load();
+                            reload();
                           } catch (err: any) {
                             toast.error(err.response?.data?.message || "Falha ao alternar");
                           }

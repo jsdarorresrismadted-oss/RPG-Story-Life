@@ -1,7 +1,11 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState, useMemo } from "react";
 import toast from "react-hot-toast";
 import { Plus, X } from "lucide-react";
 import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
+import { DataTable, DataTableColumn } from "../components/DataTable";
+import { Pagination } from "../components/Pagination";
+import { SearchInput } from "../components/SearchInput";
 import JsonField from "../components/JsonField";
 import {
   effectActionFields,
@@ -148,28 +152,20 @@ const parseNested = (raw: any) => {
 };
 
 export default function EffectsPage() {
-  const [effects, setEffects] = useState<EffectLite[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: effects, loading, reload } = useCrudList("effects", () => adminApi.effects.list());
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ ...defaultForm });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data } = await adminApi.effects.list();
-      setEffects(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load effects");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
+  const filtered = useMemo(() => {
+    if (!search.trim()) return effects;
+    const q = search.toLowerCase();
+    return effects.filter((e: any) => e.name?.toLowerCase().includes(q) || (e.description || "").toLowerCase().includes(q));
+  }, [effects, search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -297,7 +293,7 @@ export default function EffectsPage() {
       }
       setModalOpen(false);
       setEditing(null);
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Failed to save");
     } finally {
@@ -310,7 +306,7 @@ export default function EffectsPage() {
     try {
       await adminApi.effects.delete(e.id);
       toast.success("Effect deleted");
-      load();
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete");
     }
@@ -339,6 +335,52 @@ export default function EffectsPage() {
     </div>
   );
 
+  const effectColumns: DataTableColumn[] = [
+    {
+      key: "id",
+      label: "ID",
+      render: (v: string) => <span className="font-mono text-[11px] text-gray-500" title={v}>{String(v ?? "").slice(0, 8)}</span>,
+    },
+    {
+      key: "name",
+      label: "Name",
+      render: (_v: any, e: any) => (
+        <span>
+          <span className="font-medium text-white">{e.name}</span>
+          <p className="text-xs text-gray-500 max-w-xs truncate">{e.description}</p>
+        </span>
+      ),
+    },
+    {
+      key: "kind",
+      label: "Kind",
+      render: (v: string) => (
+        <span className={`px-2 py-0.5 rounded-full text-xs ${
+          v === "dot" || v === "debuff" ? "bg-red-500/20 text-red-400"
+          : v === "hot" ? "bg-emerald-500/20 text-emerald-400"
+          : v === "shield" || v === "reflect" ? "bg-cyan-500/20 text-cyan-400"
+          : v === "hitkill" ? "bg-purple-500/20 text-purple-400"
+          : v === "silence" || v === "stun" ? "bg-amber-500/20 text-amber-400"
+          : "bg-blue-500/20 text-blue-400"}`}>
+          {v}
+        </span>
+      ),
+    },
+    { key: "category", label: "Category", render: (v: any) => <span className="text-gray-400">{v || "-"}</span> },
+    { key: "maxStacks", label: "Stacks", render: (v: any) => <span className="font-mono text-xs">{v}</span> },
+    { key: "duration", label: "Duration (ms)", render: (v: any) => <span className="font-mono text-xs">{v}</span> },
+    { key: "tickInterval", label: "Tick (ms)", render: (v: any) => <span className="font-mono text-xs">{v}</span> },
+    {
+      key: "isActive",
+      label: "Active",
+      render: (v: boolean) => (
+        <span className={`px-2 py-0.5 rounded-full text-xs ${v ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-600/20 text-gray-400"}`}>
+          {v ? "on" : "off"}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -351,69 +393,29 @@ export default function EffectsPage() {
         </button>
       </div>
 
-      <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-dark-600">
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">ID</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Name</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Kind</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Category</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Stacks</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Duration (ms)</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Tick (ms)</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Active</th>
-                <th className="text-right py-3 px-4 text-gray-400 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {effects.map((e) => (
-                <tr key={e.id} className="border-b border-dark-700 hover:bg-dark-800/50">
-                  <td className="py-2.5 px-4">
-                    <span className="font-mono text-[11px] text-gray-500" title={e.id}>{String(e.id ?? "").slice(0, 8)}</span>
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <span className="font-medium text-white">{e.name}</span>
-                    <p className="text-xs text-gray-500 max-w-xs truncate">{e.description}</p>
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${
-                      e.kind === "dot" || e.kind === "debuff" ? "bg-red-500/20 text-red-400"
-                      : e.kind === "hot" ? "bg-emerald-500/20 text-emerald-400"
-                      : e.kind === "shield" || e.kind === "reflect" ? "bg-cyan-500/20 text-cyan-400"
-                      : e.kind === "hitkill" ? "bg-purple-500/20 text-purple-400"
-                      : e.kind === "silence" || e.kind === "stun" ? "bg-amber-500/20 text-amber-400"
-                      : "bg-blue-500/20 text-blue-400"}`}>
-                      {e.kind}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 text-gray-400">{e.category || "-"}</td>
-                  <td className="py-2.5 px-4 font-mono text-xs">{e.maxStacks}</td>
-                  <td className="py-2.5 px-4 font-mono text-xs">{e.duration}</td>
-                  <td className="py-2.5 px-4 font-mono text-xs">{e.tickInterval}</td>
-                  <td className="py-2.5 px-4">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${e.isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-600/20 text-gray-400"}`}>
-                      {e.isActive ? "on" : "off"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(e)} className="text-blue-400 hover:text-blue-300 mr-3">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(e)} className="text-red-400 hover:text-red-300">
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!loading && effects.length === 0 && (
-            <p className="text-center text-gray-500 py-8">No effects yet — click "New" to add one</p>
-          )}
-        </div>
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(0); }} placeholder="Buscar efeito..." />
       </div>
+
+      <DataTable
+        columns={effectColumns}
+        rows={filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)}
+        loading={loading}
+        emptyMessage='No effects yet — click "New" to add one'
+        rowActions={(e) => (
+          <>
+            <button onClick={() => openEdit(e)} className="text-blue-400 hover:text-blue-300 mr-3">Edit</button>
+            <button onClick={() => handleDelete(e)} className="text-red-400 hover:text-red-300">Delete</button>
+          </>
+        )}
+      />
+      <Pagination
+        page={page}
+        pageCount={Math.ceil(filtered.length / PAGE_SIZE)}
+        total={filtered.length}
+        pageSize={PAGE_SIZE}
+        onPage={setPage}
+      />
 
       {modalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => { setModalOpen(false); setEditing(null); }}>

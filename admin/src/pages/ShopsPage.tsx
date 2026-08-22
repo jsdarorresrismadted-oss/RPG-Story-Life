@@ -1,7 +1,9 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Package, Sparkles, Swords, Plus, Hammer, CheckCircle2, XCircle, MapPin, Pencil, Trash2, Trophy } from "lucide-react";
 import { adminApi } from "../api";
+import { useCrudList } from "../lib/useCrud";
 import { Badge } from "../components/ui";
 
 const inputClass =
@@ -117,14 +119,38 @@ function imgIcon(src?: string | null, size = "w-11 h-11", className = "") {
 }
 
 export default function ShopsPage() {
-  const [npcs, setNpcs] = useState<Npc[]>([]);
-  const [items, setItems] = useState<any[]>([]);
-  const [enchantments, setEnchantments] = useState<any[]>([]);
-  const [classes, setClasses] = useState<any[]>([]);
-  const [maps, setMaps] = useState<any[]>([]);
-  const [craftRecipes, setCraftRecipes] = useState<CraftRecipe[]>([]);
+  const queryClient = useQueryClient();
+  const { items: npcs, loading } = useCrudList("npcs", () => adminApi.npcs.list());
+  const { data: itemsData } = useQuery({ queryKey: ["crud", "items", "shop"], queryFn: async () => (await adminApi.items.list({ roles: "true" })).data });
+  const items: any[] = itemsData ?? [];
+  const { data: mapsData } = useQuery({ queryKey: ["crud", "maps"], queryFn: async () => (await adminApi.maps.list()).data });
+  const maps: any[] = mapsData ?? [];
+  const { data: classesData } = useQuery({ queryKey: ["crud", "classes"], queryFn: async () => (await adminApi.classes.list()).data });
+  const classes: any[] = classesData ?? [];
+  const { data: enchantmentsData } = useQuery({ queryKey: ["crud", "enchantments"], queryFn: async () => (await adminApi.enchantments.list()).data });
+  const enchantments: any[] = enchantmentsData ?? [];
+  const { data: recipesData } = useQuery({ queryKey: ["crud", "craftRecipes"], queryFn: async () => (await adminApi.craftRecipes.list()).data });
+  const craftRecipes: any[] = recipesData ?? [];
+  const { data: shopProductsData } = useQuery({ queryKey: ["crud", "shopProducts"], queryFn: async () => (await adminApi.shopProducts.list()).data });
+  const pvpProducts: any[] = (shopProductsData ?? []).filter((x: any) => x.currency === "pvp_coins");
+  const reload = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["crud", "npcs"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "items", "shop"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "maps"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "classes"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "enchantments"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "craftRecipes"] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "shopProducts"] }),
+    ]);
+  useEffect(() => {
+    setSelected((cur) => {
+      if (!cur) return cur;
+      const up = npcs.find((n: any) => n.id === cur.id);
+      return up ?? cur;
+    });
+  }, [npcs]);
   const [selected, setSelected] = useState<Npc | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const [addModal, setAddModal] = useState<AddModalState>(null);
   const [saving, setSaving] = useState(false);
@@ -144,9 +170,8 @@ export default function ShopsPage() {
   const [editingMap, setEditingMap] = useState<any>(null);
   const [savingMap, setSavingMap] = useState(false);
 
-  const [pvpProducts, setPvpProducts] = useState<any[]>([]);
-  const [pvpModal, setPvpModal] = useState<{ editing?: any } | null>(null);
   const [pvpForm, setPvpForm] = useState<Record<string, any>>({});
+  const [pvpModal, setPvpModal] = useState<{ editing?: any } | null>(null);
   const [pvpSaving, setPvpSaving] = useState(false);
 
   const ENCH_CATEGORIES = ["strength", "intellect", "endurance", "dexterity", "wisdom", "luck"];
@@ -160,42 +185,6 @@ export default function ShopsPage() {
     }
     return map;
   }, [craftRecipes]);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [npcsRes, itemsRes, mapsRes, classesRes, enchantmentsRes, recipesRes, shopProductsRes] = await Promise.all([
-        adminApi.npcs.list(),
-        adminApi.items.list({ roles: "true" }),
-        adminApi.maps.list(),
-        adminApi.classes.list(),
-        adminApi.enchantments.list(),
-        adminApi.craftRecipes.list(),
-        adminApi.shopProducts.list(),
-      ]);
-      const npcList = Array.isArray(npcsRes.data) ? npcsRes.data : [];
-      setNpcs(npcList);
-      setItems(Array.isArray(itemsRes.data) ? itemsRes.data : []);
-      setMaps(Array.isArray(mapsRes.data) ? mapsRes.data : []);
-      setClasses(Array.isArray(classesRes.data) ? classesRes.data : []);
-      setEnchantments(Array.isArray(enchantmentsRes.data) ? enchantmentsRes.data : []);
-      setCraftRecipes(Array.isArray(recipesRes.data) ? recipesRes.data : []);
-      setPvpProducts(Array.isArray(shopProductsRes.data) ? shopProductsRes.data.filter((x: any) => x.currency === "pvp_coins") : []);
-      if (selected) {
-        const updated = npcList.find((n: any) => n.id === selected.id);
-        if (updated) setSelected(updated);
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Falha ao carregar dados");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ===== Loja PvP (Arena): ShopProducts com PVP Coins =====
   const openPvpAdd = () => {
@@ -243,7 +232,7 @@ export default function ShopsPage() {
         toast.success("Item adicionado à Loja PvP");
       }
       setPvpModal(null);
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Falha ao salvar");
     } finally {
@@ -256,7 +245,7 @@ export default function ShopsPage() {
     try {
       await adminApi.shopProducts.delete(p.id);
       toast.success("Removido da Loja PvP");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao remover");
     }
@@ -284,7 +273,7 @@ export default function ShopsPage() {
         requiredVip: !!p.requiredVip,
       });
       toast.success(p.isActive ? "Produto desativado" : "Produto ativado");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao alternar");
     }
@@ -404,7 +393,7 @@ export default function ShopsPage() {
         toast.success("Adicionado à loja!");
       }
       setAddModal(null);
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -458,7 +447,7 @@ export default function ShopsPage() {
     try {
       await adminApi.shopItems.delete(s.id);
       toast.success("Removido");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao remover");
     }
@@ -492,7 +481,7 @@ export default function ShopsPage() {
         toast.success("NPC posicionado no mapa");
       }
       resetMapForm();
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao salvar");
     } finally {
@@ -505,7 +494,7 @@ export default function ShopsPage() {
     try {
       await adminApi.mapNpcs.delete(m.id);
       toast.success("Removido");
-      await load();
+      await reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Falha ao remover");
     }
@@ -804,7 +793,7 @@ export default function ShopsPage() {
                 try {
                   await adminApi.enchantments.update(e.id, { isActive: !e.isActive });
                   toast.success(e.isActive ? "Encantamento desativado" : "Encantamento ativado");
-                  await load();
+                  await reload();
                 } catch (err: any) {
                   toast.error(err.response?.data?.message || "Falha ao alternar");
                 }
@@ -860,7 +849,7 @@ export default function ShopsPage() {
             Adicione itens, encantamentos e classes existentes à loja de cada NPC. Nada é criado aqui — só disponibilizado na loja.
           </p>
         </div>
-        <button onClick={load} className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-sm transition-colors">
+        <button onClick={() => reload()} className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-sm transition-colors">
           Refresh
         </button>
       </div>

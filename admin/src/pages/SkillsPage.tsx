@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Loader2, Palette } from "lucide-react";
 import { adminApi } from "../api";
@@ -75,12 +76,36 @@ export default function SkillsPage() {
   const [searchParams] = useSearchParams();
   const urlClassId = searchParams.get("class") || "";
   const urlTab = searchParams.get("tab") === "passives" ? "passives" : "skills";
-  const [classes, setClasses] = useState<GameClassLite[]>([]);
+  const queryClient = useQueryClient();
+  const { data: classesData } = useQuery({ queryKey: ["crud", "classes"], queryFn: async () => (await adminApi.classes.list()).data });
+  const classes: { id: string; name: string }[] = (classesData ?? []).map((c: any) => ({ id: c.id, name: c.name }));
   const [selectedClassId, setSelectedClassId] = useState(urlClassId);
   const [tab, setTab] = useState<"skills" | "passives">(urlTab);
-  const [skills, setSkills] = useState<any[]>([]);
-  const [passives, setPassives] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: skillsData, isLoading: skillsLoading } = useQuery({
+    queryKey: ["crud", "skills", selectedClassId],
+    queryFn: async () => (await adminApi.skills.list(selectedClassId)).data,
+    enabled: tab === "skills" && !!selectedClassId,
+  });
+  const skills: any[] = skillsData ?? [];
+  const { data: passivesData, isLoading: passivesLoading } = useQuery({
+    queryKey: ["crud", "passives", selectedClassId],
+    queryFn: async () => (await adminApi.passives.list(selectedClassId)).data,
+    enabled: tab === "passives" && !!selectedClassId,
+  });
+  const passives: any[] = passivesData ?? [];
+  const loading = tab === "skills" ? skillsLoading : passivesLoading;
+  const reload = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["crud", "skills", selectedClassId] }),
+      queryClient.invalidateQueries({ queryKey: ["crud", "passives", selectedClassId] }),
+    ]);
+
+  useEffect(() => {
+    if (classes.length > 0) {
+      const valid = urlClassId && classes.some((c) => c.id === urlClassId);
+      if (!valid) setSelectedClassId(classes[0].id);
+    }
+  }, [classes]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ ...defaultSkill });
@@ -89,51 +114,6 @@ export default function SkillsPage() {
   const [passiveModalOpen, setPassiveModalOpen] = useState(false);
   const [passiveEditing, setPassiveEditing] = useState<any>(null);
   const [passiveForm, setPassiveForm] = useState<any>({ ...defaultPassive });
-
-  useEffect(() => {
-    adminApi.classes
-      .list()
-      .then(({ data }) => {
-        const list = Array.isArray(data) ? data : [];
-        setClasses(list);
-        if (list.length > 0) {
-          const initial = urlClassId && list.some((c) => c.id === urlClassId) ? urlClassId : list[0].id;
-          setSelectedClassId(initial);
-        }
-      })
-      .catch(() => toast.error("Failed to load classes"));
-  }, []);
-
-  const load = async (classId: string) => {
-    if (!classId) return;
-    setLoading(true);
-    try {
-      const { data } = await adminApi.skills.list(classId);
-      setSkills(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load skills");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPassives = async (classId: string) => {
-    if (!classId) return;
-    setLoading(true);
-    try {
-      const { data } = await adminApi.passives.list(classId);
-      setPassives(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to load passives");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (tab === "skills") load(selectedClassId);
-    else loadPassives(selectedClassId);
-  }, [selectedClassId, tab]);
 
   const openCreate = () => {
     setEditing(null);
@@ -209,7 +189,7 @@ export default function SkillsPage() {
       }
       setModalOpen(false);
       setEditing(null);
-      load(selectedClassId);
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Failed to save");
     } finally {
@@ -222,7 +202,7 @@ export default function SkillsPage() {
     try {
       await adminApi.skills.delete(skill.id);
       toast.success("Skill deleted");
-      load(selectedClassId);
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete");
     }
@@ -307,7 +287,7 @@ export default function SkillsPage() {
       }
       setPassiveModalOpen(false);
       setPassiveEditing(null);
-      loadPassives(selectedClassId);
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Failed to save");
     } finally {
@@ -320,7 +300,7 @@ export default function SkillsPage() {
     try {
       await adminApi.passives.delete(p.id);
       toast.success("Passive deleted");
-      loadPassives(selectedClassId);
+      reload();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete");
     }

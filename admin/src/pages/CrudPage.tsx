@@ -445,9 +445,7 @@ export default function CrudPage({ config }: CrudPageProps) {
             >
               <option value="">Todas as raridades</option>
               {ITEM_RARITIES.map((r) => (
-                <option key={r} value={r}>
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${RARITY_COLORS[r] ?? "bg-gray-700 text-gray-300"}`}>{r}</span>
-                </option>
+                <option key={r} value={r}>{r}</option>
               ))}
             </select>
           </div>
