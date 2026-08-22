@@ -465,7 +465,9 @@ export function MapPage() {
     if (!npc) return [];
     const byId = new Map<string, UnifiedShopEntry>();
     for (const offer of npc.shopItems ?? []) {
-      if (!offer.itemId || offer.enchantmentId || offer.classId || !offer.item) continue;
+      // Ofertas de item (inclusive itens de craft, que também carregam classId da classe ensinada).
+      // Ofertas puramente de encantamento/classe (sem item) são tratadas nos painéis próprios.
+      if (!offer.itemId || !offer.item) continue;
       const entry = byId.get(offer.itemId) ?? { item: normalizeShopItem(offer.item), buyOffer: undefined, recipes: [] };
       entry.buyOffer = offer;
       byId.set(offer.itemId, entry);
@@ -484,7 +486,7 @@ export function MapPage() {
   const npcHasItemShop =
     !!npc &&
     (isShopNpc(npc.type) ||
-      (npc.shopItems ?? []).some((s: any) => s.itemId && !s.enchantmentId && !s.classId));
+      (npc.shopItems ?? []).some((s: any) => s.itemId && s.item));
 
   // ===== Quest Card (3 telas: Oferta / Progresso / Conclusão) =====
   const parseJson = (v: any, fallback: any = []) => {

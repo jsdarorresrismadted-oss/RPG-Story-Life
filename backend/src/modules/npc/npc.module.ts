@@ -220,7 +220,7 @@ export function createNpcModule(app: Express): void {
             });
             appliedItem = inv.item.name;
           }
-        } else if (classId) {
+        } else if (classId && !shopOffer.itemId) {
           if (!character) throw new AppError(404, "Character not found");
           const classIdToBuy = shopOffer.classId;
           if (!classIdToBuy) throw new AppError(400, "Esta oferta não é uma classe.");
@@ -260,7 +260,7 @@ export function createNpcModule(app: Express): void {
         quantity: qty,
         totalPrice,
         currency,
-        isClass: !!shopOffer.classId,
+        isClass: !!shopOffer.classId && !shopOffer.itemId,
         appliedTo: appliedItem,
         [currency === "sf_coins" ? "sfCoinsLeft" : "goldLeft"]: Math.max(0, Number(currency === "sf_coins" ? user.sfCoins : user.gold) - totalPrice),
       });
