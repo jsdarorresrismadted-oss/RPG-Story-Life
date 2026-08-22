@@ -1063,7 +1063,15 @@ export function createAdminModule(app: Express): void {
             { AND: [{ type: "consumable" }, { subtype: "material" }] }
           );
         }
-        if (unlinkedEquipment === "true" || craftSelect === "true") {
+        if (craftSelect === "true") {
+          // craftSelect libera equipamentos E materiais (incluindo itens de quest),
+          // desde que não estejam em drops/lojas/outros crafts.
+          typeFilters.push(
+            { type: "material" },
+            { AND: [{ type: "consumable" }, { subtype: "material" }] },
+            { type: { in: ["weapon", "armor", "helm", "cape"] } }
+          );
+        } else if (unlinkedEquipment === "true") {
           typeFilters.push({ type: { in: ["weapon", "armor", "helm", "cape"] } });
         }
         if (typeFilters.length > 0) {
