@@ -1,7 +1,7 @@
 // ===== ADJUSTMENT GENERATOR (BALANCE) =====
 
 import { PrismaClient } from "@prisma/client";
-import { callHFProviders } from "../hfProviders";
+import { callHFProviders } from "./hfProviders";
 
 export interface AdjustmentPlan {
   items: any[];

@@ -1,8 +1,9 @@
 {
   "name": "@rpg/database",
   "version": "0.0.1",
-  "main": "index.ts",
+  "main": "dist/index.js",
   "scripts": {
+    "build": "tsc",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

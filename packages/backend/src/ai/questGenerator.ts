@@ -1,7 +1,7 @@
 // ===== QUEST GENERATOR =====
 
 import { PrismaClient } from "@prisma/client";
-import { callHFProviders } from "../hfProviders";
+import { callHFProviders } from "./hfProviders";
 
 export interface GeneratedQuests {
   quests: any[];
@@ -81,7 +81,7 @@ REGRAS:
 - cooldownHours: cooldown para repetir
 - maxCompletions: max vezes que pode completar
 - prerequisiteQuestIds: quests que devem ser completadas antes
-- Quest chains: quest A desbloqueia quest B`};
+- Quest chains: quest A desbloqueia quest B`;
 }
 
 export function normalize(raw: any): { quests: any[]; errors: string[] } {

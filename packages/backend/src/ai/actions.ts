@@ -2,7 +2,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { Server as SocketIOServer } from "socket.io";
-import { callHFProviders } from "../hfProviders";
+import { callHFProviders } from "./hfProviders";
 
 export async function executeAiAction(action: any, prisma: PrismaClient, io?: SocketIOServer): Promise<any> {
   const { action: act, ...params } = action;
@@ -46,30 +46,30 @@ async function executeCreateContent(prisma: PrismaClient, params: { type: string
   try {
     switch (type) {
       case "map": {
-        const { generateMap } = await import("../mapGenerator");
+        const { generateMap } = await import("./mapGenerator");
         const gen = await generateMap(description, providerLog);
-        const saved = await import("../mapGenerator").then(m => m.persistGeneratedMap(gen));
+        const saved = await import("./mapGenerator").then(m => m.persistGeneratedMap(gen));
         return { created: "map", name: saved?.name, id: saved?.id };
       }
 
       case "monster": {
-        const { generateMonster } = await import("../monsterGenerator");
+        const { generateMonster } = await import("./monsterGenerator");
         const gen = await generateMonster(description, providerLog);
-        const saved = await import("../monsterGenerator").then(m => m.persistGeneratedMonster(gen));
+        const saved = await import("./monsterGenerator").then(m => m.persistGeneratedMonster(gen));
         return { created: "monster", count: saved?.count || 1 };
       }
 
       case "npc": {
-        const { generateNpcs } = await import("../npcGenerator");
+        const { generateNpcs } = await import("./npcGenerator");
         const gen = await generateNpcs(description, providerLog);
-        const saved = await import("../npcGenerator").then(m => m.persistGeneratedNpcs(gen, {}));
+        const saved = await import("./npcGenerator").then(m => m.persistGeneratedNpcs(gen, {}));
         return { created: "npc", count: saved?.count || 1 };
       }
 
       case "quest": {
-        const { generateQuests } = await import("../questGenerator");
+        const { generateQuests } = await import("./questGenerator");
         const gen = await generateQuests(description, providerLog);
-        const saved = await import("../questGenerator").then(m => m.persistGeneratedQuests(gen));
+        const saved = await import("./questGenerator").then(m => m.persistGeneratedQuests(gen));
         return { created: "quest", count: saved?.length || 1 };
       }
 
@@ -84,9 +84,9 @@ async function executeCreateContent(prisma: PrismaClient, params: { type: string
       }
 
       case "boss": {
-        const { generateMonster } = await import("../monsterGenerator");
+        const { generateMonster } = await import("./monsterGenerator");
         const gen = await generateMonster(`${description} (BOSS, nivel alto, HP 10x, drops raros)`, []);
-        const saved = await import("../monsterGenerator").then(m => m.persistGeneratedMonster(gen));
+        const saved = await import("./monsterGenerator").then(m => m.persistGeneratedMonster(gen));
         return { created: "boss", count: saved?.count || 1 };
       }
 
@@ -96,9 +96,9 @@ async function executeCreateContent(prisma: PrismaClient, params: { type: string
       }
 
       case "event": {
-        const { generateEvent } = await import("../eventGenerator");
-        const gen = await import("../eventGenerator").then(m => m.generateEvent(description, []));
-        const saved = await import("../eventGenerator").then(m => m.persistGeneratedEvent(gen));
+        const { generateEvent } = await import("./eventGenerator");
+        const gen = await import("./eventGenerator").then(m => m.generateEvent(description, []));
+        const saved = await import("./eventGenerator").then(m => m.persistGeneratedEvent(gen));
         return { created: "event", name: saved?.event?.name };
       }
 

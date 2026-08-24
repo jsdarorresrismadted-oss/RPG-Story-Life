@@ -115,10 +115,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "rpg-auth",
-      partialize: (state) => ({
-        token: state.token,
-        refreshToken: state.refreshToken,
-        user: state.user,
+      partialize: (state) => {
+        return {
+          token: state.token,
+          refreshToken: state.refreshToken,
+          user: state.user,
+        };
       },
     }
   )

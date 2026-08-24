@@ -1,7 +1,7 @@
 // ===== EVENT GENERATOR =====
 
 import { PrismaClient } from "@prisma/client";
-import { callHFProviders } from "../hfProviders";
+import { callHFProviders } from "./hfProviders";
 
 export interface GeneratedEvent {
   event: any;
@@ -115,7 +115,7 @@ REGRAS:
 - Quests: 1-5, objetivos só "kill" de monstros DO EVENTO
 - Shop: 3-10 ofertas, preços em ouro
 - craftableClasses: referenciar classes EXISTENTES apenas
-- Tudo em pt-BR, nomes coesos com tema`};
+- Tudo em pt-BR, nomes coesos com tema`;
 }
 
 export function normalize(raw: any): GeneratedEvent {

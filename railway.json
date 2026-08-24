@@ -1,0 +1,15 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pnpm install && pnpm --filter @rpg/database prisma generate && pnpm --filter @rpg/shared build && pnpm --filter @rpg/database build && pnpm --filter @rpg/backend build && pnpm --filter @rpg/frontend build"
+  },
+  "deploy": {
+    "preDeployCommand": "pnpm --filter @rpg/database prisma generate && pnpm --filter @rpg/database prisma db push --accept-data-loss --skip-generate",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5,
+    "startCommand": "pnpm --filter @rpg/backend start"
+  }
+}

@@ -79,7 +79,7 @@ export async function persistGeneratedMap(gen: GeneratedMap, prisma: any) {
 }
 
 export async function generateMap(idea: string, providerLog: string[]) {
-  const { callHFProviders } = await import("../hfProviders");
+  const { callHFProviders } = await import("./hfProviders");
 
   const prompt = buildPrompt(idea);
   const fullPrompt = `${prompt}\n\nIMPORTANTE: Responda APENAS com JSON válido.`;

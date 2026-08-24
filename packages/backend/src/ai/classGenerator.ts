@@ -1,7 +1,7 @@
 // ===== CLASS GENERATOR =====
 
 import { PrismaClient } from "@prisma/client";
-import { callHFProviders } from "../hfProviders";
+import { callHFProviders } from "./hfProviders";
 
 export interface GeneratedClass {
   cls: any;

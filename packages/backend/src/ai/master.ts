@@ -3,28 +3,30 @@
 import { FastifyInstance } from "fastify";
 import { Server as SocketIOServer } from "socket.io";
 import { PrismaClient } from "@prisma/client";
-import { InferenceClient } from "@huggingface/inference";
 import { config } from "../config";
 import { getGameStateSummary, buildAutonomousPrompt } from "./prompts";
 import { executeAiAction } from "./actions";
-
-const HF_TOKEN = process.env.HF_TOKEN;
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-
-const hfClient = HF_TOKEN ? new InferenceClient(HF_TOKEN) : null;
-
-const PROVIDER_CHAIN = [
-  { provider: "groq" as const, model: "llama-3.3-70b-versatile", name: "Groq (Llama 3.3 70B)", key: () => GROQ_API_KEY },
-  { provider: "cerebras" as const, model: "llama-3.1-70b", name: "Cerebras (Llama 3.1 70B)", key: () => HF_TOKEN },
-];
+import { callHFProviders } from "./hfProviders";
 
 export async function startAIMaster(fastify: FastifyInstance, io: SocketIOServer, prisma: PrismaClient) {
-  // Ensure AI Master state exists
-  await prisma.aiMasterState.upsert({
-    where: { id: "master" },
-    create: { isRunning: true, lore: "", cycleCount: 0 },
-    update: { isRunning: true },
-  });
+  const ensureState = () =>
+    prisma.aiMasterState.upsert({
+      where: { id: "master" },
+      create: { isRunning: true, lore: "", cycleCount: 0 },
+      update: { isRunning: true },
+    });
+
+  try {
+    await ensureState();
+  } catch (err) {
+    fastify.log.error({ err }, "AI Master: DB not ready, retrying in background");
+    setTimeout(() => {
+      ensureState()
+        .then(() => runMasterLoop(fastify, io, prisma))
+        .catch((e) => fastify.log.error({ err: e }, "AI Master loop crashed"));
+    }, 5000);
+    return;
+  }
 
   // Start the autonomous loop
   runMasterLoop(fastify, io, prisma).catch((err) => {
@@ -68,7 +70,7 @@ async function runAutonomousCycle(fastify: FastifyInstance, io: SocketIOServer, 
     const prompt = buildAutonomousPrompt(state.lore || "", gameState, cycleNum);
 
     // 3. EXECUTE - Call AI
-    const response = await callAIProviders(prompt);
+    const response = await callHFProviders(prompt);
 
     // 4. PARSE & EXECUTE - Parse [ACTION] blocks
     const actions = parseActions(response);

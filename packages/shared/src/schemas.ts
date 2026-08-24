@@ -294,7 +294,7 @@ export const BaseCraftRecipeSchema = z.object({
 });
 
 export const CreateCraftRecipeSchema = BaseCraftRecipeSchema;
-export const UpdateCraftRecipeSchema = BaseCraftRecipeSchema.partial();
+export const UpdateCraftRecipeSchema = BaseCraftRecipeSchema;
 
 // ===== SHOP SCHEMAS =====
 
@@ -303,7 +303,7 @@ export const ShopItemSchema = z.object({
   itemId: z.string().uuid().optional(),
   enchantmentId: z.string().uuid().optional(),
   currency: z.enum(["gold", "diamond"]).default("gold"),
-  price: z.bigint().default(0),
+  price: z.bigint().default(BigInt(0)),
   stock: z.number().int().default(-1),
   requiredLevel: z.number().int().min(1).default(1),
   requiredVip: z.boolean().default(false),

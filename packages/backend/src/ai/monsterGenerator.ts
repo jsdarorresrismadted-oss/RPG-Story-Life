@@ -1,7 +1,7 @@
 // ===== MONSTER GENERATOR =====
 
 import { PrismaClient } from "@prisma/client";
-import { callHFProviders } from "../hfProviders";
+import { callHFProviders } from "./hfProviders";
 
 export interface GeneratedMonster {
   monsters: any[];
@@ -29,20 +29,20 @@ function num(v: any, fallback = 0): number {
 }
 
 export function buildPrompt(idea: string, xpPerLevel: number[]): string {
-  return `Você é o designer de monstros de um MMORPG brasileiro. Crie monstros baseados na ideia: "${idea}"
+  return `Voce e o designer de monstros de um MMORPG brasileiro. Crie monstros baseados na ideia: "${idea}"
 
-Responda APENAS com JSON válido:
+Responda APENAS com JSON valido:
 
 {
   "monsters": [
     {
-      "name": "Nome único e criativo",
-      "description": "Descrição do monstro (1-2 frases)",
+      "name": "Nome unico e criativo",
+      "description": "Descricao do monstro (1-2 frases)",
       "level": 1,
       "isBoss": false,
       "isElite": false,
       "element": "physical",
-      "faction": "nome da facção",
+      "faction": "nome da faccao",
       "hp": 100,
       "mana": 50,
       "attack": 20,
@@ -84,21 +84,20 @@ Responda APENAS com JSON válido:
 }
 
 REGRAS IMPORTANTES:
-- 4-12 monstros por região
+- 4-12 monstros por regiao
 - EXATAMENTE 1 boss (isBoss: true, HP/attack ~2x maior)
-- Níveis variados (levelMin a levelMax da região)
-- Nomes únicos: varie com "Sombrio", "Ancião", "Selvagem", "Gigante", "das Feras", "do Norte", "Ancestral", "do Abismo", "Real", "das Sombras", "Bravo", "Alfa", "da Matilha", "do Bosque", "Sinistro", "do Vale", "do Pântano", "das Ruínas", "do Gelo", "de Ferro"
-- Skills com nomes criativos ("Corte Espectral", "Uivo da Máquina", "Chama Eterna")
+- Niveis variados (levelMin a levelMax da regiao)
+- Nomes unicos: varie com "Sombrio", "Anciao", "Selvagem", "Gigante", "das Feras", "do Norte", "Ancestral", "do Abismo", "Real", "das Sombras", "Bravo", "Alfa", "da Matilha", "do Bosque", "Sinistro", "do Vale", "do Pantano", "das Ruinas", "do Gelo", "de Ferro"
+- Skills com nomes criativos ("Corte Espectral", "Uivo da Maquina", "Chama Eterna")
 - Actions apenas: damage, heal, apply_effect, mana, shield, teleport, summon, transform, buff, debuff
 - Drops referenciam itens por NOME (existentes OU novos para serem criados)
 - element: physical, fire, water, nature, light, dark, thunder, ice, earth, arcane, poison
-- faction: tema da região (ex: "floresta", "montanha", "pântano", "ruínas", "vulcão", "evento")
+- faction: tema da regiao (ex: "floresta", "montanha", "pantano", "ruinas", "vulcao", "evento")
 - xpReward/goldReward calculados pelo sistema (pode chutar)`;
 }
 
 export function normalize(raw: any): GeneratedMonster {
   const monsters: any[] = (Array.isArray(raw?.monsters) ? raw.monsters : []).slice(0, 12).map((m: any, i: number) => {
-    const errors: string[] = [];
     const isBoss = !!m?.isBoss || i === 0;
 
     return {
@@ -137,7 +136,7 @@ export function normalize(raw: any): GeneratedMonster {
           target: ["self", "enemy", "ally", "all_enemies", "all_allies", "random_enemy"].includes(a?.target) ? a.target : "enemy",
           chance: Math.max(0, Math.min(1, num(a?.chance, 1))),
         })) : [{ action: "damage", amount: 15, target: "enemy", chance: 1 }],
-      }) : [],
+      })) : [],
       dropTable: Array.isArray(m?.dropTable) ? m.dropTable.slice(0, 5).map((d: any) => ({
         itemName: d?.itemName || "Item",
         chance: Math.max(0, Math.min(1, num(d?.chance, 0.1))),
@@ -150,7 +149,7 @@ export function normalize(raw: any): GeneratedMonster {
 
   const errors: string[] = [];
   if (monsters.length === 0) errors.push("Nenhum monstro criado");
-  if (!monsters.some(m => m.isBoss)) errors.push("Nenhum boss definido");
+  if (!monsters.some((m) => m.isBoss)) errors.push("Nenhum boss definido");
 
   return { monsters, errors };
 }
@@ -170,11 +169,9 @@ export async function persistGeneratedMonster(gen: GeneratedMonster, prisma: Pri
 
 export async function generateMonster(idea: string, providerLog: string[], xpPerLevel: number[] = []) {
   const prompt = buildPrompt(idea, xpPerLevel);
-  const fullPrompt = `${prompt}\n\nIMPORTANTE: Responda APENAS com JSON válido.`;
+  const fullPrompt = `${prompt}\n\nIMPORTANTE: Responda APENAS com JSON valido.`;
 
   const response = await callHFProviders(fullPrompt);
   providerLog.push(`Monstros gerados via IA`);
   return JSON.parse(response);
 }
-
-export { callHFProviders } from "../hfProviders";

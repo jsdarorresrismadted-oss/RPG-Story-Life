@@ -1,6 +1,3 @@
-// ===== PRISMA SCHEMA v2 - WORKING VERSION =====
-// RPG Story Life - Database Schema (simplified for validation)
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,135 +7,1429 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===== ENUMS (unique names only) =====
-
-enum ItemType {
-  weapon
-  armor
-  cape
-  consumable
-}
-
-enum Rarity {
-  common
-  uncommon
-  rare
-}
-
-enum NpcType {
-  vendor
-  quest_giver
-}
-
-enum QuestType {
-  main
-  side
-}
-
-enum CharacterClassEnum {
-  warrior
-  mage
-  rogue
-}
-
-// ===== MODELS (simple version) =====
-
 model User {
-  id           String   @id @default(uuid())
-  username     String   @unique
-  email        String   @unique
-  password     String
-  displayName  String?  @default("Player")
-  role         String   @default("player")
-  isOnline     Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  id                String             @id @default(uuid())
+  discordId         String?            @unique
+  username          String             @unique
+  displayName       String
+  email             String?            @unique
+  avatar            String?
+  passwordHash      String?
+  experience        BigInt             @default(0)
+  level             Int                @default(1)
+gold              BigInt             @default(0)
+    sfCoins           Int                @default(0) // moeda premium comprada com dinheiro real
+    pvpCoins          Int                @default(0) // moeda da arena (ganha por vitória)
+    gc                Int                @default(0) // Guild Coins (quests de guilda / shop da guilda)
+  vipUntil          DateTime?
+  vipOwned          Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  lastLoginAt       DateTime           @default(now())
+  isOnline          Boolean            @default(false)
+  isBanned          Boolean            @default(false)
+  role              String             @default("player")
+  characters        Character[]        @relation()
+  guildMembers      GuildMember[]      @relation()
+  inventory         Inventory[]        @relation()
+  questProgress     QuestProgress[]    @relation()
+  mailSent          Mail[]             @relation("MailSender")
+  mailReceived      Mail[]             @relation("MailReceiver")
+  marketListings    MarketListing[]    @relation()
+  friendships       Friendship[]       @relation()
+  userTitles        UserTitle[]        @relation()
+  userAchievements  UserAchievement[]  @relation()
+  partyMembers      PartyMember[]      @relation()
+  redeemRedemptions RedeemRedemption[]
+  shopOrders        ShopOrder[]        @relation()
+  userEnchantments  UserEnchantment[]  @relation()
+  userBoosters      UserBooster[]      @relation()
+  gachaTickets      Int                @default(3) // tickets de gacha disponíveis (início: 3 grátis)
 
-  characters   Character[]
-  inventory    Inventory[]
+  @@index([discordId])
+  @@index([username])
+  @@index([level])
 }
 
 model Character {
+  id              String    @id @default(uuid())
+  userId          String
+  name            String
+  gender          String    @default("male")
+  classId         String
+  level           Int       @default(1)
+  experience      BigInt    @default(0)
+  currentHp       Int       @default(100)
+  currentMana     Int       @default(50)
+  pvpKills        Int       @default(0)
+  arenaRating     Int       @default(1200)
+  arenaWins       Int       @default(0)
+  arenaLosses     Int       @default(0)
+  lastArenaAt     DateTime?
+  raidAttempts    Int       @default(0)
+  raidClears      Int       @default(0)
+  lastRaidResetAt DateTime?
+  lastCombatAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class           GameClass        @relation(fields: [classId], references: [id])
+  equipment       Equipment?       @relation()
+  activeEffects   ActiveEffect[]   @relation()
+  activeCooldowns ActiveCooldown[] @relation()
+  classProgress   CharacterClass[] @relation()
+  combatSessions  CombatSession[]  @relation()
+  pvpAsChallenger PvpMatch[]       @relation("PvpChallenger")
+  pvpAsOpponent   PvpMatch[]       @relation("PvpOpponent")
+  raidRuns        RaidRun[]
+  worldBossRuns   WorldBossParticipation[]
+
+  @@index([userId])
+  @@index([classId])
+}
+
+model PvpMatch {
+  id                    String    @id @default(uuid())
+  challengerCharacterId String
+  opponentCharacterId   String
+  winnerCharacterId     String?
+  state                 String    @default("active") // active | challenger_win | challenger_loss | draw | fled
+  ratingDelta           Int       @default(0)
+  startedAt             DateTime  @default(now())
+  endedAt               DateTime?
+  challengerCharacter   Character @relation("PvpChallenger", fields: [challengerCharacterId], references: [id], onDelete: Cascade)
+  opponentCharacter     Character @relation("PvpOpponent", fields: [opponentCharacterId], references: [id], onDelete: Cascade)
+
+  @@index([challengerCharacterId])
+  @@index([opponentCharacterId])
+}
+
+model CombatSession {
+  id          String    @id @default(uuid())
+  characterId String
+  monsterId   String
+  state       String    @default("active") // active | won | lost
+  battleState Json
+  lastTickAt  DateTime  @default(now())
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId])
+}
+
+// Run de raid com ondas: uma run ativa por personagem. A run avança de estágio
+// conforme as ondas são derrotadas (estágio 0..8 = ondas 1..9, 9 = onda 10 horda,
+// 10 = boss final). Somente o boss final concede recompensas.
+model RaidRun {
+  id          String    @id @default(uuid())
+  characterId String
+  mapId       String
+  stage       Int       @default(0)
+  state       String    @default("active") // active | won | lost | fled
+  startedAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  map         Map       @relation(fields: [mapId], references: [id])
+
+  @@index([characterId, state])
+}
+
+model SystemConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model PatchNote {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  version   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// Tracks XP/Rank per class per character (player can level multiple classes)
+model CharacterClass {
   id          String   @id @default(uuid())
-  userId      String
-  name        String
-  level       Int      @default(1)
-  hp          Int      @default(100)
-  mana        Int      @default(50)
+  characterId String
   classId     String
+  rank        Int      @default(1)
+  experience  BigInt   @default(0)
+  isActive    Boolean  @default(false) // currently equipped class
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gameClass   GameClass @relation(fields: [classId], references: [id], onDelete: SetNull)
-  characterClass   CharacterClass[]
+  character Character @relation(fields: [characterId], references: [id])
+  gameClass GameClass @relation(fields: [classId], references: [id])
+
+  @@unique([characterId, classId])
+  @@index([characterId])
+  @@index([classId])
 }
 
 model GameClass {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid())
+  name          String   @unique
+  slug          String   @unique
+  description   String
+  icon          String?
+  role          String   @default("hybrid") // tank, dps, healer, support, hybrid
+  combatType    String   @default("melee") // melee, ranged, caster
+  rankMax       Int      @default(10)
+  requiredLevel Int      @default(1) // nível mínimo do personagem para equipar essa classe
+  requiredVip   Boolean  @default(false) // classe exclusiva para quem já foi/é VIP
+  price         Int      @default(0) // custo em ouro para equipar (0 = grátis)
+  statModelId   String?
+  resource      Json     @default("{}") // { manaRegenPerTick?, manaOnHit?, manaOnKill? }
+  isStarter     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  craftable     Boolean  @default(false) // classe desbloqueável/obtível via craft (token)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  characters  Character[]
-  characterClass   CharacterClass[]
+  statModel     StatModel?       @relation(fields: [statModelId], references: [id])
+  characters    Character[]
+  classProgress CharacterClass[]
+  skills        Skill[]
+  passives      Passive[]
+  shopItems     ShopItem[]
+  shopProducts  ShopProduct[]
+  craftRecipes  CraftRecipe[]    @relation("CraftResultClass")
 }
 
-model Inventory {
-  id            String   @id @default(uuid())
-  characterId   String
-  slotIndex     Int
-  itemId        String
-  quantity      Int      @default(1)
-  isEquipped    Boolean  @default(false)
+// Stat model da classe: identidade (nome/categoria) + os 6 Status Class (coreStats).
+// O criador preenche APENAS os 6 core stats — a Combat Engine converte tudo
+// automaticamente (0,5 flat / 0,25% por ponto). Velocidade de ataque vem só da arma.
+// Campos abaixo de base/perLevel/scaling/coreStatsPerLevel/conversions/
+// combatStatsBase/bonuses são LEGADO (mantidos por compatibilidade de dados).
+model StatModel {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  slug        String      @unique
+  description String      @default("")
+  // Categoria de combate: melee, caster, hybrid, support, tank
+  category    String      @default("hybrid")
+  // base: { hp, mana, attack, defense, magic, magicDefense, speed } — LEGADO (ignorado)
+  base        Json        @default("{}")
+  // perLevel: mesmo shape de base — LEGADO (ignorado)
+  perLevel    Json        @default("{}")
+  // scaling: LEGADO (ignorado)
+  scaling     Json        @default("{}")
+// coreStats: { strength, intellect, endurance, dexterity, wisdom, luck } — ÚNICO campo usado.
+// FIXOS: não há crescimento por nível.
+coreStats   Json        @default("{}")
+// coreStatsPerLevel: LEGADO (não é mais usado — atributos não crescem por nível)
+coreStatsPerLevel Json  @default("{}")
+  // conversions: LEGADO — a conversão é FIXA na Combat Engine (CLASS_STAT_CONVERSION)
+  conversions Json        @default("[]")
+  // combatStatsBase: LEGADO — bases agora são constantes da engine
+  combatStatsBase Json   @default("{}")
+  // bonuses: LEGADO — apenas a engine injeta boosts (boosters de gacha)
+  bonuses       Json      @default("{}")
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  classes       GameClass[]
+}
 
-  character     User      @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  item          Item?     @relation(fields: [itemId], references: [id])
+model Skill {
+  id             String   @id @default(uuid())
+  classId        String
+  name           String
+  slug           String
+  description    String
+  icon           String?
+  iconSecondary  String? // ícone de efeito/secundário exibido junto ao principal
+  kind           String   @default("attack") // attack, heal, buff, debuff, summon, mobility, control, defense, channel
+  trigger        String   @default("active") // auto, active, ultimate
+  target         String   @default("enemy") // enemy, self
+  cooldown       Int      @default(0) // ms
+  manaCost       Int      @default(0)
+  castTime       Int      @default(0) // ms antes das ações (cast)
+  channelMs      Int      @default(0) // ms de canalização (ações acontecem ao final)
+  rankRequired   Int      @default(1)
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  // scaling: [{ stat, factor }] — usado pelas ações damage/heal como base extra
+  scaling        Json     @default("[]")
+  // actions: [{ action, ...params }] — DSL executada pelo motor
+  actions        Json     @default("[]")
+  // conditions: [{ type, ...params }] — gate para usar a skill (combos)
+  conditions     Json     @default("[]")
+  // onConditionMet: actions executadas quando conditions passam (substitui actions)
+  onConditionMet Json     @default("[]")
+  // events: [{ event, conditions?, actions }] — comportamento reativo da skill
+  events         Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  gameClass       GameClass        @relation(fields: [classId], references: [id])
+  activeCooldowns ActiveCooldown[]
+
+  @@index([classId])
+  @@index([classId, rankRequired])
+}
+
+model Passive {
+  id              String   @id @default(uuid())
+  classId         String
+  name            String
+  slug            String
+  description     String
+  icon            String?
+  rankRequired    Int      @default(1)
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  // statModifiers: { flat: { stat: valor }, percent: { stat: pct } }
+  statModifiers   Json     @default("{}")
+  // skillModifiers: [{ skillSlug, damagePercent, cooldownPercent, manaPercent, healPercent }]
+  skillModifiers  Json     @default("[]")
+  // effectModifiers: [{ effectSlug, durationPercent, tickPercent, damagePercent, healPercent, stacksBonus }]
+  effectModifiers Json     @default("[]")
+  // conditions: [{ type, ...params }] — passiva só ativa se satisfeita
+  conditions      Json     @default("[]")
+  // events: [{ event, conditions?, actions }] — reações a eventos de combate
+  events          Json     @default("[]")
+  // type: permanente | condicional | reativa | combo
+  type            String   @default("permanente")
+  // internalCooldownMs: ms mínimos entre gatilhos reativos (anti-loop); 0 = sem limite
+  internalCooldownMs Int   @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  gameClass GameClass @relation(fields: [classId], references: [id])
+
+  @@index([classId])
+}
+
+// Buff/Debuff/HOT/DOT independente de skills — configurável e reutilizável
+model Effect {
+  id              String         @id @default(uuid())
+  name            String         @unique
+  slug            String         @unique
+  description     String
+  icon            String?
+  kind            String         @default("buff") // buff, debuff, hot, dot, shield, reflect, hitkill, silence, stun, nuke
+  category        String         @default("utility") // defense, offense, control, mobility, utility, recovery
+  maxStacks       Int            @default(1)
+  duration        Int            @default(0) // ms; 0 = permanente
+  refreshBehavior String         @default("refresh") // refresh, extend, overwrite, stack
+  stackGrowth     String         @default("linear") // linear, crescente, multiplicativo
+  stackGrowthRate Float          @default(1.15) // fator quando stackGrowth = multiplicativo
+  nukeHitChancePenalty Float     @default(1) // % de Hit Chance perdida por stack (kind nuke)
+  stackLoss       Json           @default("{}") // { intervalMs, amount }
+  priority        Int            @default(0)
+  tickInterval    Int            @default(0) // ms; 0 = sem tick
+  tickDamage      Json           @default("{}") // { base, scaling: [{stat,factor}], damageType }
+  tickHealing     Json           @default("{}") // { base, scaling: [{stat,factor}] }
+  statModifiers   Json           @default("{}") // { flat: {...}, percent: {...} }
+  shield          Json           @default("{}") // { base, scaling: [{stat,factor}] }
+  reflect         Json           @default("{}") // { percent }
+  hitkillChance   Float? // % chance de golpe letal por stack ao acertar
+  onMaxStacks     Json           @default("[]") // [actions]
+  onExpire        Json           @default("[]") // [actions]
+  onTick          Json           @default("[]") // [actions]
+  exclusiveGroup  String?
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  activeEffects   ActiveEffect[]
+
+  @@index([slug])
+}
+
+model ActiveEffect {
+  id          String    @id @default(uuid())
+  characterId String
+  effectId    String
+  stacks      Int       @default(1)
+  remainingMs Int       @default(0)
+  expiresAt   DateTime?
+  nextTickAt  DateTime?
+  createdAt   DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  effect      Effect    @relation(fields: [effectId], references: [id])
+
+  @@unique([characterId, effectId])
+  @@index([characterId])
+}
+
+model ActiveCooldown {
+  id          String    @id @default(uuid())
+  characterId String
+  skillId     String
+  remainingMs Int
+  startedAt   DateTime  @default(now())
+  expiresAt   DateTime
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  skill       Skill     @relation(fields: [skillId], references: [id])
+
+  @@index([characterId])
+  @@index([characterId, skillId])
+}
+
+model Equipment {
+  id          String    @id @default(uuid())
+  characterId String    @unique
+  weaponId    String?   @unique
+  classItemId String?   @unique
+  helmId      String?   @unique
+  armorId     String?   @unique
+  capeId      String?   @unique
+  ringId      String?   @unique
+  necklaceId  String?   @unique
+  updatedAt   DateTime  @updatedAt
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  weapon      Item?     @relation("EquippedWeapon", fields: [weaponId], references: [id])
+  classItem   Item?     @relation("EquippedClassItem", fields: [classItemId], references: [id])
+  helm        Item?     @relation("EquippedHelm", fields: [helmId], references: [id])
+  armor       Item?     @relation("EquippedArmor", fields: [armorId], references: [id])
+  cape        Item?     @relation("EquippedCape", fields: [capeId], references: [id])
+  ring        Item?     @relation("EquippedRing", fields: [ringId], references: [id])
+  necklace    Item?     @relation("EquippedNecklace", fields: [necklaceId], references: [id])
 }
 
 model Item {
   id            String   @id @default(uuid())
-  type          ItemType
-  rarity        Rarity   @default(common)
   name          String
-  price         Int
+  description   String
+  icon          String?
+  type          String // weapon | class | helm | armor | cape | ring | necklace | consumable
+  subtype       String? // ex: sword, dagger, staff, potion, material...
+  rarity        String
+  level         Int      @default(1)
+  rank          Int      @default(1)
   isTradable    Boolean  @default(true)
-  inventory   Inventory[]
-
+  isSellable    Boolean  @default(true)
+  isStackable   Boolean  @default(false)
+  maxStack      Int      @default(1)
+  buyPrice      BigInt   @default(0)
+  sellPrice     BigInt   @default(0)
+  effects       String? // apenas consumíveis (ex: {"heal":50})
+  // Natural da arma (apenas weapon): 0 = usa o scaling da classe
+  attackSpeedMs  Int     @default(0) // ÚNICA fonte de velocidade de ataque do jogador (a arma); 0 = padrão 2000ms
+  dps            Float   @default(0) // dano por segundo natural da arma
+  // Core Stats — únicos atributos que equipamentos fornecem
+  strength      Int      @default(0)
+  intellect     Int      @default(0)
+  endurance     Int      @default(0)
+  dexterity     Int      @default(0)
+  wisdom        Int      @default(0)
+  luck          Int      @default(0)
+  // Encantamento equipado (opcional)
+  enchantmentId String?
+  // Boost do gacha (anel/colar): vincula o item ao Booster rolado no gacha
+  boosterId   String?
+  boostType   String?
+  boostValue  Int      @default(0)
+  // Boosters de arma: [{ slug, name, kind, value }] — 3 por arma, valor capado pela raridade (máx 51%)
+  boosters    Json     @default("[]")
+  // Boosters de Armadura/Elmo/Capa (defesa/utilidade) — separados dos ofensivos da arma
+  armorBoosters    Json     @default("[]")
+  helmBoosters     Json     @default("[]")
+  capeBoosters     Json     @default("[]")
+  // Set System: ID do conjunto (ex: black_knight)
+  setId            String?
+  requiredVip   Boolean  @default(false) // Exclusivo para VIP (comprar/equipar)
+  isActive      Boolean  @default(true)
+  isTemporary   Boolean  @default(false) // Item de quest de coleta: some do inventário ao deslogar/concluir a quest
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  enchantment         Enchantment?    @relation(fields: [enchantmentId], references: [id])
+  inventory           Inventory[]
+  shopItems           ShopItem[]
+  dropItems           DropItem[]
+  mailItems           MailItem[]
+  marketListings      MarketListing[]
+  craftRecipes        CraftRecipe[]
+  equippedAsWeapon    Equipment?      @relation("EquippedWeapon")
+  equippedAsClassItem Equipment?      @relation("EquippedClassItem")
+  equippedAsHelm      Equipment?      @relation("EquippedHelm")
+  equippedAsArmor     Equipment?      @relation("EquippedArmor")
+  equippedAsCape      Equipment?      @relation("EquippedCape")
+  equippedAsRing      Equipment?      @relation("EquippedRing")
+  equippedAsNecklace  Equipment?      @relation("EquippedNecklace")
+  shopProducts        ShopProduct[]
+  guildShop           GuildShopItem[]
+  eventId             String?
+  event               GameEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventShopItems      EventShopItem[]
+
+  @@index([type])
+  @@index([rarity])
+  @@index([level])
+  @@index([name])
+  @@index([eventId])
+}
+
+// Receita de crafting: itens (por nome) consumidos para criar o item resultado
+model CraftRecipe {
+  id             String   @id @default(uuid())
+  name           String
+  description    String   @default("")
+  resultItemId   String
+  resultQuantity Int      @default(1)
+  resultClassId  String? // craft de classe (token): classe desbloqueada/trocada ao craftar
+  eventId        String? // evento dono da receita (sub-aba do evento)
+  requiredLevel  Int      @default(1) // nível mínimo do personagem para craftar
+  requiredVip    Boolean  @default(false) // requer VIP ativo para craftar
+  requiredQuestIds String? // JSON: ids de quests que o jogador precisa ter concluído
+  goldCost       BigInt   @default(0) // ouro consumido no craft
+  ingredients    String   @default("[]") // JSON: [{ "itemName": "Ossos", "quantity": 3 }]
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  resultItem     Item      @relation(fields: [resultItemId], references: [id])
+  resultClass    GameClass? @relation("CraftResultClass", fields: [resultClassId], references: [id])
+  event          GameEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([isActive])
+  @@index([eventId])
+}
+
+model Enchantment {
+  id               String            @id @default(uuid())
+  name             String
+  slug             String            @unique
+  description      String
+  icon             String?
+  category         String // strength | intellect | endurance | dexterity | wisdom | luck (atributo principal)
+  rarity           String            @default("common")
+  level            Int               @default(1) // nível do encantamento (1-150) — stats = fórmula(base, nível)
+  minRank          Int               @default(1) // rank mínimo do equipamento
+  price            BigInt            @default(0) // valor em ouro
+  compatibleSlots  String            @default("[]") // JSON: ["weapon","helm",...]
+  // Base stats no NÍVEL 1 — os valores dos níveis seguintes são calculados pela
+  // fórmula do sistema (enchantmentStats.ts): nunca zerados (mínimo 1 cada).
+  strength         Int               @default(0)
+  intellect        Int               @default(0)
+  endurance        Int               @default(0)
+  dexterity        Int               @default(0)
+  wisdom           Int               @default(0)
+  luck             Int               @default(0)
+  // Base DPS e velocidade de ataque no NÍVEL 1 (escala automática por nível,
+  // mesma fórmula das stats: +2 por nível, teto 90; níveis VIP (múltiplos de 5) +5).
+  dps              Int               @default(0)
+  attackSpeedMs     Int               @default(2000)
+  requiredVip      Boolean           @default(false) // Exclusivo para VIP (comprar/aplicar)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  items            Item[]
+  userEnchantments UserEnchantment[]
+  shopProducts     ShopProduct[]
+  shopItems        ShopItem[]
+
+  @@index([category])
+  @@index([rarity])
+}
+
+model UserEnchantment {
+  id            String      @id @default(uuid())
+  userId        String
+  enchantmentId String
+  quantity      Int         @default(1)
+  acquiredAt    DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enchantment   Enchantment @relation(fields: [enchantmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, enchantmentId])
+  @@index([userId])
+}
+
+// Booster (Anel/Colar de Gacha): fornece apenas boosts %, sem core stats e sem enchantments
+model Booster {
+  id          String        @id @default(uuid())
+  name        String
+  slug        String        @unique
+  description String        @default("")
+  icon        String?
+  type        String // ring | necklace
+  rarity      String // common | uncommon | rare | epic | legendary | mythic
+  boostType   String // defense | damage | dropChance | xp | gold | classXp
+  boostValue  Int           @default(0) // percentual do boost (limitado pela raridade)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  userBoosters UserBooster[]
+
+  @@index([type])
+  @@index([rarity])
+  @@index([boostType])
+}
+
+model UserBooster {
+  id         String   @id @default(uuid())
+  userId     String
+  boosterId  String
+  quantity   Int      @default(1)
+  equipped   Boolean  @default(false) // equipado: máx. 1 anel + 1 colar
+  acquiredAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booster    Booster  @relation(fields: [boosterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, boosterId])
+  @@index([userId])
+  @@index([equipped])
+}
+
+// Config global do Gacha (uma linha): tickets grátis, custo de ticket extra, chances por raridade e peso Anel vs Colar
+model GachaConfig {
+  id           String   @id @default("gacha")
+  freeTickets  Int      @default(3)
+  ticketCost   BigInt   @default(0) // ouro por ticket extra (0 = não vendável)
+  chances      Json     @default("{}") // { common: 40, uncommon: 25, rare: 15, epic: 10, legendary: 7, mythic: 3 }
+  slotChances  Json     @default("{\"ring\":50,\"necklace\":50}") // peso de sorteio Anel vs Colar
+  active       Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+}
+
+model Inventory {
+  id         String   @id @default(uuid())
+  userId     String
+  itemId     String
+  quantity   Int      @default(1)
+  isEquipped Boolean  @default(false)
+  slotIndex  Int?
+  acquiredAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item       Item     @relation(fields: [itemId], references: [id])
+
+  @@unique([userId, itemId, slotIndex])
+  @@index([userId])
+  @@index([userId, itemId])
+}
+
+model Map {
+  id              String          @id @default(uuid())
+  name            String
+  description     String
+  slug            String          @unique
+  imageUrl        String?
+  region          String
+  requiredLevel   Int             @default(1)
+  requiredQuest   String?
+  isPvPZone       Boolean         @default(false)
+  type            String          @default("normal") // normal | raid
+  eventId         String? // evento dono deste mapa (raids de evento ficam fora da história)
+  raidResetHours  Int? // periodicidade do reset de tentativas (ex: 24)
+  maxRaidAttempts Int? // tentativas por janela de reset
+  raidWaves       Int             @default(10) // nº de ondas do raid
+  raidDifficulty  Float           @default(2.0) // multiplicador de força dos monstros do raid
+  isActive        Boolean         @default(true)
+  sortOrder       Int             @default(0)
+  pinLeft         Float? // posição do pino no mapa mundi (% horizontal de 0 a 100)
+  pinTop          Float? // posição do pino no mapa mundi (% vertical de 0 a 100)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  npcs            MapNpc[]
+  monsters        MapMonster[]
+  connections     MapConnection[]
+  connectedFrom   MapConnection[] @relation("MapConnectionTo")
+  questGivers     Quest[]
+  raidRuns        RaidRun[]
+  event           GameEvent?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([eventId])
+}
+
+model MapConnection {
+  id            String   @id @default(uuid())
+  fromMapId     String
+  toMapId       String
+  requiredLevel Int      @default(1)
+  requiredQuest String?
+  direction     String   @default("bidirectional")
+  createdAt     DateTime @default(now())
+  fromMap       Map      @relation(fields: [fromMapId], references: [id])
+  toMap         Map      @relation("MapConnectionTo", fields: [toMapId], references: [id])
+
+  @@index([fromMapId])
+  @@index([toMapId])
+}
+
+model MapNpc {
+  id        String   @id @default(uuid())
+  mapId     String
+  npcId     String
+  positionX Float    @default(0)
+  positionY Float    @default(0)
+  createdAt DateTime @default(now())
+  map       Map      @relation(fields: [mapId], references: [id])
+  npc       Npc      @relation(fields: [npcId], references: [id])
+
+  @@index([mapId])
+  @@index([mapId, npcId])
+}
+
+model MapMonster {
+  id           String   @id @default(uuid())
+  mapId        String
+  monsterId    String
+  spawnRate    Float    @default(1.0)
+  minLevel     Int      @default(1)
+  maxLevel     Int      @default(1)
+  maxInstances Int      @default(10)
+  respawnTime  Int      @default(15000)
+  positionX    Float?
+  positionY    Float?
+  createdAt    DateTime @default(now())
+  map          Map      @relation(fields: [mapId], references: [id])
+  monster      Monster  @relation(fields: [monsterId], references: [id])
+
+  @@index([mapId])
+}
+
+model Monster {
+  id             String       @id @default(uuid())
+  name           String
+  description    String
+  imageUrl       String?
+  level          Int          @default(1)
+  isBoss         Boolean      @default(false)
+  isElite        Boolean      @default(false)
+  faction        String?
+  element        String?
+  hp             Int          @default(50)
+  mana           Int          @default(20)
+  attack         Int          @default(10)
+  defense        Int          @default(5)
+  magic          Int          @default(5)
+  magicDefense   Int          @default(5)
+  speed          Int          @default(10)
+  criticalChance Float        @default(2.0)
+  criticalDamage Float        @default(150.0)
+  dodge          Float        @default(1.0)
+  accuracy       Float        @default(90.0)
+  xpReward       BigInt       @default(10)
+  classXpReward  BigInt       @default(0) // XP de classe (CXP); 0 = usa o XP normal
+  goldReward     BigInt       @default(5)
+  dropTable      String?
+  attackSpeed    Int          @default(2000)
+  skills         String?
+  behavior       String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  mapMonsters    MapMonster[]
+  drops          DropItem[]
+}
+
+model DropItem {
+  id           String   @id @default(uuid())
+  monsterId    String
+  itemId       String
+  dropChance   Float    @default(1.0)
+  minQuantity  Int      @default(1)
+  maxQuantity  Int      @default(1)
+  minLevel     Int      @default(1)
+  maxLevel     Int      @default(99)
+  isGuaranteed Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  monster      Monster  @relation(fields: [monsterId], references: [id])
+  item         Item     @relation(fields: [itemId], references: [id])
+
+  @@index([monsterId])
+  @@index([itemId])
 }
 
 model Npc {
-  id            String   @id @default(uuid())
-  npcType       NpcType
-  name          String
-  level         Int      @default(1)
-  hp          Int      @default(50)
-  gold        Int      @default(10)
-isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-
-  shopItems   ShopItem?[]
+  id          String     @id @default(uuid())
+  name        String
+  description String
+  imageUrl    String?
+  type        String
+  dialogue    String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  mapNpcs     MapNpc[]
+  quests      Quest[]    @relation("QuestGiver")
+  shopItems   ShopItem[]
+  actions     NpcAction[]
 }
 
-model CharacterClass {
-  id            String   @id @default(uuid())
-  characterId   String
-  classId       String
-  progress      Int      @default(0)
+model NpcAction {
+  id           String   @id @default(uuid())
+  npcId        String
+  type         String   // shop | quest | dialogue | travel | craft | custom
+  label        String
+  icon         String?
+  order        Int      @default(0)
+  requirements String?  // JSON: { "level"?: number, "rank"?: number, "questIds"?: string[] }
+  target       String?  // ex.: mapId (travel), etc.
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  npc          Npc      @relation(fields: [npcId], references: [id], onDelete: Cascade)
 
-  character  Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  gameClass  GameClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  @@index([npcId])
 }
 
 model ShopItem {
+  id               String       @id @default(uuid())
+  npcId            String
+  itemId           String? // vende um Item (null quando vende encantamento)
+  enchantmentId    String? // vende um Enchantment direto (userEnchantment)
+  price            BigInt
+  currency         String       @default("gold")
+  stock            Int          @default(-1) // -1 = infinito
+  sold             Int          @default(0) // unidades já vendidas
+  rotationDays     Int          @default(0)
+  classId          String? // classe restrita (null = qualquer classe)
+  requiredLevel    Int          @default(0)
+  requiredVip      Boolean      @default(false) // exclusivo para VIP
+  requiredQuestIds String? // JSON: ids de quests que o jogador precisa ter concluído
+  createdAt        DateTime     @default(now())
+  npc              Npc          @relation(fields: [npcId], references: [id])
+  item             Item?        @relation(fields: [itemId], references: [id])
+  enchantment      Enchantment? @relation(fields: [enchantmentId], references: [id])
+  class            GameClass?   @relation(fields: [classId], references: [id])
+
+  @@index([npcId])
+}
+
+model Quest {
+  id               String          @id @default(uuid())
+  title            String
+  description      String
+  type             String
+  difficulty       String
+  requiredLevel    Int             @default(1)
+  requiredRank     Int             @default(1)
+  giverNpcId       String?
+  mapId            String?
+  eventId          String?
+  isRepeatable     Boolean         @default(false)
+  cooldownType     String?
+  period           String? // "daily" | "weekly" | "monthly" (null = quest normal)
+  cycleKey         String? // ciclo em que está ativa (ex.: "d:2026-08-15", "w:2026-W33", "m:2026-08")
+  isActive         Boolean         @default(true)
+  sortOrder        Int             @default(0)
+  requiredQuestIds String?
+  objectives       String          @default("[]")
+  xpReward         BigInt          @default(0)
+  goldReward       BigInt          @default(0)
+  itemRewards      String?
+  choiceRewards    String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  giverNpc         Npc?            @relation("QuestGiver", fields: [giverNpcId], references: [id])
+  map              Map?            @relation(fields: [mapId], references: [id])
+  event            GameEvent?      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  progress         QuestProgress[]
+
+  @@index([type])
+  @@index([giverNpcId])
+  @@index([eventId])
+}
+
+model QuestProgress {
+  id          String    @id @default(uuid())
+  userId      String
+  questId     String
+  status      String    @default("active")
+  progress    String    @default("{}")
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  claimedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest       Quest     @relation(fields: [questId], references: [id])
+
+  @@unique([userId, questId])
+  @@index([userId])
+  @@index([userId, questId, status])
+}
+
+model Guild {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  tag         String        @unique
+  description String
+  icon        String?
+  level       Int           @default(1)
+  experience  BigInt        @default(0)
+  gold        BigInt        @default(0)
+  memberCount Int           @default(0)
+  maxMembers  Int           @default(50)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  members     GuildMember[]
+  bank        GuildBank[]
+  perks       GuildPerk[]
+  quests      GuildQuest[]
+  rank        GuildRanking?
+  shop        GuildShopItem[]
+
+  @@index([name])
+  @@index([tag])
+  @@index([level])
+}
+
+model GuildMember {
+  id           String   @id @default(uuid())
+  guildId      String
+  userId       String
+  role         String   @default("member") // leader | officer | member
+  rank         Int      @default(1) // nível do membro dentro da guilda
+  contribution BigInt   @default(0) // pontos de contribuição (usados no shop da guilda)
+  joinedAt     DateTime @default(now())
+  guild        Guild    @relation(fields: [guildId], references: [id])
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId])
+  @@index([userId])
+}
+
+model GuildBank {
+  id        String   @id @default(uuid())
+  guildId   String
+  gold      BigInt   @default(0)
+  items     String?
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id])
+
+  @@index([guildId])
+}
+
+model GuildShopItem {
+  id        String    @id @default(uuid())
+  guildId   String? // null = shop GLOBAL (mesmo shop para todas as guildas)
+  itemId    String
+  price     BigInt    @default(0) // custo em pontos de contribuição
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  guild     Guild?    @relation(fields: [guildId], references: [id])
+  item      Item      @relation(fields: [itemId], references: [id])
+
+  @@index([guildId])
+}
+
+model GuildPerk {
+  id            String    @id @default(uuid())
+  guildId       String
+  perkType      String
+  perkValue     Float
+  levelRequired Int       @default(1)
+  activeUntil   DateTime?
+  createdAt     DateTime  @default(now())
+  guild         Guild     @relation(fields: [guildId], references: [id])
+
+  @@index([guildId])
+}
+
+model GuildQuest {
+    id          String    @id @default(uuid())
+    guildId     String
+    title       String
+    description String
+    objectives  String
+    type        String    @default("kill") // kill | collect | pvp
+    targetId    String? // monsterId (kill) ou itemId (collect); null para pvp
+    targetName  String? // nome do alvo para exibição
+    targetCount Int       @default(1)
+    xpReward    BigInt
+    goldReward  BigInt
+    gcReward    BigInt    @default(0)
+    progress    Json      @default("{}") // { "<userId>": { "count": n, "claimed": bool } }
+    expiresAt   DateTime?
+    isActive    Boolean   @default(true)
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+    guild       Guild     @relation(fields: [guildId], references: [id])
+
+  @@index([guildId])
+}
+
+model GuildRanking {
+  id        String   @id @default(uuid())
+  guildId   String   @unique
+  rank      Int      @default(0)
+  score     BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id])
+
+  @@index([rank])
+}
+
+model MarketListing {
+  id        String    @id @default(uuid())
+  sellerId  String
+  itemId    String
+  quantity  Int       @default(1)
+  price     BigInt
+  currency  String    @default("gold")
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  seller    User      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  item      Item      @relation(fields: [itemId], references: [id])
+
+  @@index([sellerId])
+  @@index([itemId])
+  @@index([status])
+  @@index([price])
+}
+
+model Mail {
+  id         String     @id @default(uuid())
+  senderId   String
+  receiverId String
+  subject    String
+  body       String?
+  isRead     Boolean    @default(false)
+  hasItems   Boolean    @default(false)
+  hasGold    Boolean    @default(false)
+  goldAmount BigInt     @default(0)
+  sentAt     DateTime   @default(now())
+  expiresAt  DateTime?
+  sender     User       @relation("MailSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User       @relation("MailReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  items      MailItem[] @relation()
+
+  @@index([receiverId])
+  @@index([receiverId, isRead])
+}
+
+model MailItem {
+  id       String @id @default(uuid())
+  mailId   String
+  itemId   String
+  quantity Int    @default(1)
+  mail     Mail   @relation(fields: [mailId], references: [id], onDelete: Cascade)
+  item     Item   @relation(fields: [itemId], references: [id])
+
+  @@index([mailId])
+}
+
+model Title {
+  id           String      @id @default(uuid())
+  name         String
+  description  String
+  requirements String?
+  statBonuses  String?
+  isHidden     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  userTitles   UserTitle[]
+}
+
+model UserTitle {
+  id         String   @id @default(uuid())
+  userId     String
+  titleId    String
+  isActive   Boolean  @default(false)
+  unlockedAt DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      Title    @relation(fields: [titleId], references: [id])
+
+  @@unique([userId, titleId])
+  @@index([userId])
+}
+
+model Achievement {
+  id               String            @id @default(uuid())
+  name             String
+  description      String
+  icon             String?
+  category         String
+  requirements     String?
+  xpReward         BigInt            @default(0)
+  itemRewards      String?
+  isHidden         Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  achievementId String
+  progress      Float       @default(0)
+  isCompleted   Boolean     @default(false)
+  completedAt   DateTime?
+  unlockedAt    DateTime    @default(now())
+  user          User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userId    String
+  friendId  String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+}
+
+model Party {
+  id          String        @id @default(uuid())
+  leaderId    String
+  name        String?
+  maxMembers  Int           @default(5)
+  isPrivate   Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  disbandedAt DateTime?
+  members     PartyMember[]
+}
+
+model PartyMember {
+  id       String   @id @default(uuid())
+  partyId  String
+  userId   String
+  joinedAt DateTime @default(now())
+  party    Party    @relation(fields: [partyId], references: [id])
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([partyId, userId])
+  @@index([partyId])
+}
+
+model GameEvent {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String
+  type        String // raid | quest | festival | season...
+  imageUrl    String?
+  levelMin    Int      @default(1)
+  levelMax    Int?
+  xpBonus     Int      @default(0) // % extra de XP dentro do evento
+  goldBonus   Int      @default(0) // % extra de gold dentro do evento
+  dropBonus   Int      @default(0) // % extra de chance de drop dentro do evento
+  sortOrder   Int      @default(0)
+  startsAt    DateTime
+  endsAt      DateTime
+  rewards     String?
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quests   Quest[]
+  items    Item[]
+  maps     Map[]
+  shopItems EventShopItem[]
+  craftRecipes CraftRecipe[]
+
+  @@index([startsAt, endsAt])
+  @@index([isActive])
+}
+
+model EventShopItem {
   id            String   @id @default(uuid())
-  npcId         String?
+  eventId       String
   itemId        String
-  price         Int
-  stock         Int
+  currency      String   @default("gold") // gold (diamond não usado em eventos)
+  price         BigInt   @default(0)
+  stock         Int      @default(-1) // -1 = infinito
+  requiredLevel Int      @default(1)
+  requiredVip   Boolean  @default(false)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  npc    Npc @relation(fields: [npcId], references: [id], onDelete: SetNull)
-  item   Item @relation(fields: [itemId], references: [id])
+  event GameEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  item  Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([itemId])
+}
+
+model Season {
+  id          String       @id @default(uuid())
+  name        String
+  description String
+  startsAt    DateTime
+  endsAt      DateTime
+  isActive    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  passes      SeasonPass[]
+  tiers       SeasonTier[]
+}
+
+model SeasonPass {
+  id           String   @id @default(uuid())
+  seasonId     String
+  userId       String
+  isPremium    Boolean  @default(false)
+  level        Int      @default(1)
+  experience   BigInt   @default(0)
+  claimedTiers String   @default("[]")
+  purchasedAt  DateTime @default(now())
+  season       Season   @relation(fields: [seasonId], references: [id])
+
+  @@unique([seasonId, userId])
+  @@index([seasonId])
+  @@index([userId])
+}
+
+model SeasonTier {
+  id             String   @id @default(uuid())
+  seasonId       String
+  level          Int
+  freeRewards    String
+  premiumRewards String
+  createdAt      DateTime @default(now())
+  season         Season   @relation(fields: [seasonId], references: [id])
+
+  @@index([seasonId, level])
+}
+
+model CombatLog {
+  id          String   @id @default(uuid())
+  characterId String
+  targetId    String
+  action      String
+  value       Int
+  isCritical  Boolean  @default(false)
+  isDodged    Boolean  @default(false)
+  isBlocked   Boolean  @default(false)
+  skillId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([characterId])
+  @@index([createdAt])
+}
+
+model ChatLog {
+  id        String   @id @default(uuid())
+  userId    String
+  channel   String
+  message   String
+  targetId  String?
+  createdAt DateTime @default(now())
+
+  @@index([channel])
+  @@index([createdAt])
+}
+
+model GameLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Log de ações de moderação no painel admin (delete com tipo 10/20/30/40/50)
+model AdminLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String   // delete | soft_delete
+  entity    String   // item, class, user, code...
+  targetId  String
+  tipo      Int      @default(0) // motivo/severidade da exclusão
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  eventType String
+  userId    String?
+  sessionId String?
+  data      String
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model RedeemCode {
+  id          String             @id @default(uuid())
+  code        String             @unique
+  description String?
+gold        BigInt             @default(0)
+    sfCoins     Int                @default(0)
+  experience  BigInt             @default(0)
+  items       Json               @default("[]") // [{ "itemSlug": "pocao-de-vida", "quantity": 5 }]
+  maxUses     Int                @default(1000)
+  uses        Int                @default(0)
+  expiresAt   DateTime?
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  redemptions RedeemRedemption[]
+
+  @@index([code])
+}
+
+model RedeemRedemption {
+  id         String     @id @default(uuid())
+  codeId     String
+  userId     String
+  redeemedAt DateTime   @default(now())
+  code       RedeemCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([codeId, userId])
+  @@index([userId])
+}
+
+model ShopProduct {
+  id            String       @id @default(uuid())
+  slug          String       @unique
+  name          String
+  description   String
+type          String       @default("sf_coins_pack") // sf_coins_pack | vip | pass_premium | item | class | gold_pack | gacha_ticket
+currency      String       @default("sf_coins") // sf_coins | money | gold | pvp_coins
+    price         Int          @default(0) // custo em SF Coins, centavos (moeda real), ouro ou PVP Coins
+    sfCoinAmount  Int          @default(0) // SF Coins entregues (sf_coins_pack)
+  vipDays       Int          @default(0) // dias de VIP entregues (vip)
+  goldAmount    Int          @default(0) // ouro entregue (gold_pack)
+  gachaTickets  Int          @default(0) // tickets de gacha entregues (gacha_ticket)
+  enchantmentId String?
+  itemId        String? // item entregue (type=item)
+  classId       String? // classe desbloqueada (type=class)
+  quantity      Int          @default(1) // quantidade entregue (type=item)
+  stock         Int          @default(-1) // -1 = infinito
+  sold          Int          @default(0) // unidades já vendidas
+  requiredLevel Int          @default(0) // nível mínimo do personagem para comprar
+  requiredVip   Boolean      @default(false) // exclusivo para VIP
+  requiredQuestIds String? // JSON: ids de quests que o jogador precisa ter concluído
+  icon          String?
+  isActive      Boolean      @default(true)
+  sortOrder     Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  orders        ShopOrder[]  @relation()
+  enchantment   Enchantment? @relation(fields: [enchantmentId], references: [id])
+  item          Item?        @relation(fields: [itemId], references: [id])
+  gameClass     GameClass?   @relation(fields: [classId], references: [id])
+
+  @@index([type])
+}
+
+model ShopOrder {
+  id        String       @id @default(uuid())
+  userId    String
+  productId String?
+  type      String
+  amount    Int          @default(0) // diamantes/dias entregues
+  price     Int          @default(0)
+  currency  String       @default("diamond")
+  status    String       @default("paid") // paid | pending | refunded
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   ShopProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([productId])
+}
+
+// ── World Boss ──
+model WorldBoss {
+  id            String   @id @default(uuid())
+  name          String
+  description   String
+  slug          String   @unique
+  imageUrl      String?
+  requiredLevel Int      @default(1)
+  hp            Int      @default(100000)
+  maxHp         Int      @default(100000)
+  attack        Int      @default(500)
+  defense       Int      @default(100)
+  xpReward      Int      @default(10000)
+  goldReward    Int      @default(5000)
+  // Mecânicas
+  phases        Json     @default("[]") // [{name, hpThreshold, mechanics}]
+  abilities     Json     @default("[]") // [{name, damage, cooldown, type}]
+  // Temporização
+  spawnInterval Int      @default(3600) // segundos entre spawns (1h padrão)
+  duration      Int      @default(1800) // tempo para derrotar (30min)
+  maxPlayers    Int      @default(30)   // máx jogadores simultâneos
+  // Recompensas
+  dropTable     Json     @default("[]") // [{itemName, chance, minQty, maxQty, isGuaranteed}]
+  // Estado
+  currentHp     Int      @default(0)
+  isAlive       Boolean  @default(false)
+  lastSpawnAt   DateTime?
+  lastDefeatedAt DateTime?
+  spawnCount    Int      @default(0)
+  killCount     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  participations WorldBossParticipation[]
+}
+
+model WorldBossParticipation {
+  id            String    @id @default(uuid())
+  worldBossId   String
+  characterId   String
+  damageDealt   Int       @default(0)
+  healingDone   Int       @default(0)
+  joinedAt      DateTime  @default(now())
+  lastActionAt  DateTime  @default(now())
+  isAlive       Boolean   @default(true)
+  rewards       Json?     // {xp, gold, items}
+  worldBoss     WorldBoss @relation(fields: [worldBossId], references: [id], onDelete: Cascade)
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([worldBossId, characterId])
+  @@index([worldBossId])
+  @@index([characterId])
+}
+
+// ── Set System ──
+model SetEffect {
+  id          String   @id @default(uuid())
+  setId       String   @unique
+  name        String
+  description String
+  // Efeito especial do set (3/3) — ex: proc, buff, proc dano, escudo, etc
+  effectType  String   // proc_damage | shield | lifesteal | buff | debuff | heal | etc
+  effectConfig Json    // {chance: 0.05, damageMultiplier: 2.5, duration: 5, ...}
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ── AI Master (Autonomous World Builder) ──
+model AiMasterState {
+  id          String         @id @default("master")
+  isRunning   Boolean        @default(true)
+  lore        String         @default("")
+  cycleCount  Int            @default(0)
+  worldState  Json?
+  lastCycleAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  logs        AiMasterLog[]
+}
+
+model AiMasterLog {
+  id        String        @id @default(uuid())
+  stateId   String
+  cycle     Int
+  action    String
+  details   Json?
+  createdAt DateTime      @default(now())
+  state     AiMasterState @relation(fields: [stateId], references: [id], onDelete: Cascade)
+
+  @@index([stateId])
 }

@@ -1,7 +1,7 @@
 // ===== NPC GENERATOR =====
 
 import { PrismaClient } from "@prisma/client";
-import { callHFProviders } from "../hfProviders";
+import { callHFProviders } from "./hfProviders";
 
 export interface GeneratedNPCs {
   npcs: any[];
@@ -57,7 +57,7 @@ REGRAS:
 - Tipos válidos: vendor, shop, enchantments, classes, quest_giver, quest, dialogue, travel, guild
 - Um NPC pode ter múltiplas ações (shop + quest + dialogue)
 - actions[].target: UUID da shop, quest, mapa, ou null
-- mapId: UUID do mapa onde o NPC fica, ou null se for global`};
+- mapId: UUID do mapa onde o NPC fica, ou null se for global`;
 }
 
 export function normalize(raw: any): { npcs: any[]; errors: string[] } {
@@ -114,7 +114,7 @@ export async function persistGeneratedNpcs(gen: any, context: { mapId?: string }
 }
 
 export async function generateNpcs(idea: string, providerLog: string[], mapsHint: string, itemsHint: string, enchantmentsHint: string) {
-  const { callHFProviders } = await import("../hfProviders");
+  const { callHFProviders } = await import("./hfProviders");
 
   const prompt = buildPrompt(idea, mapsHint, itemsHint, enchantmentsHint);
   const fullPrompt = `${prompt}\n\nIMPORTANTE: Responda APENAS com JSON válido.`;
