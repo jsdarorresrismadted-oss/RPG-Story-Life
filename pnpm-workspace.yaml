@@ -1,0 +1,6 @@
+packages:
+  - packages/shared
+  - packages/database
+  - packages/backend
+  - packages/frontend
+  - packages/admin

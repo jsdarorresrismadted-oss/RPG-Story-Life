@@ -1,0 +1,144 @@
+// ===== PRISMA SCHEMA v2 - WORKING VERSION =====
+// RPG Story Life - Database Schema (simplified for validation)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== ENUMS (unique names only) =====
+
+enum ItemType {
+  weapon
+  armor
+  cape
+  consumable
+}
+
+enum Rarity {
+  common
+  uncommon
+  rare
+}
+
+enum NpcType {
+  vendor
+  quest_giver
+}
+
+enum QuestType {
+  main
+  side
+}
+
+enum CharacterClassEnum {
+  warrior
+  mage
+  rogue
+}
+
+// ===== MODELS (simple version) =====
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  password     String
+  displayName  String?  @default("Player")
+  role         String   @default("player")
+  isOnline     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  characters   Character[]
+  inventory    Inventory[]
+}
+
+model Character {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  level       Int      @default(1)
+  hp          Int      @default(100)
+  mana        Int      @default(50)
+  classId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameClass   GameClass @relation(fields: [classId], references: [id], onDelete: SetNull)
+  characterClass   CharacterClass[]
+}
+
+model GameClass {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  createdAt   DateTime @default(now())
+
+  characters  Character[]
+  characterClass   CharacterClass[]
+}
+
+model Inventory {
+  id            String   @id @default(uuid())
+  characterId   String
+  slotIndex     Int
+  itemId        String
+  quantity      Int      @default(1)
+  isEquipped    Boolean  @default(false)
+
+  character     User      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  item          Item?     @relation(fields: [itemId], references: [id])
+}
+
+model Item {
+  id            String   @id @default(uuid())
+  type          ItemType
+  rarity        Rarity   @default(common)
+  name          String
+  price         Int
+  isTradable    Boolean  @default(true)
+  inventory   Inventory[]
+
+  createdAt     DateTime @default(now())
+}
+
+model Npc {
+  id            String   @id @default(uuid())
+  npcType       NpcType
+  name          String
+  level         Int      @default(1)
+  hp          Int      @default(50)
+  gold        Int      @default(10)
+isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  shopItems   ShopItem?[]
+}
+
+model CharacterClass {
+  id            String   @id @default(uuid())
+  characterId   String
+  classId       String
+  progress      Int      @default(0)
+
+  character  Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  gameClass  GameClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+}
+
+model ShopItem {
+  id            String   @id @default(uuid())
+  npcId         String?
+  itemId        String
+  price         Int
+  stock         Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  npc    Npc @relation(fields: [npcId], references: [id], onDelete: SetNull)
+  item   Item @relation(fields: [itemId], references: [id])
+}
